@@ -1,0 +1,54 @@
+/** Weld status workflow */
+export const WELD_STATUS = {
+  NOT_STARTED: "not_started",
+  WELDED: "welded",
+  NDT_COMPLETE: "ndt_complete",
+  FINALIZED: "finalized",
+};
+
+export const WELD_STATUS_LABELS = {
+  [WELD_STATUS.NOT_STARTED]: "Not started",
+  [WELD_STATUS.WELDED]: "Welded",
+  [WELD_STATUS.NDT_COMPLETE]: "NDT complete",
+  [WELD_STATUS.FINALIZED]: "Finalized",
+};
+
+/** Weld point types (shape/icon) */
+export const WELD_TYPES = {
+  BUTT: "butt",
+  FILLET: "fillet",
+  SOCKET: "socket",
+  TEE: "tee",
+  LAP: "lap",
+};
+
+export const WELD_TYPE_LABELS = {
+  [WELD_TYPES.BUTT]: "Butt",
+  [WELD_TYPES.FILLET]: "Fillet",
+  [WELD_TYPES.SOCKET]: "Socket",
+  [WELD_TYPES.TEE]: "Tee",
+  [WELD_TYPES.LAP]: "Lap",
+};
+
+/** NDT requirement options for weld */
+export const NDT_REQUIRED_OPTIONS = {
+  YES: "yes",
+  NO: "no",
+  AUTO: "auto",
+};
+
+export const NDT_REQUIRED_LABELS = {
+  [NDT_REQUIRED_OPTIONS.YES]: "Yes",
+  [NDT_REQUIRED_OPTIONS.NO]: "No",
+  [NDT_REQUIRED_OPTIONS.AUTO]: "Auto (from drawing)",
+};
+
+/** Drawing-level NDT presets */
+export const DRAWING_NDT_PRESETS = [
+  { id: "10_pct_mpi", label: "10% MPI", pct: 10, method: "MPI" },
+  { id: "100_pct_mpi", label: "100% MPI", pct: 100, method: "MPI" },
+  { id: "10_pct_rt", label: "10% RT", pct: 10, method: "RT" },
+  { id: "100_pct_rt", label: "100% RT", pct: 100, method: "RT" },
+  { id: "100_pct_ut", label: "100% UT", pct: 100, method: "UT" },
+  { id: "vt_only", label: "VT only", pct: 100, method: "VT" },
+];

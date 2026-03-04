@@ -1,0 +1,28 @@
+{
+  "type": "module",
+  "name": "weld-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "postinstall": "node scripts/copy-worker.cjs"
+  },
+  "dependencies": {
+    "next": "14.2.15",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-pdf": "^7.7.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.20",
+    "daisyui": "^4.12.14",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "14.2.15",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.15"
+  }
+}
