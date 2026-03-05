@@ -14,6 +14,7 @@ function WeldOverlay({
         <WeldPointMarker
           key={weld.id}
           weld={weld}
+          weldPoints={weldPoints}
           onClick={onWeldClick}
           isSelected={weld.id === selectedWeldId}
           isRelocating={isRelocating}

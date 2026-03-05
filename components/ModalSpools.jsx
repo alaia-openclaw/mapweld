@@ -1,5 +1,6 @@
 "use client";
 
+import { getWeldName } from "@/lib/weld-utils";
 import { useState } from "react";
 
 function generateSpoolId() {
@@ -184,7 +185,7 @@ function ModalSpools({
                         onChange={() => toggleWeldSelection(w.id)}
                       />
                       <span className="text-sm truncate">
-                        {w.id} {w.welderName ? `(${w.welderName})` : ""}
+                        {getWeldName(w, weldPoints)} {w.welderName ? `(${w.welderName})` : ""}
                       </span>
                       {spools.find((s) => s.id === w.spoolId) && (
                         <span className="badge badge-ghost badge-sm">

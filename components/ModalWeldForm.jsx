@@ -16,6 +16,7 @@ function ModalWeldForm({
   onClose,
   onSave,
   onMove,
+  onRepositionIndicator,
   onDelete,
   spools = [],
   ndtAutoLabel,
@@ -297,7 +298,19 @@ function ModalWeldForm({
                   onClose?.();
                 }}
               >
-                Move on map
+                Move weld on map
+              </button>
+            )}
+            {onRepositionIndicator && (
+              <button
+                type="button"
+                className="btn btn-outline min-h-12"
+                onClick={() => {
+                  onRepositionIndicator?.();
+                  onClose?.();
+                }}
+              >
+                Reposition indicator
               </button>
             )}
             {onDelete && (

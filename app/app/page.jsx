@@ -22,6 +22,7 @@ import {
   generateProjectId,
 } from "@/lib/offline-storage";
 import { createDefaultWeld } from "@/lib/defaults";
+import { getWeldName } from "@/lib/weld-utils";
 import { formatNdtRequirements } from "@/lib/constants";
 import * as XLSX from "xlsx";
 
@@ -49,6 +50,7 @@ export default function WeldTrackerApp() {
   const [selectedWeldId, setSelectedWeldId] = useState(null);
   const [formWeld, setFormWeld] = useState(null);
   const [isRelocating, setIsRelocating] = useState(false);
+  const [isRepositioningIndicator, setIsRepositioningIndicator] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showSpools, setShowSpools] = useState(false);
   const [showProjects, setShowProjects] = useState(false);
@@ -67,6 +69,7 @@ export default function WeldTrackerApp() {
     setDrawingSettings({ ndtRequirements: [], weldingSpec: "" });
     setSelectedWeldId(null);
     setIsRelocating(false);
+    setIsRepositioningIndicator(false);
     setProjectId(generateProjectId());
   }, [pdfBlob]);
 
@@ -115,6 +118,8 @@ export default function WeldTrackerApp() {
         id: generateId(),
         xPercent,
         yPercent,
+        indicatorXPercent: xPercent,
+        indicatorYPercent: yPercent,
         pageNumber: pageNumber ?? 0,
       };
       setWeldPoints((prev) => [...prev, newWeld]);
@@ -179,6 +184,7 @@ export default function WeldTrackerApp() {
     setFormWeld(null);
     setSelectedWeldId(null);
     setIsRelocating(false);
+    setIsRepositioningIndicator(false);
   }, []);
 
   const handleMoveWeld = useCallback((weld) => {
@@ -204,6 +210,22 @@ export default function WeldTrackerApp() {
       );
       setSelectedWeldId(null);
       setIsRelocating(false);
+    },
+    [selectedWeldId]
+  );
+
+  const handleRepositionIndicator = useCallback(
+    ({ xPercent, yPercent }) => {
+      if (!selectedWeldId) return;
+      setWeldPoints((prev) =>
+        prev.map((w) =>
+          w.id === selectedWeldId
+            ? { ...w, indicatorXPercent: xPercent, indicatorYPercent: yPercent }
+            : w
+        )
+      );
+      setSelectedWeldId(null);
+      setIsRepositioningIndicator(false);
     },
     [selectedWeldId]
   );
@@ -238,6 +260,7 @@ export default function WeldTrackerApp() {
     setFormWeld(null);
     setSelectedWeldId(null);
     setIsRelocating(false);
+    setIsRepositioningIndicator(false);
     setProjectId(data.id);
   }, [pdfBlob]);
 
@@ -300,6 +323,7 @@ export default function WeldTrackerApp() {
       setFormWeld(null);
       setSelectedWeldId(null);
       setIsRelocating(false);
+      setIsRepositioningIndicator(false);
       setProjectId(generateProjectId());
     } catch (err) {
       alert(err.message || "Failed to load project");
@@ -308,7 +332,7 @@ export default function WeldTrackerApp() {
 
   const handleExportExcel = useCallback(() => {
     const rows = weldPoints.map((w) => ({
-      ID: w.id,
+      ID: getWeldName(w, weldPoints),
       "Weld Type": w.weldType || "",
       Location: w.weldLocation === "field" ? "Field" : "Shop",
       "X %": w.xPercent?.toFixed(2),
@@ -358,13 +382,20 @@ export default function WeldTrackerApp() {
       <div className="relative bg-base-100 rounded-lg overflow-hidden shadow">
         {pdfBlob ? (
           <>
-            {isRelocating && (
+            {(isRelocating || isRepositioningIndicator) && (
               <div className="alert alert-info mx-4 mt-2">
-                <span>Click on the drawing to move the selected weld point</span>
+                <span>
+                  {isRepositioningIndicator
+                    ? "Click on the drawing to reposition the indicator bubble"
+                    : "Click on the drawing to move the selected weld point"}
+                </span>
                 <button
                   type="button"
                   className="btn btn-sm btn-ghost"
-                  onClick={() => setIsRelocating(false)}
+                  onClick={() => {
+                    setIsRelocating(false);
+                    setIsRepositioningIndicator(false);
+                  }}
                 >
                   Cancel
                 </button>
@@ -379,11 +410,13 @@ export default function WeldTrackerApp() {
               pdfBlob={pdfBlob}
               onPageClick={handlePageClick}
               onRelocateClick={handleRelocateWeld}
+              onRepositionIndicator={handleRepositionIndicator}
               containerRef={containerRef}
               weldPoints={weldPoints}
               selectedWeldId={selectedWeldId}
               onWeldClick={handleWeldClick}
               isRelocating={isRelocating}
+              isRepositioningIndicator={isRepositioningIndicator}
               spoolMarkers={spoolMarkers}
               spools={spools}
               onDeleteSpoolMarker={handleDeleteSpoolMarker}
@@ -404,6 +437,10 @@ export default function WeldTrackerApp() {
         onClose={handleCloseForm}
         onSave={handleSaveWeld}
         onMove={handleMoveWeld}
+        onRepositionIndicator={() => {
+          setFormWeld(null);
+          setIsRepositioningIndicator(true);
+        }}
         onDelete={handleDeleteWeld}
         spools={spools}
         ndtAutoLabel={formatNdtRequirements(drawingSettings.ndtRequirements)}

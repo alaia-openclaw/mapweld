@@ -15,12 +15,14 @@ function PDFViewer({
   pdfBlob,
   onPageClick,
   onRelocateClick,
+  onRepositionIndicator,
   containerRef,
   scale: initialScale = 1.2,
   weldPoints = [],
   selectedWeldId,
   onWeldClick,
   isRelocating = false,
+  isRepositioningIndicator = false,
   spoolMarkers = [],
   spools = [],
   onDeleteSpoolMarker,
@@ -57,13 +59,15 @@ function PDFViewer({
       const x = ((e.clientX - rect.left) / rect.width) * 100;
       const y = ((e.clientY - rect.top) / rect.height) * 100;
       const pageIndex = currentPage - 1;
-      if (isRelocating && onRelocateClick) {
+      if (isRepositioningIndicator && onRepositionIndicator) {
+        onRepositionIndicator({ xPercent: x, yPercent: y });
+      } else if (isRelocating && onRelocateClick) {
         onRelocateClick({ xPercent: x, yPercent: y, pageNumber: pageIndex });
       } else {
         onPageClick?.({ xPercent: x, yPercent: y, pageNumber: pageIndex });
       }
     },
-    [onPageClick, onRelocateClick, isRelocating, currentPage]
+    [onPageClick, onRelocateClick, onRepositionIndicator, isRelocating, isRepositioningIndicator, currentPage]
   );
 
   const weldPointsOnPage = weldPoints.filter(
