@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from "react";
 import {
-  WELD_STATUS,
-  WELD_STATUS_LABELS,
   WELD_TYPES,
   WELD_TYPE_LABELS,
+  WELD_LOCATION,
+  WELD_LOCATION_LABELS,
   NDT_REQUIRED_OPTIONS,
   NDT_REQUIRED_LABELS,
 } from "@/lib/constants";
@@ -28,8 +28,8 @@ function ModalWeldForm({
   const [partNumber2, setPartNumber2] = useState("");
   const [heatNumber1, setHeatNumber1] = useState("");
   const [heatNumber2, setHeatNumber2] = useState("");
-  const [status, setStatus] = useState(WELD_STATUS.NOT_STARTED);
   const [weldType, setWeldType] = useState("butt");
+  const [weldLocation, setWeldLocation] = useState("shop");
   const [ndtRequired, setNdtRequired] = useState(NDT_REQUIRED_OPTIONS.AUTO);
   const [visualInspection, setVisualInspection] = useState(false);
   const [spoolId, setSpoolId] = useState("");
@@ -44,8 +44,8 @@ function ModalWeldForm({
       setPartNumber2(weld.partNumber2 || "");
       setHeatNumber1(weld.heatNumber1 || "");
       setHeatNumber2(weld.heatNumber2 || "");
-      setStatus(weld.status || WELD_STATUS.NOT_STARTED);
       setWeldType(weld.weldType || "butt");
+      setWeldLocation(weld.weldLocation || "shop");
       setNdtRequired(weld.ndtRequired || NDT_REQUIRED_OPTIONS.AUTO);
       setVisualInspection(weld.visualInspection || false);
       setSpoolId(weld.spoolId || "");
@@ -64,8 +64,8 @@ function ModalWeldForm({
       partNumber2,
       heatNumber1,
       heatNumber2,
-      status,
       weldType,
+      weldLocation,
       ndtRequired,
       visualInspection,
       spoolId: spoolId || null,
@@ -77,21 +77,21 @@ function ModalWeldForm({
 
   return (
     <dialog open={isOpen} className="modal modal-open">
-      <div className="modal-box max-h-[90vh] overflow-y-auto">
+      <div className="modal-box w-full max-w-none h-[100dvh] max-h-[100dvh] rounded-none md:w-auto md:max-w-2xl md:max-h-[90vh] md:h-auto md:rounded-lg overflow-y-auto">
         <h3 className="font-bold text-lg">Weld info</h3>
         <form onSubmit={handleSubmit}>
           <div className="grid grid-cols-2 gap-4 mt-4">
             <div className="form-control">
-              <label className="label" htmlFor="status">
-                <span className="label-text">Status</span>
+              <label className="label" htmlFor="weldType">
+                <span className="label-text">Weld type</span>
               </label>
               <select
-                id="status"
-                className="select select-bordered"
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
+                id="weldType"
+                className="select select-bordered min-h-12"
+                value={weldType}
+                onChange={(e) => setWeldType(e.target.value)}
               >
-                {Object.entries(WELD_STATUS_LABELS).map(([k, v]) => (
+                {Object.entries(WELD_TYPE_LABELS).map(([k, v]) => (
                   <option key={k} value={k}>
                     {v}
                   </option>
@@ -99,16 +99,16 @@ function ModalWeldForm({
               </select>
             </div>
             <div className="form-control">
-              <label className="label" htmlFor="weldType">
-                <span className="label-text">Weld type</span>
+              <label className="label" htmlFor="weldLocation">
+                <span className="label-text">Location</span>
               </label>
               <select
-                id="weldType"
-                className="select select-bordered"
-                value={weldType}
-                onChange={(e) => setWeldType(e.target.value)}
+                id="weldLocation"
+                className="select select-bordered min-h-12"
+                value={weldLocation}
+                onChange={(e) => setWeldLocation(e.target.value)}
               >
-                {Object.entries(WELD_TYPE_LABELS).map(([k, v]) => (
+                {Object.entries(WELD_LOCATION_LABELS).map(([k, v]) => (
                   <option key={k} value={k}>
                     {v}
                   </option>
@@ -126,7 +126,7 @@ function ModalWeldForm({
               <input
                 id="welderName"
                 type="text"
-                className="input input-bordered"
+                className="input input-bordered min-h-12"
                 value={welderName}
                 onChange={(e) => setWelderName(e.target.value)}
                 placeholder="e.g. John D."
@@ -139,7 +139,7 @@ function ModalWeldForm({
               <input
                 id="weldingDate"
                 type="date"
-                className="input input-bordered"
+                className="input input-bordered min-h-12"
                 value={weldingDate}
                 onChange={(e) => setWeldingDate(e.target.value)}
               />
@@ -155,7 +155,7 @@ function ModalWeldForm({
               <input
                 id="fitterName"
                 type="text"
-                className="input input-bordered"
+                className="input input-bordered min-h-12"
                 value={fitterName}
                 onChange={(e) => setFitterName(e.target.value)}
                 placeholder="e.g. Jane S."
@@ -168,7 +168,7 @@ function ModalWeldForm({
               <input
                 id="dateFitUp"
                 type="date"
-                className="input input-bordered"
+                className="input input-bordered min-h-12"
                 value={dateFitUp}
                 onChange={(e) => setDateFitUp(e.target.value)}
               />
@@ -184,7 +184,7 @@ function ModalWeldForm({
               <input
                 id="partNumber1"
                 type="text"
-                className="input input-bordered"
+                className="input input-bordered min-h-12"
                 value={partNumber1}
                 onChange={(e) => setPartNumber1(e.target.value)}
                 placeholder="e.g. P001"
@@ -197,7 +197,7 @@ function ModalWeldForm({
               <input
                 id="heatNumber1"
                 type="text"
-                className="input input-bordered"
+                className="input input-bordered min-h-12"
                 value={heatNumber1}
                 onChange={(e) => setHeatNumber1(e.target.value)}
                 placeholder="e.g. H12345"
@@ -210,7 +210,7 @@ function ModalWeldForm({
               <input
                 id="partNumber2"
                 type="text"
-                className="input input-bordered"
+                className="input input-bordered min-h-12"
                 value={partNumber2}
                 onChange={(e) => setPartNumber2(e.target.value)}
                 placeholder="e.g. P002"
@@ -223,7 +223,7 @@ function ModalWeldForm({
               <input
                 id="heatNumber2"
                 type="text"
-                className="input input-bordered"
+                className="input input-bordered min-h-12"
                 value={heatNumber2}
                 onChange={(e) => setHeatNumber2(e.target.value)}
                 placeholder="e.g. H12346"
@@ -239,7 +239,7 @@ function ModalWeldForm({
               </label>
               <select
                 id="ndtRequired"
-                className="select select-bordered"
+                className="select select-bordered min-h-12"
                 value={ndtRequired}
                 onChange={(e) => setNdtRequired(e.target.value)}
               >
@@ -272,8 +272,8 @@ function ModalWeldForm({
                 </label>
                 <select
                   id="spoolId"
-                  className="select select-bordered"
-                  value={spoolId}
+                className="select select-bordered min-h-12"
+                value={spoolId}
                   onChange={(e) => setSpoolId(e.target.value)}
                 >
                   <option value="">None</option>
@@ -291,7 +291,7 @@ function ModalWeldForm({
             {onMove && (
               <button
                 type="button"
-                className="btn btn-outline btn-sm"
+                className="btn btn-outline min-h-12"
                 onClick={() => {
                   onMove?.(weld);
                   onClose?.();
@@ -303,7 +303,7 @@ function ModalWeldForm({
             {onDelete && (
               <button
                 type="button"
-                className="btn btn-error btn-outline btn-sm"
+                className="btn btn-error btn-outline min-h-12"
                 onClick={() => {
                   if (confirm("Delete this weld point?")) {
                     onDelete?.(weld);
@@ -315,10 +315,10 @@ function ModalWeldForm({
               </button>
             )}
             <div className="flex-1" />
-            <button type="button" className="btn btn-ghost" onClick={onClose}>
+            <button type="button" className="btn btn-ghost min-h-12" onClick={onClose}>
               Cancel
             </button>
-            <button type="submit" className="btn btn-primary">
+            <button type="submit" className="btn btn-primary min-h-12">
               Save
             </button>
           </div>
