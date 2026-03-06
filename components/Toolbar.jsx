@@ -12,7 +12,7 @@ function Toolbar({
   onSaveProject,
   onExportExcel,
   onOpenSettings,
-  onOpenSpools,
+  onOpenPersonnel,
   onOpenProjects,
 }) {
   const projectInputRef = useRef(null);
@@ -88,14 +88,16 @@ function Toolbar({
           >
             Settings
           </button>
-          <button
-            type="button"
-            className={buttonClass + " btn-ghost"}
-            onClick={onOpenSpools}
-            title="Spools"
-          >
-            Spools
-          </button>
+          {onOpenPersonnel && (
+            <button
+              type="button"
+              className={buttonClass + " btn-ghost"}
+              onClick={onOpenPersonnel}
+              title="Personnel"
+            >
+              Personnel
+            </button>
+          )}
         </>
       )}
     </>
@@ -197,11 +199,13 @@ function Toolbar({
                   Settings
                 </button>
               </li>
-              <li>
-                <button type="button" onClick={onOpenSpools}>
-                  Spools
-                </button>
-              </li>
+              {onOpenPersonnel && (
+                <li>
+                  <button type="button" onClick={onOpenPersonnel}>
+                    Personnel
+                  </button>
+                </li>
+              )}
             </>
           )}
         </ul>

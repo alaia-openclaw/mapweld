@@ -14,6 +14,9 @@ const LINE_COLOURS = {
   [WELD_LOCATION.FIELD]: "text-error",
 };
 
+const LABEL_FONT_SIZE_MIN = 8;
+const LABEL_FONT_SIZE_MAX = 24;
+
 function clientToPercent(clientX, clientY, pageWrapperRef) {
   const el = pageWrapperRef?.current;
   if (!el) return null;
@@ -27,13 +30,17 @@ function WeldPointMarker({
   weld,
   weldPoints = [],
   onClick,
+  onDoubleClick,
   isSelected,
   canDrag = false,
   onMoveWeldPoint,
   onMoveIndicator,
+  onResizeLabel,
+  onMoveLineBend,
   pageWrapperRef,
 }) {
   const draggingRef = useRef(null);
+  const resizeStartRef = useRef({ fontSize: 12, clientY: 0 });
 
   const handleClick = useCallback(
     (e) => {
@@ -41,6 +48,14 @@ function WeldPointMarker({
       onClick?.(weld);
     },
     [onClick, weld]
+  );
+
+  const handleDoubleClick = useCallback(
+    (e) => {
+      e.stopPropagation();
+      onDoubleClick?.(weld);
+    },
+    [onDoubleClick, weld]
   );
 
   const weldLocation = weld.weldLocation || WELD_LOCATION.SHOP;
@@ -51,23 +66,20 @@ function WeldPointMarker({
   const wy = weld.yPercent ?? 0;
   const ix = weld.indicatorXPercent ?? wx;
   const iy = weld.indicatorYPercent ?? wy;
+  const bx = weld.lineBendXPercent;
+  const by = weld.lineBendYPercent;
+  const hasBend = bx != null && by != null;
+  const bendX = hasBend ? bx : (ix + wx) / 2;
+  const bendY = hasBend ? by : (iy + wy) / 2;
 
-  const minX = Math.min(wx, ix) - 1;
-  const minY = Math.min(wy, iy) - 1;
-  const maxX = Math.max(wx, ix) + 1;
-  const maxY = Math.max(wy, iy) + 1;
+  const allX = [wx, ix, bendX];
+  const allY = [wy, iy, bendY];
+  const minX = Math.min(...allX) - 1;
+  const minY = Math.min(...allY) - 1;
+  const maxX = Math.max(...allX) + 1;
+  const maxY = Math.max(...allY) + 1;
   const width = Math.max(maxX - minX, 6);
   const height = Math.max(maxY - minY, 6);
-
-  const lineX1 = ((ix - minX) / width) * 100;
-  const lineY1 = ((iy - minY) / height) * 100;
-  const lineX2 = ((wx - minX) / width) * 100;
-  const lineY2 = ((wy - minY) / height) * 100;
-
-  const indicatorLeft = ((ix - minX) / width) * 100;
-  const indicatorTop = ((iy - minY) / height) * 100;
-  const weldLeft = ((wx - minX) / width) * 100;
-  const weldTop = ((wy - minY) / height) * 100;
 
   const bulletColourClass = BULLET_COLOURS[weldLocation] || BULLET_COLOURS[WELD_LOCATION.SHOP];
   const lineColourClass = LINE_COLOURS[weldLocation] || LINE_COLOURS[WELD_LOCATION.SHOP];
@@ -76,7 +88,18 @@ function WeldPointMarker({
   const handlePointerMove = useCallback(
     (e) => {
       const mode = draggingRef.current;
-      if (!mode || !pageWrapperRef) return;
+      if (!mode) return;
+      if (mode === "resize" && onResizeLabel) {
+        const { fontSize: startFontSize, clientY: startY } = resizeStartRef.current;
+        const deltaY = e.clientY - startY;
+        const newSize = Math.round(
+          Math.max(LABEL_FONT_SIZE_MIN, Math.min(LABEL_FONT_SIZE_MAX, startFontSize - deltaY))
+        );
+        resizeStartRef.current = { fontSize: newSize, clientY: e.clientY };
+        onResizeLabel(weld.id, { labelFontSize: newSize });
+        return;
+      }
+      if (!pageWrapperRef) return;
       const coords = clientToPercent(e.clientX, e.clientY, pageWrapperRef);
       if (!coords) return;
       if (mode === "weld" && onMoveWeldPoint) {
@@ -86,21 +109,44 @@ function WeldPointMarker({
           indicatorXPercent: coords.xPercent,
           indicatorYPercent: coords.yPercent,
         });
+      } else if (mode === "lineBend" && onMoveLineBend) {
+        onMoveLineBend(weld.id, {
+          lineBendXPercent: coords.xPercent,
+          lineBendYPercent: coords.yPercent,
+        });
       }
     },
-    [weld.id, onMoveWeldPoint, onMoveIndicator, pageWrapperRef]
+    [weld.id, onMoveWeldPoint, onMoveIndicator, onResizeLabel, onMoveLineBend, pageWrapperRef]
   );
 
-  const cleanupRef = useRef(null);
+  const createDragOnUp = useCallback(
+    () => {
+      const preventClick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        window.removeEventListener("click", preventClick, true);
+      };
+      window.addEventListener("click", preventClick, true);
+      setTimeout(() => window.removeEventListener("click", preventClick, true), 100);
+    },
+    []
+  );
 
   const handleWeldHandlePointerDown = useCallback(
     (e) => {
       e.preventDefault();
       e.stopPropagation();
       if (!canDrag || !onMoveWeldPoint) return;
+      try {
+        e.target.setPointerCapture(e.pointerId);
+      } catch (_) {}
       draggingRef.current = "weld";
       const onUp = () => {
         draggingRef.current = null;
+        try {
+          e.target.releasePointerCapture(e.pointerId);
+        } catch (_) {}
+        createDragOnUp();
         window.removeEventListener("pointermove", handlePointerMove);
         window.removeEventListener("pointerup", onUp);
         window.removeEventListener("pointerleave", onUp);
@@ -109,7 +155,7 @@ function WeldPointMarker({
       window.addEventListener("pointerup", onUp);
       window.addEventListener("pointerleave", onUp);
     },
-    [canDrag, onMoveWeldPoint, handlePointerMove]
+    [canDrag, onMoveWeldPoint, handlePointerMove, createDragOnUp]
   );
 
   const handleIndicatorHandlePointerDown = useCallback(
@@ -117,9 +163,16 @@ function WeldPointMarker({
       e.preventDefault();
       e.stopPropagation();
       if (!canDrag || !onMoveIndicator) return;
+      try {
+        e.target.setPointerCapture(e.pointerId);
+      } catch (_) {}
       draggingRef.current = "indicator";
       const onUp = () => {
         draggingRef.current = null;
+        try {
+          e.target.releasePointerCapture(e.pointerId);
+        } catch (_) {}
+        createDragOnUp();
         window.removeEventListener("pointermove", handlePointerMove);
         window.removeEventListener("pointerup", onUp);
         window.removeEventListener("pointerleave", onUp);
@@ -128,7 +181,63 @@ function WeldPointMarker({
       window.addEventListener("pointerup", onUp);
       window.addEventListener("pointerleave", onUp);
     },
-    [canDrag, onMoveIndicator, handlePointerMove]
+    [canDrag, onMoveIndicator, handlePointerMove, createDragOnUp]
+  );
+
+  const handleLineBendPointerDown = useCallback(
+    (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!canDrag || !onMoveLineBend) return;
+      try {
+        e.target.setPointerCapture(e.pointerId);
+      } catch (_) {}
+      draggingRef.current = "lineBend";
+      const onUp = () => {
+        draggingRef.current = null;
+        try {
+          e.target.releasePointerCapture(e.pointerId);
+        } catch (_) {}
+        createDragOnUp();
+        window.removeEventListener("pointermove", handlePointerMove);
+        window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointerleave", onUp);
+      };
+      window.addEventListener("pointermove", handlePointerMove);
+      window.addEventListener("pointerup", onUp);
+      window.addEventListener("pointerleave", onUp);
+    },
+    [canDrag, onMoveLineBend, handlePointerMove, createDragOnUp]
+  );
+
+  const handleResizeHandlePointerDown = useCallback(
+    (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!canDrag || !onResizeLabel) return;
+      try {
+        e.target.setPointerCapture(e.pointerId);
+      } catch (_) {}
+      resizeStartRef.current = {
+        fontSize: weld.labelFontSize ?? 12,
+        clientY: e.clientY,
+      };
+      draggingRef.current = "resize";
+      const onUp = () => {
+        draggingRef.current = null;
+        try {
+          e.target.releasePointerCapture(e.pointerId);
+        } catch (_) {}
+        createDragOnUp();
+        window.removeEventListener("pointermove", handlePointerMove);
+        window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointerleave", onUp);
+      };
+      window.addEventListener("pointermove", handlePointerMove);
+      window.addEventListener("pointerup", onUp);
+      window.addEventListener("pointerleave", onUp);
+    },
+    [canDrag, onResizeLabel, weld.labelFontSize, handlePointerMove, createDragOnUp]
   );
 
   useEffect(() => {
@@ -140,74 +249,125 @@ function WeldPointMarker({
   const showHandles = canDrag && isSelected;
 
   return (
-    <button
-      type="button"
-      className={`absolute transition-all pointer-events-auto focus:outline-none touch-manipulation
-        ${lineColourClass}
-        ${isSelected ? "ring-2 ring-primary ring-offset-1 z-10" : ""}`}
-      style={{
-        left: `${minX}%`,
-        top: `${minY}%`,
-        width: `${width}%`,
-        height: `${height}%`,
-      }}
-      onClick={handleClick}
-      title={
-        weld.welderName
-          ? weld.welderName
-          : showHandles
-            ? "Drag handles to move. Click to edit."
-            : "Click to edit."
-      }
-      aria-label={`Weld ${weldName}${weldType ? `, ${weldType}` : ""}`}
+    <div
+      className={`absolute inset-0 pointer-events-none ${showHandles ? "z-30" : ""}`}
+      aria-hidden
     >
-      <svg
-        className="absolute inset-0 w-full h-full pointer-events-none"
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-        aria-hidden
-      >
-        <line
-          x1={lineX1}
-          y1={lineY1}
-          x2={lineX2}
-          y2={lineY2}
-          stroke="currentColor"
-          strokeWidth="1.5"
-        />
-      </svg>
+      <button
+        type="button"
+        className={`absolute pointer-events-auto focus:outline-none touch-manipulation z-0
+          ${isSelected ? "ring-2 ring-primary ring-offset-1" : ""}`}
+        style={{
+          left: `${minX}%`,
+          top: `${minY}%`,
+          width: `${width}%`,
+          height: `${height}%`,
+        }}
+        onClick={handleClick}
+        onDoubleClick={handleDoubleClick}
+        title={
+          weld.welderName
+            ? weld.welderName
+            : showHandles
+              ? "Drag handles to move. Double-click to edit."
+              : "Click to select. Double-click to edit."
+        }
+        aria-label={`Weld ${weldName}${weldType ? `, ${weldType}` : ""}`}
+      />
+
+      {(() => {
+        const pathHasLength = hasBend
+          ? (ix !== bendX || iy !== bendY) || (bendX !== wx || bendY !== wy)
+          : ix !== wx || iy !== wy;
+        if (!pathHasLength) return null;
+        const pathD =
+          hasBend
+            ? `M ${ix} ${iy} L ${bendX} ${bendY} L ${wx} ${wy}`
+            : `M ${ix} ${iy} L ${wx} ${wy}`;
+        return (
+          <svg
+            className={`absolute inset-0 w-full h-full pointer-events-none ${lineColourClass}`}
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+            aria-hidden
+          >
+            <path
+              d={pathD}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="0.1"
+              className={lineColourClass}
+            />
+          </svg>
+        );
+      })()}
 
       <div
-        className={`absolute -translate-x-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center border-2 border-solid ${bulletColourClass}
-          ${isField ? "rotate-45" : "rounded-full"}`}
+        role="button"
+        tabIndex={0}
+        onClick={handleClick}
+        onDoubleClick={handleDoubleClick}
+        className={`absolute -translate-x-1/2 -translate-y-1/2 flex items-center justify-center border-2 border-solid pointer-events-auto cursor-pointer z-10 ${bulletColourClass}
+          ${isField ? "rotate-45" : "rounded-full"}
+          ${lineColourClass}
+          ${isSelected ? (showHandles ? "ring-2 ring-error ring-offset-1" : "ring-2 ring-primary ring-offset-1") : ""}`}
         style={{
-          left: `${indicatorLeft}%`,
-          top: `${indicatorTop}%`,
+          left: `${ix}%`,
+          top: `${iy}%`,
+          minWidth: `${Math.max(32, (weld.labelFontSize ?? 12) * 2)}px`,
+          minHeight: `${Math.max(32, (weld.labelFontSize ?? 12) * 2)}px`,
         }}
       >
         <span
-          className={`text-xs font-medium leading-none select-none text-base-100
+          className={`font-medium leading-none select-none text-base-100
             ${isField ? "-rotate-45" : ""}`}
+          style={{ fontSize: `${weld.labelFontSize ?? 12}px` }}
         >
           {weldName}
         </span>
         {showHandles && (
-          <div
-            role="button"
-            tabIndex={0}
-            className="absolute inset-0 -m-2 rounded-full ring-2 ring-primary bg-base-100/80 cursor-grab active:cursor-grabbing touch-none"
-            style={{ zIndex: 5 }}
-            onPointerDown={handleIndicatorHandlePointerDown}
-            aria-label="Drag to move indicator"
-          />
+          <>
+            {[
+              { pos: "top-0 left-1/2 -translate-x-1/2 -translate-y-1/2", label: "top" },
+              { pos: "top-1/2 right-0 translate-x-1/2 -translate-y-1/2", label: "right" },
+              { pos: "bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2", label: "bottom" },
+              { pos: "top-1/2 left-0 -translate-x-1/2 -translate-y-1/2", label: "left" },
+              { pos: "top-0 left-0 -translate-x-1/2 -translate-y-1/2", label: "top-left" },
+              { pos: "top-0 right-0 translate-x-1/2 -translate-y-1/2", label: "top-right" },
+              { pos: "bottom-0 right-0 translate-x-1/2 translate-y-1/2", label: "bottom-right" },
+              { pos: "bottom-0 left-0 -translate-x-1/2 translate-y-1/2", label: "bottom-left" },
+            ].map(({ pos, label }) => (
+              <div
+                key={label}
+                role="button"
+                tabIndex={0}
+                className={`absolute ${pos} w-5 h-5 rounded-full border-2 border-error bg-white cursor-grab active:cursor-grabbing hover:scale-110 transition-transform`}
+                style={{ zIndex: 20 }}
+                onPointerDown={handleIndicatorHandlePointerDown}
+                aria-label={`Drag to move label (${label})`}
+              />
+            ))}
+            <div
+              role="button"
+              tabIndex={0}
+              className="absolute -right-1 -bottom-1 w-5 h-5 rounded-full border-2 border-error bg-white cursor-n-resize"
+              style={{ zIndex: 6 }}
+              onPointerDown={handleResizeHandlePointerDown}
+              aria-label="Drag to resize label"
+            />
+          </>
         )}
       </div>
 
       <div
-        className="absolute -translate-x-1/2 -translate-y-1/2"
+        role="button"
+        tabIndex={0}
+        onClick={handleClick}
+        onDoubleClick={handleDoubleClick}
+        className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-auto cursor-pointer z-10"
         style={{
-          left: `${weldLeft}%`,
-          top: `${weldTop}%`,
+          left: `${wx}%`,
+          top: `${wy}%`,
         }}
       >
         {isField ? (
@@ -241,14 +401,25 @@ function WeldPointMarker({
           <div
             role="button"
             tabIndex={0}
-            className="absolute -translate-x-1/2 -translate-y-1/2 -m-3 w-6 h-6 rounded-full ring-2 ring-primary bg-base-100 cursor-grab active:cursor-grabbing touch-none"
-            style={{ left: "50%", top: "50%", zIndex: 5 }}
+            className="absolute -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-2 border-error bg-white cursor-grab active:cursor-grabbing hover:scale-110 transition-transform"
+            style={{ left: "50%", top: "50%", zIndex: 20 }}
             onPointerDown={handleWeldHandlePointerDown}
             aria-label="Drag to move weld point"
           />
         )}
       </div>
-    </button>
+
+      {showHandles && (
+        <div
+          role="button"
+          tabIndex={0}
+          className="absolute -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-2 border-error bg-white cursor-grab active:cursor-grabbing hover:scale-110 transition-transform pointer-events-auto"
+          style={{ left: `${bendX}%`, top: `${bendY}%`, zIndex: 20 }}
+          onPointerDown={handleLineBendPointerDown}
+          aria-label="Drag to adjust line bend"
+        />
+      )}
+    </div>
   );
 }
 

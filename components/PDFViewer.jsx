@@ -19,20 +19,28 @@ function PDFViewer({
   weldPoints = [],
   selectedWeldId,
   onWeldClick,
+  onWeldDoubleClick,
   appMode = "edition",
   markupTool = "select",
   onMoveWeldPoint,
   onMoveIndicator,
+  onResizeLabel,
+  onMoveLineBend,
   spoolMarkers = [],
   spools = [],
+  selectedSpoolMarkerId,
+  onSpoolMarkerClick,
+  onMoveSpoolMarker,
+  onMoveSpoolIndicator,
   onDeleteSpoolMarker,
-  spoolMarkerToPlace = null,
 }) {
   const [loadError, setLoadError] = useState(null);
   const [scale, setScale] = useState(initialScale);
   const [currentPage, setCurrentPage] = useState(1);
   const [numPages, setNumPages] = useState(null);
   const pageWrapperRef = useRef(null);
+  const panStartRef = useRef(null);
+  const isPanningRef = useRef(false);
 
   useEffect(() => {
     pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js";
@@ -51,8 +59,62 @@ function PDFViewer({
     setScale((s) => Math.max(MIN_SCALE, s - SCALE_STEP));
   }, []);
 
+  const handlePointerDown = useCallback(
+    (e) => {
+      if (e.button !== 0) return;
+      if (e.target.closest("button, [role='button']")) return;
+      if (markupTool === "add" || markupTool === "addSpool") return;
+      const el = containerRef?.current;
+      if (!el) return;
+      panStartRef.current = {
+        x: e.clientX,
+        y: e.clientY,
+        scrollLeft: el.scrollLeft,
+        scrollTop: el.scrollTop,
+      };
+      isPanningRef.current = false;
+    },
+    [markupTool]
+  );
+
+  const handlePointerMove = useCallback(
+    (e) => {
+      const start = panStartRef.current;
+      const el = containerRef?.current;
+      if (!start || !el) return;
+      const dx = e.clientX - start.x;
+      const dy = e.clientY - start.y;
+      if (!isPanningRef.current && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+        isPanningRef.current = true;
+        try {
+          e.currentTarget.setPointerCapture(e.pointerId);
+        } catch (_) {}
+      }
+      if (isPanningRef.current) {
+        e.preventDefault();
+        el.scrollLeft = start.scrollLeft - dx;
+        el.scrollTop = start.scrollTop - dy;
+      }
+    },
+    []
+  );
+
+  const handlePointerUp = useCallback(
+    (e) => {
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch (_) {}
+      panStartRef.current = null;
+    },
+    []
+  );
+
   const handleClick = useCallback(
     (e) => {
+      if (isPanningRef.current) {
+        isPanningRef.current = false;
+        return;
+      }
       const target = pageWrapperRef.current;
       if (!target) return;
       const rect = target.getBoundingClientRect();
@@ -62,6 +124,26 @@ function PDFViewer({
     },
     [onPageClick, currentPage]
   );
+
+  useEffect(() => {
+    const el = containerRef?.current;
+    if (!el) return;
+    const onWheel = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.ctrlKey || e.metaKey) {
+        setScale((s) => {
+          const delta = e.deltaY > 0 ? -SCALE_STEP : SCALE_STEP;
+          return Math.max(MIN_SCALE, Math.min(MAX_SCALE, s + delta));
+        });
+      } else {
+        el.scrollLeft += e.deltaX;
+        el.scrollTop += e.deltaY;
+      }
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [containerRef, pdfBlob]);
 
   const weldPointsOnPage = weldPoints.filter(
     (w) => (w.pageNumber ?? 0) === currentPage - 1
@@ -124,7 +206,12 @@ function PDFViewer({
       </div>
       <div
         ref={containerRef}
-        className={`relative bg-base-100 overflow-auto max-h-[calc(100dvh-10rem)] min-h-[50dvh] touch-pan-x touch-pan-y ${appMode === "edition" && markupTool === "add" ? "cursor-crosshair" : "cursor-default"}`}
+        className={`relative bg-base-100 overflow-auto max-h-[calc(100dvh-10rem)] min-h-[50dvh] touch-pan-x touch-pan-y ${appMode === "edition" && (markupTool === "add" || markupTool === "addSpool") ? "cursor-crosshair" : "cursor-default"}`}
+        style={{ touchAction: "pan-x pan-y" }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
       >
         <div
           ref={pageWrapperRef}
@@ -155,17 +242,21 @@ function PDFViewer({
               pageNumber={currentPage}
               scale={scale}
               renderTextLayer={false}
+              renderAnnotationLayer={false}
             />
           </Document>
           <WeldOverlay
             weldPoints={weldPointsOnPage}
             selectedWeldId={selectedWeldId}
             onWeldClick={onWeldClick}
+            onWeldDoubleClick={onWeldDoubleClick}
             appMode={appMode}
             canDrag={appMode === "edition"}
             pageWrapperRef={pageWrapperRef}
             onMoveWeldPoint={onMoveWeldPoint}
             onMoveIndicator={onMoveIndicator}
+            onResizeLabel={onResizeLabel}
+            onMoveLineBend={onMoveLineBend}
           />
           <div className="absolute inset-0 pointer-events-none">
             {spoolMarkersOnPage.map((m) => (
@@ -173,15 +264,16 @@ function PDFViewer({
                 key={m.id}
                 marker={m}
                 spoolName={spools.find((s) => s.id === m.spoolId)?.name}
+                isSelected={m.id === selectedSpoolMarkerId}
+                onClick={onSpoolMarkerClick}
+                canDrag={appMode === "edition"}
+                onMoveSpoolMarker={onMoveSpoolMarker}
+                onMoveSpoolIndicator={onMoveSpoolIndicator}
+                pageWrapperRef={pageWrapperRef}
                 onDelete={onDeleteSpoolMarker}
               />
             ))}
           </div>
-          {spoolMarkerToPlace && (
-            <p className="absolute bottom-2 left-1/2 -translate-x-1/2 text-sm bg-base-200 px-3 py-1 rounded-full pointer-events-none">
-              Click on the drawing to place spool marker
-            </p>
-          )}
         </div>
       </div>
     </div>

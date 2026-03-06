@@ -6,9 +6,12 @@ function WeldOverlay({
   weldPoints,
   selectedWeldId,
   onWeldClick,
+  onWeldDoubleClick,
   canDrag = false,
   onMoveWeldPoint,
   onMoveIndicator,
+  onResizeLabel,
+  onMoveLineBend,
   pageWrapperRef,
 }) {
   return (
@@ -19,10 +22,13 @@ function WeldOverlay({
           weld={weld}
           weldPoints={weldPoints}
           onClick={onWeldClick}
+          onDoubleClick={onWeldDoubleClick}
           isSelected={weld.id === selectedWeldId}
           canDrag={canDrag}
           onMoveWeldPoint={onMoveWeldPoint}
           onMoveIndicator={onMoveIndicator}
+          onResizeLabel={onResizeLabel}
+          onMoveLineBend={onMoveLineBend}
           pageWrapperRef={pageWrapperRef}
         />
       ))}
