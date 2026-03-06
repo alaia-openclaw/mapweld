@@ -5,6 +5,8 @@ import { useRef, useState } from "react";
 function Toolbar({
   hasPdf,
   hasWelds,
+  appMode = "edition",
+  onModeChange,
   onLoadPdf,
   onLoadProject,
   onSaveProject,
@@ -103,6 +105,24 @@ function Toolbar({
     <div className="navbar bg-base-100 shadow-lg rounded-lg mb-4">
       <div className="flex-1">
         <span className="text-xl font-bold">Weld Dashboard</span>
+        {hasPdf && onModeChange && (
+          <div className="join ml-4">
+            <button
+              type="button"
+              className={`join-item btn btn-sm ${appMode === "edition" ? "btn-primary" : "btn-ghost"}`}
+              onClick={() => onModeChange("edition")}
+            >
+              Edition
+            </button>
+            <button
+              type="button"
+              className={`join-item btn btn-sm ${appMode === "inspection" ? "btn-primary" : "btn-ghost"}`}
+              onClick={() => onModeChange("inspection")}
+            >
+              Inspection
+            </button>
+          </div>
+        )}
       </div>
       <div className="hidden md:flex md:items-center md:gap-2">
         {primaryButtons}

@@ -15,9 +15,8 @@ function ModalWeldForm({
   isOpen,
   onClose,
   onSave,
-  onMove,
-  onRepositionIndicator,
   onDelete,
+  appMode = "edition",
   spools = [],
   ndtAutoLabel,
 }) {
@@ -289,31 +288,7 @@ function ModalWeldForm({
           )}
 
           <div className="modal-action flex-wrap gap-2">
-            {onMove && (
-              <button
-                type="button"
-                className="btn btn-outline min-h-12"
-                onClick={() => {
-                  onMove?.(weld);
-                  onClose?.();
-                }}
-              >
-                Move weld on map
-              </button>
-            )}
-            {onRepositionIndicator && (
-              <button
-                type="button"
-                className="btn btn-outline min-h-12"
-                onClick={() => {
-                  onRepositionIndicator?.();
-                  onClose?.();
-                }}
-              >
-                Reposition indicator
-              </button>
-            )}
-            {onDelete && (
+            {onDelete && appMode === "edition" && (
               <button
                 type="button"
                 className="btn btn-error btn-outline min-h-12"

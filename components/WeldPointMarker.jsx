@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useRef, useEffect } from "react";
 import { WELD_TYPES, WELD_LOCATION } from "@/lib/constants";
 import { getWeldName } from "@/lib/weld-utils";
 
@@ -14,7 +14,27 @@ const LINE_COLOURS = {
   [WELD_LOCATION.FIELD]: "text-error",
 };
 
-function WeldPointMarker({ weld, weldPoints = [], onClick, isSelected, isRelocating }) {
+function clientToPercent(clientX, clientY, pageWrapperRef) {
+  const el = pageWrapperRef?.current;
+  if (!el) return null;
+  const rect = el.getBoundingClientRect();
+  const xPercent = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
+  const yPercent = Math.max(0, Math.min(100, ((clientY - rect.top) / rect.height) * 100));
+  return { xPercent, yPercent };
+}
+
+function WeldPointMarker({
+  weld,
+  weldPoints = [],
+  onClick,
+  isSelected,
+  canDrag = false,
+  onMoveWeldPoint,
+  onMoveIndicator,
+  pageWrapperRef,
+}) {
+  const draggingRef = useRef(null);
+
   const handleClick = useCallback(
     (e) => {
       e.stopPropagation();
@@ -53,13 +73,78 @@ function WeldPointMarker({ weld, weldPoints = [], onClick, isSelected, isRelocat
   const lineColourClass = LINE_COLOURS[weldLocation] || LINE_COLOURS[WELD_LOCATION.SHOP];
   const weldName = getWeldName(weld, weldPoints);
 
+  const handlePointerMove = useCallback(
+    (e) => {
+      const mode = draggingRef.current;
+      if (!mode || !pageWrapperRef) return;
+      const coords = clientToPercent(e.clientX, e.clientY, pageWrapperRef);
+      if (!coords) return;
+      if (mode === "weld" && onMoveWeldPoint) {
+        onMoveWeldPoint(weld.id, { xPercent: coords.xPercent, yPercent: coords.yPercent });
+      } else if (mode === "indicator" && onMoveIndicator) {
+        onMoveIndicator(weld.id, {
+          indicatorXPercent: coords.xPercent,
+          indicatorYPercent: coords.yPercent,
+        });
+      }
+    },
+    [weld.id, onMoveWeldPoint, onMoveIndicator, pageWrapperRef]
+  );
+
+  const cleanupRef = useRef(null);
+
+  const handleWeldHandlePointerDown = useCallback(
+    (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!canDrag || !onMoveWeldPoint) return;
+      draggingRef.current = "weld";
+      const onUp = () => {
+        draggingRef.current = null;
+        window.removeEventListener("pointermove", handlePointerMove);
+        window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointerleave", onUp);
+      };
+      window.addEventListener("pointermove", handlePointerMove);
+      window.addEventListener("pointerup", onUp);
+      window.addEventListener("pointerleave", onUp);
+    },
+    [canDrag, onMoveWeldPoint, handlePointerMove]
+  );
+
+  const handleIndicatorHandlePointerDown = useCallback(
+    (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!canDrag || !onMoveIndicator) return;
+      draggingRef.current = "indicator";
+      const onUp = () => {
+        draggingRef.current = null;
+        window.removeEventListener("pointermove", handlePointerMove);
+        window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointerleave", onUp);
+      };
+      window.addEventListener("pointermove", handlePointerMove);
+      window.addEventListener("pointerup", onUp);
+      window.addEventListener("pointerleave", onUp);
+    },
+    [canDrag, onMoveIndicator, handlePointerMove]
+  );
+
+  useEffect(() => {
+    return () => {
+      draggingRef.current = null;
+    };
+  }, []);
+
+  const showHandles = canDrag && isSelected;
+
   return (
     <button
       type="button"
       className={`absolute transition-all pointer-events-auto focus:outline-none touch-manipulation
         ${lineColourClass}
-        ${isSelected ? "ring-2 ring-primary ring-offset-1 z-10" : ""}
-        ${isRelocating ? "ring-2 ring-secondary animate-pulse z-10" : ""}`}
+        ${isSelected ? "ring-2 ring-primary ring-offset-1 z-10" : ""}`}
       style={{
         left: `${minX}%`,
         top: `${minY}%`,
@@ -70,7 +155,9 @@ function WeldPointMarker({ weld, weldPoints = [], onClick, isSelected, isRelocat
       title={
         weld.welderName
           ? weld.welderName
-          : "Click to edit. Use Move button to relocate."
+          : showHandles
+            ? "Drag handles to move. Click to edit."
+            : "Click to edit."
       }
       aria-label={`Weld ${weldName}${weldType ? `, ${weldType}` : ""}`}
     >
@@ -104,6 +191,16 @@ function WeldPointMarker({ weld, weldPoints = [], onClick, isSelected, isRelocat
         >
           {weldName}
         </span>
+        {showHandles && (
+          <div
+            role="button"
+            tabIndex={0}
+            className="absolute inset-0 -m-2 rounded-full ring-2 ring-primary bg-base-100/80 cursor-grab active:cursor-grabbing touch-none"
+            style={{ zIndex: 5 }}
+            onPointerDown={handleIndicatorHandlePointerDown}
+            aria-label="Drag to move indicator"
+          />
+        )}
       </div>
 
       <div
@@ -139,6 +236,16 @@ function WeldPointMarker({ weld, weldPoints = [], onClick, isSelected, isRelocat
           </svg>
         ) : (
           <span className="block w-1.5 h-1.5 rounded-full bg-current" aria-hidden />
+        )}
+        {showHandles && (
+          <div
+            role="button"
+            tabIndex={0}
+            className="absolute -translate-x-1/2 -translate-y-1/2 -m-3 w-6 h-6 rounded-full ring-2 ring-primary bg-base-100 cursor-grab active:cursor-grabbing touch-none"
+            style={{ left: "50%", top: "50%", zIndex: 5 }}
+            onPointerDown={handleWeldHandlePointerDown}
+            aria-label="Drag to move weld point"
+          />
         )}
       </div>
     </button>

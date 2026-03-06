@@ -14,15 +14,15 @@ const SCALE_STEP = 0.25;
 function PDFViewer({
   pdfBlob,
   onPageClick,
-  onRelocateClick,
-  onRepositionIndicator,
   containerRef,
   scale: initialScale = 1.2,
   weldPoints = [],
   selectedWeldId,
   onWeldClick,
-  isRelocating = false,
-  isRepositioningIndicator = false,
+  appMode = "edition",
+  markupTool = "select",
+  onMoveWeldPoint,
+  onMoveIndicator,
   spoolMarkers = [],
   spools = [],
   onDeleteSpoolMarker,
@@ -58,16 +58,9 @@ function PDFViewer({
       const rect = target.getBoundingClientRect();
       const x = ((e.clientX - rect.left) / rect.width) * 100;
       const y = ((e.clientY - rect.top) / rect.height) * 100;
-      const pageIndex = currentPage - 1;
-      if (isRepositioningIndicator && onRepositionIndicator) {
-        onRepositionIndicator({ xPercent: x, yPercent: y });
-      } else if (isRelocating && onRelocateClick) {
-        onRelocateClick({ xPercent: x, yPercent: y, pageNumber: pageIndex });
-      } else {
-        onPageClick?.({ xPercent: x, yPercent: y, pageNumber: pageIndex });
-      }
+      onPageClick?.({ xPercent: x, yPercent: y, pageNumber: currentPage - 1 });
     },
-    [onPageClick, onRelocateClick, onRepositionIndicator, isRelocating, isRepositioningIndicator, currentPage]
+    [onPageClick, currentPage]
   );
 
   const weldPointsOnPage = weldPoints.filter(
@@ -131,7 +124,7 @@ function PDFViewer({
       </div>
       <div
         ref={containerRef}
-        className="relative bg-base-100 cursor-crosshair overflow-auto max-h-[calc(100dvh-10rem)] min-h-[50dvh] touch-pan-x touch-pan-y"
+        className={`relative bg-base-100 overflow-auto max-h-[calc(100dvh-10rem)] min-h-[50dvh] touch-pan-x touch-pan-y ${appMode === "edition" && markupTool === "add" ? "cursor-crosshair" : "cursor-default"}`}
       >
         <div
           ref={pageWrapperRef}
@@ -168,7 +161,11 @@ function PDFViewer({
             weldPoints={weldPointsOnPage}
             selectedWeldId={selectedWeldId}
             onWeldClick={onWeldClick}
-            isRelocating={isRelocating}
+            appMode={appMode}
+            canDrag={appMode === "edition"}
+            pageWrapperRef={pageWrapperRef}
+            onMoveWeldPoint={onMoveWeldPoint}
+            onMoveIndicator={onMoveIndicator}
           />
           <div className="absolute inset-0 pointer-events-none">
             {spoolMarkersOnPage.map((m) => (

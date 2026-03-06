@@ -6,7 +6,10 @@ function WeldOverlay({
   weldPoints,
   selectedWeldId,
   onWeldClick,
-  isRelocating = false,
+  canDrag = false,
+  onMoveWeldPoint,
+  onMoveIndicator,
+  pageWrapperRef,
 }) {
   return (
     <div className="absolute inset-0 pointer-events-none">
@@ -17,7 +20,10 @@ function WeldOverlay({
           weldPoints={weldPoints}
           onClick={onWeldClick}
           isSelected={weld.id === selectedWeldId}
-          isRelocating={isRelocating}
+          canDrag={canDrag}
+          onMoveWeldPoint={onMoveWeldPoint}
+          onMoveIndicator={onMoveIndicator}
+          pageWrapperRef={pageWrapperRef}
         />
       ))}
     </div>

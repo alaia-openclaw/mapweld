@@ -4,6 +4,7 @@ import { useRef, useState, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import Toolbar from "@/components/Toolbar";
+import MarkupToolbar from "@/components/MarkupToolbar";
 import PDFViewer from "@/components/PDFViewer";
 import ModalWeldForm from "@/components/ModalWeldForm";
 import ModalDrawingSettings from "@/components/ModalDrawingSettings";
@@ -47,10 +48,10 @@ export default function WeldTrackerApp() {
     ndtRequirements: [],
     weldingSpec: "",
   });
+  const [appMode, setAppMode] = useState("edition");
+  const [markupTool, setMarkupTool] = useState("select");
   const [selectedWeldId, setSelectedWeldId] = useState(null);
   const [formWeld, setFormWeld] = useState(null);
-  const [isRelocating, setIsRelocating] = useState(false);
-  const [isRepositioningIndicator, setIsRepositioningIndicator] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showSpools, setShowSpools] = useState(false);
   const [showProjects, setShowProjects] = useState(false);
@@ -68,10 +69,14 @@ export default function WeldTrackerApp() {
     setSpoolMarkerToPlace(null);
     setDrawingSettings({ ndtRequirements: [], weldingSpec: "" });
     setSelectedWeldId(null);
-    setIsRelocating(false);
-    setIsRepositioningIndicator(false);
     setProjectId(generateProjectId());
   }, [pdfBlob]);
+
+  const handleModeChange = useCallback((mode) => {
+    setAppMode(mode);
+    setSpoolMarkerToPlace(null);
+    if (mode === "inspection") setFormWeld(null);
+  }, []);
 
   const pdfToBase64 = useCallback(async (source) => {
     const url =
@@ -160,11 +165,14 @@ export default function WeldTrackerApp() {
     ({ xPercent, yPercent, pageNumber }) => {
       if (spoolMarkerToPlace) {
         handleAddSpoolMarker({ xPercent, yPercent, pageNumber });
-      } else {
+      } else if (appMode === "edition" && markupTool === "add") {
         handleAddWeld({ xPercent, yPercent, pageNumber });
+      } else if (markupTool === "select") {
+        setSelectedWeldId(null);
+        setFormWeld(null);
       }
     },
-    [spoolMarkerToPlace, handleAddSpoolMarker, handleAddWeld]
+    [spoolMarkerToPlace, handleAddSpoolMarker, handleAddWeld, appMode, markupTool]
   );
 
   const handleWeldClick = useCallback((weld) => {
@@ -183,51 +191,27 @@ export default function WeldTrackerApp() {
   const handleCloseForm = useCallback(() => {
     setFormWeld(null);
     setSelectedWeldId(null);
-    setIsRelocating(false);
-    setIsRepositioningIndicator(false);
   }, []);
 
-  const handleMoveWeld = useCallback((weld) => {
-    setFormWeld(null);
-    setSelectedWeldId(weld.id);
-    setIsRelocating(true);
+  const handleMoveWeldPoint = useCallback((weldId, { xPercent, yPercent }) => {
+    setWeldPoints((prev) =>
+      prev.map((w) =>
+        w.id === weldId ? { ...w, xPercent, yPercent } : w
+      )
+    );
   }, []);
 
-  const handleRelocateWeld = useCallback(
-    ({ xPercent, yPercent, pageNumber }) => {
-      if (!selectedWeldId) return;
+  const handleMoveIndicator = useCallback(
+    (weldId, { indicatorXPercent, indicatorYPercent }) => {
       setWeldPoints((prev) =>
         prev.map((w) =>
-          w.id === selectedWeldId
-            ? {
-                ...w,
-                xPercent,
-                yPercent,
-                pageNumber: pageNumber ?? w.pageNumber ?? 0,
-              }
+          w.id === weldId
+            ? { ...w, indicatorXPercent, indicatorYPercent }
             : w
         )
       );
-      setSelectedWeldId(null);
-      setIsRelocating(false);
     },
-    [selectedWeldId]
-  );
-
-  const handleRepositionIndicator = useCallback(
-    ({ xPercent, yPercent }) => {
-      if (!selectedWeldId) return;
-      setWeldPoints((prev) =>
-        prev.map((w) =>
-          w.id === selectedWeldId
-            ? { ...w, indicatorXPercent: xPercent, indicatorYPercent: yPercent }
-            : w
-        )
-      );
-      setSelectedWeldId(null);
-      setIsRepositioningIndicator(false);
-    },
-    [selectedWeldId]
+    []
   );
 
   const handleDeleteWeld = useCallback((weld) => {
@@ -259,8 +243,6 @@ export default function WeldTrackerApp() {
     );
     setFormWeld(null);
     setSelectedWeldId(null);
-    setIsRelocating(false);
-    setIsRepositioningIndicator(false);
     setProjectId(data.id);
   }, [pdfBlob]);
 
@@ -322,8 +304,6 @@ export default function WeldTrackerApp() {
       );
       setFormWeld(null);
       setSelectedWeldId(null);
-      setIsRelocating(false);
-      setIsRepositioningIndicator(false);
       setProjectId(generateProjectId());
     } catch (err) {
       alert(err.message || "Failed to load project");
@@ -370,6 +350,8 @@ export default function WeldTrackerApp() {
       <Toolbar
         hasPdf={!!pdfBlob}
         hasWelds={weldPoints.length > 0}
+        appMode={appMode}
+        onModeChange={handleModeChange}
         onLoadPdf={loadPdfFile}
         onLoadProject={handleLoadProject}
         onSaveProject={handleSaveProject}
@@ -379,28 +361,17 @@ export default function WeldTrackerApp() {
         onOpenProjects={() => setShowProjects(true)}
       />
 
+      {pdfBlob && appMode === "edition" && (
+        <MarkupToolbar
+          markupTool={markupTool}
+          onToolChange={setMarkupTool}
+          className="mb-2"
+        />
+      )}
+
       <div className="relative bg-base-100 rounded-lg overflow-hidden shadow">
         {pdfBlob ? (
           <>
-            {(isRelocating || isRepositioningIndicator) && (
-              <div className="alert alert-info mx-4 mt-2">
-                <span>
-                  {isRepositioningIndicator
-                    ? "Click on the drawing to reposition the indicator bubble"
-                    : "Click on the drawing to move the selected weld point"}
-                </span>
-                <button
-                  type="button"
-                  className="btn btn-sm btn-ghost"
-                  onClick={() => {
-                    setIsRelocating(false);
-                    setIsRepositioningIndicator(false);
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
-            )}
             <PDFViewerDynamic
               key={
                 typeof pdfBlob === "string"
@@ -409,14 +380,14 @@ export default function WeldTrackerApp() {
               }
               pdfBlob={pdfBlob}
               onPageClick={handlePageClick}
-              onRelocateClick={handleRelocateWeld}
-              onRepositionIndicator={handleRepositionIndicator}
               containerRef={containerRef}
               weldPoints={weldPoints}
               selectedWeldId={selectedWeldId}
               onWeldClick={handleWeldClick}
-              isRelocating={isRelocating}
-              isRepositioningIndicator={isRepositioningIndicator}
+              appMode={appMode}
+              markupTool={markupTool}
+              onMoveWeldPoint={handleMoveWeldPoint}
+              onMoveIndicator={handleMoveIndicator}
               spoolMarkers={spoolMarkers}
               spools={spools}
               onDeleteSpoolMarker={handleDeleteSpoolMarker}
@@ -436,12 +407,8 @@ export default function WeldTrackerApp() {
         isOpen={!!formWeld}
         onClose={handleCloseForm}
         onSave={handleSaveWeld}
-        onMove={handleMoveWeld}
-        onRepositionIndicator={() => {
-          setFormWeld(null);
-          setIsRepositioningIndicator(true);
-        }}
         onDelete={handleDeleteWeld}
+        appMode={appMode}
         spools={spools}
         ndtAutoLabel={formatNdtRequirements(drawingSettings.ndtRequirements)}
       />
@@ -460,6 +427,7 @@ export default function WeldTrackerApp() {
         isOpen={showSpools}
         onClose={() => setShowSpools(false)}
         spools={spools}
+        appMode={appMode}
         onSave={(newSpools) => {
           setSpools(newSpools);
           setSpoolMarkers((prev) =>
@@ -467,10 +435,14 @@ export default function WeldTrackerApp() {
           );
         }}
         spoolMarkers={spoolMarkers}
-        onPlaceSpoolMarker={(spoolId) => {
-          setSpoolMarkerToPlace(spoolId);
-          setShowSpools(false);
-        }}
+        onPlaceSpoolMarker={
+          appMode === "edition"
+            ? (spoolId) => {
+                setSpoolMarkerToPlace(spoolId);
+                setShowSpools(false);
+              }
+            : undefined
+        }
         weldPoints={weldPoints}
         onAssignWeldsToSpool={handleAssignWeldsToSpool}
       />

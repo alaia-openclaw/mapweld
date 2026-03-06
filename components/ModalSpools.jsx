@@ -16,6 +16,7 @@ function ModalSpools({
   onPlaceSpoolMarker,
   weldPoints = [],
   onAssignWeldsToSpool,
+  appMode = "edition",
 }) {
   const [name, setName] = useState("");
   const [editingId, setEditingId] = useState(null);
@@ -112,7 +113,7 @@ function ModalSpools({
               ) : (
                 <>
                   <span className="flex-1">{s.name}</span>
-                  {onPlaceSpoolMarker && (
+                  {onPlaceSpoolMarker && appMode === "edition" && (
                     <button
                       type="button"
                       className="btn btn-ghost btn-sm btn-outline"
