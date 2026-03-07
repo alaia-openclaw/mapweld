@@ -52,15 +52,6 @@ function SpoolMarker({
     [onClick, marker]
   );
 
-  const handleDeleteClick = useCallback(
-    (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      onDelete?.(marker.id);
-    },
-    [marker.id, onDelete]
-  );
-
   const handlePointerMove = useCallback(
     (e) => {
       const mode = draggingRef.current;
@@ -154,19 +145,15 @@ function SpoolMarker({
       className={`absolute inset-0 pointer-events-none ${showHandles ? "z-30" : ""}`}
       aria-hidden
     >
-      <button
-        type="button"
-        className={`absolute pointer-events-auto focus:outline-none touch-manipulation z-0
-          ${isSelected ? "ring-2 ring-primary ring-offset-1" : ""}`}
+      <div
+        className="absolute pointer-events-none z-0"
         style={{
           left: `${minX}%`,
           top: `${minY}%`,
           width: `${width}%`,
           height: `${height}%`,
         }}
-        onClick={handleClick}
-        title={showHandles ? "Drag handles to move" : "Click to select"}
-        aria-label={`Spool ${displayName}`}
+        aria-hidden
       />
 
       {pathHasLength && (
@@ -201,14 +188,6 @@ function SpoolMarker({
         >
           {displayName}
         </span>
-        <button
-          type="button"
-          className="btn btn-circle btn-ghost btn-xs opacity-70 hover:opacity-100 -mr-1"
-          onClick={handleDeleteClick}
-          aria-label="Remove from drawing"
-        >
-          ×
-        </button>
         {showHandles && (
           <div
             role="button"
@@ -222,10 +201,8 @@ function SpoolMarker({
       </div>
 
       <div
-        role="button"
-        tabIndex={0}
-        onClick={handleClick}
-        className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-auto cursor-pointer z-10"
+        role="presentation"
+        className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none z-10"
         style={{ left: `${wx}%`, top: `${wy}%` }}
       >
         <span className="block w-1.5 h-1.5 rounded-full bg-secondary" aria-hidden />
@@ -233,7 +210,7 @@ function SpoolMarker({
           <div
             role="button"
             tabIndex={0}
-            className="absolute -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-2 border-error bg-white cursor-grab active:cursor-grabbing hover:scale-110 transition-transform"
+            className="absolute -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-2 border-error bg-white cursor-grab active:cursor-grabbing hover:scale-110 transition-transform pointer-events-auto"
             style={{ left: "50%", top: "50%", zIndex: 20 }}
             onPointerDown={handlePointPointerDown}
             aria-label="Drag to move spool point"

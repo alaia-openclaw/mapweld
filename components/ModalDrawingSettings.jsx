@@ -70,7 +70,7 @@ function ModalDrawingSettings({ isOpen, onClose, settings, onSave }) {
 
   return (
     <dialog open={isOpen} className="modal modal-open">
-      <div className="modal-box">
+      <div className="modal-box w-full min-w-80 max-w-4xl">
         <h3 className="font-bold text-lg">Drawing settings</h3>
         <form onSubmit={handleSubmit}>
           <div className="form-control mt-4">

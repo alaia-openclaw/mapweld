@@ -11,8 +11,7 @@ function Toolbar({
   onLoadProject,
   onSaveProject,
   onExportExcel,
-  onOpenSettings,
-  onOpenPersonnel,
+  onOpenParameters,
   onOpenProjects,
 }) {
   const projectInputRef = useRef(null);
@@ -78,27 +77,15 @@ function Toolbar({
           Projects
         </button>
       )}
-      {hasPdf && (
-        <>
-          <button
-            type="button"
-            className={buttonClass + " btn-ghost"}
-            onClick={onOpenSettings}
-            title="Drawing settings"
-          >
-            Settings
-          </button>
-          {onOpenPersonnel && (
-            <button
-              type="button"
-              className={buttonClass + " btn-ghost"}
-              onClick={onOpenPersonnel}
-              title="Personnel"
-            >
-              Personnel
-            </button>
-          )}
-        </>
+      {hasPdf && onOpenParameters && (
+        <button
+          type="button"
+          className={buttonClass + " btn-ghost"}
+          onClick={onOpenParameters}
+          title="Parameters"
+        >
+          Parameters
+        </button>
       )}
     </>
   );
@@ -192,21 +179,12 @@ function Toolbar({
               </button>
             </li>
           )}
-          {hasPdf && (
-            <>
-              <li>
-                <button type="button" onClick={onOpenSettings}>
-                  Settings
-                </button>
-              </li>
-              {onOpenPersonnel && (
-                <li>
-                  <button type="button" onClick={onOpenPersonnel}>
-                    Personnel
-                  </button>
-                </li>
-              )}
-            </>
+          {hasPdf && onOpenParameters && (
+            <li>
+              <button type="button" onClick={onOpenParameters}>
+                Parameters
+              </button>
+            </li>
           )}
         </ul>
       </div>

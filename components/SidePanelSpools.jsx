@@ -46,7 +46,7 @@ function SidePanelSpools({
   return (
     <div
       className={`flex-shrink-0 flex flex-col bg-base-200 border-l border-base-300 transition-all duration-300 ease-out overflow-hidden ${
-        isOpen ? "w-80" : "w-10"
+        isOpen ? "min-w-80 w-full max-w-lg" : "w-10"
       }`}
     >
       <button
@@ -81,7 +81,7 @@ function SidePanelSpools({
 
       {isOpen && (
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          <div className="flex-1 overflow-y-auto p-2">
+          <div className="flex-1 overflow-y-auto p-0 py-2">
             <form onSubmit={handleAdd} className="flex gap-2 mb-3">
               <input
                 type="text"
@@ -163,3 +163,4 @@ function SidePanelSpools({
 }
 
 export default SidePanelSpools;
+

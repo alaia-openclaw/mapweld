@@ -255,16 +255,14 @@ function WeldPointMarker({
     >
       <button
         type="button"
-        className={`absolute pointer-events-auto focus:outline-none touch-manipulation z-0
-          ${isSelected ? "ring-2 ring-primary ring-offset-1" : ""}`}
+        className="absolute pointer-events-none focus:outline-none touch-manipulation z-0"
         style={{
           left: `${minX}%`,
           top: `${minY}%`,
           width: `${width}%`,
           height: `${height}%`,
         }}
-        onClick={handleClick}
-        onDoubleClick={handleDoubleClick}
+        aria-hidden
         title={
           weld.welderName
             ? weld.welderName
@@ -360,11 +358,8 @@ function WeldPointMarker({
       </div>
 
       <div
-        role="button"
-        tabIndex={0}
-        onClick={handleClick}
-        onDoubleClick={handleDoubleClick}
-        className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-auto cursor-pointer z-10"
+        role="presentation"
+        className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none z-10"
         style={{
           left: `${wx}%`,
           top: `${wy}%`,
@@ -401,7 +396,7 @@ function WeldPointMarker({
           <div
             role="button"
             tabIndex={0}
-            className="absolute -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-2 border-error bg-white cursor-grab active:cursor-grabbing hover:scale-110 transition-transform"
+            className="absolute -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-2 border-error bg-white cursor-grab active:cursor-grabbing hover:scale-110 transition-transform pointer-events-auto"
             style={{ left: "50%", top: "50%", zIndex: 20 }}
             onPointerDown={handleWeldHandlePointerDown}
             aria-label="Drag to move weld point"

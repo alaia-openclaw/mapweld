@@ -77,7 +77,7 @@ function ModalWeldForm({
 
   return (
     <dialog open={isOpen} className="modal modal-open">
-      <div className="modal-box w-full max-w-none h-[100dvh] max-h-[100dvh] rounded-none md:w-auto md:max-w-2xl md:max-h-[90vh] md:h-auto md:rounded-lg overflow-y-auto">
+      <div className="modal-box w-full max-w-none h-[100dvh] max-h-[100dvh] rounded-none md:w-auto md:max-w-4xl md:max-h-[90vh] md:h-auto md:rounded-lg overflow-y-auto">
         <h3 className="font-bold text-lg">Weld info</h3>
         <form onSubmit={handleSubmit}>
           <div className="grid grid-cols-2 gap-4 mt-4">

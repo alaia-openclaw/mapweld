@@ -8,8 +8,7 @@ import MarkupToolbar from "@/components/MarkupToolbar";
 import PDFViewer from "@/components/PDFViewer";
 import SidePanelWeldForm from "@/components/SidePanelWeldForm";
 import SidePanelSpools from "@/components/SidePanelSpools";
-import ModalDrawingSettings from "@/components/ModalDrawingSettings";
-import ModalPersonnel from "@/components/ModalPersonnel";
+import ModalParameters from "@/components/ModalParameters";
 import ModalProjects from "@/components/ModalProjects";
 import OfflineBanner from "@/components/OfflineBanner";
 import {
@@ -56,8 +55,7 @@ export default function WeldTrackerApp() {
   const [formWeld, setFormWeld] = useState(null);
   const [showWeldPanel, setShowWeldPanel] = useState(false);
   const [showSpoolPanel, setShowSpoolPanel] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [showPersonnel, setShowPersonnel] = useState(false);
+  const [showParameters, setShowParameters] = useState(false);
   const [showProjects, setShowProjects] = useState(false);
   const [projectId, setProjectId] = useState(null);
   const [spoolMarkers, setSpoolMarkers] = useState([]);
@@ -451,7 +449,8 @@ export default function WeldTrackerApp() {
         "Date Welded": dateWelded,
         "Fitter Name": w.fitterName || "",
         "Date Fit-up": w.dateFitUp || "",
-        "Heat Number": w.heatNumber || "",
+        "Heat 1": w.heatNumber1 || "",
+        "Heat 2": w.heatNumber2 || "",
         Electrode: electrode,
         Processes: processes,
         "NDT Required": w.ndtRequired || "",
@@ -485,8 +484,7 @@ export default function WeldTrackerApp() {
         onLoadProject={handleLoadProject}
         onSaveProject={handleSaveProject}
         onExportExcel={handleExportExcel}
-        onOpenSettings={() => setShowSettings(true)}
-        onOpenPersonnel={() => setShowPersonnel(true)}
+        onOpenParameters={() => setShowParameters(true)}
         onOpenProjects={() => setShowProjects(true)}
       />
 
@@ -570,21 +568,15 @@ export default function WeldTrackerApp() {
         )}
       </div>
 
-      <ModalDrawingSettings
-        isOpen={showSettings}
-        onClose={() => setShowSettings(false)}
+      <ModalParameters
+        isOpen={showParameters}
+        onClose={() => setShowParameters(false)}
         settings={drawingSettings}
-        onSave={(s) => {
-          setDrawingSettings(s);
-          setShowSettings(false);
-        }}
-      />
-
-      <ModalPersonnel
-        isOpen={showPersonnel}
-        onClose={() => setShowPersonnel(false)}
         personnel={personnel}
-        onSave={setPersonnel}
+        onSave={({ drawingSettings: s, personnel: p }) => {
+          if (s != null) setDrawingSettings(s);
+          if (p != null) setPersonnel(p);
+        }}
       />
 
       <ModalProjects

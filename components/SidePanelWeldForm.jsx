@@ -32,7 +32,8 @@ function SidePanelWeldForm({
   const [wps, setWps] = useState("");
   const [fitterName, setFitterName] = useState("");
   const [dateFitUp, setDateFitUp] = useState("");
-  const [heatNumber, setHeatNumber] = useState("");
+  const [heatNumber1, setHeatNumber1] = useState("");
+  const [heatNumber2, setHeatNumber2] = useState("");
   const [welderName, setWelderName] = useState("");
   const [ndtRequired, setNdtRequired] = useState(NDT_REQUIRED_OPTIONS.AUTO);
   const [visualInspection, setVisualInspection] = useState(false);
@@ -51,7 +52,8 @@ function SidePanelWeldForm({
       setWps(weld.wps || "");
       setFitterName(weld.fitterName || "");
       setDateFitUp(weld.dateFitUp || "");
-      setHeatNumber(weld.heatNumber || "");
+      setHeatNumber1(weld.heatNumber1 || "");
+      setHeatNumber2(weld.heatNumber2 || "");
       setWelderName(weld.welderName || "");
       setNdtRequired(weld.ndtRequired || NDT_REQUIRED_OPTIONS.AUTO);
       setVisualInspection(weld.visualInspection || false);
@@ -162,7 +164,8 @@ function SidePanelWeldForm({
       wps,
       fitterName,
       dateFitUp,
-      heatNumber,
+      heatNumber1,
+      heatNumber2,
       welderName,
       weldingRecords: recordsToSave,
       ndtRequired,
@@ -177,7 +180,7 @@ function SidePanelWeldForm({
   return (
     <div
       className={`flex-shrink-0 flex flex-col bg-base-200 border-l border-base-300 transition-all duration-300 ease-out overflow-hidden ${
-        isOpen ? "w-80" : "w-10"
+        isOpen ? "min-w-80 w-[28rem] flex-shrink-0" : "w-10"
       }`}
     >
       {/* Tab / header - when a weld is expanded, click collapses it; when in list, click collapses panel */}
@@ -226,18 +229,18 @@ function SidePanelWeldForm({
       {/* Panel content - scrollable list with accordion-style expandable weld details */}
       {isOpen && (
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          <div className="flex-1 overflow-y-auto p-2">
+          <div className="flex-1 w-full min-w-0 overflow-y-auto overflow-x-hidden p-0 py-2">
             {weldPoints.length === 0 ? (
               <div className="text-center py-8 text-base-content/60 text-sm">
                 <p>No welds yet</p>
                 <p className="mt-1">Add welds with the Add tool</p>
               </div>
             ) : (
-              <ul className="menu menu-sm bg-base-100 rounded-lg p-0 gap-0">
+              <ul className="w-full min-w-full max-w-full bg-base-100 rounded-lg p-0 gap-0 list-none">
                 {weldPoints.map((w) => {
                   const isExpanded = w.id === expandedWeldId;
                   return (
-                    <li key={w.id} className="border-b border-base-200 last:border-b-0">
+                    <li key={w.id} className="w-full min-w-full border-b border-base-200 last:border-b-0">
                       <button
                         type="button"
                         onClick={() =>
@@ -279,17 +282,17 @@ function SidePanelWeldForm({
                         </svg>
                       </button>
                       {isExpanded && weld && w.id === weld.id && (
-                        <div className="border-t border-base-200 bg-base-100 px-3 py-3">
-                          <form onSubmit={handleSubmit} className="space-y-3">
+                        <div className="w-full min-w-full border-t border-base-200 bg-base-100 px-1 py-3">
+                          <form onSubmit={handleSubmit} className="space-y-0">
                             {/* Vertical collapsible sections */}
                             {["general", "fitup", "welding", "inspection"].map((sectionKey) => (
-                              <div key={sectionKey} className="border border-base-300 rounded-lg mb-2 overflow-hidden">
+                              <div key={sectionKey} className="w-full border border-base-300 rounded-none overflow-hidden first:rounded-t-lg last:rounded-b-lg border-b-0 last:border-b border-base-300">
                                 <button
                                   type="button"
                                   onClick={() => toggleSection(sectionKey)}
-                                  className="w-full flex justify-between items-center px-3 py-2 bg-base-200 hover:bg-base-300 text-left font-medium capitalize"
+                                  className="w-full flex justify-start items-center gap-2 px-2 py-2 bg-base-200 hover:bg-base-300 text-left font-medium capitalize"
                                 >
-                                  {sectionKey}
+                                  <span>{sectionKey}</span>
                                   <svg
                                     xmlns="http://www.w3.org/2000/svg"
                                     className={`h-4 w-4 transition-transform ${openSections[sectionKey] ? "rotate-180" : ""}`}
@@ -301,7 +304,7 @@ function SidePanelWeldForm({
                                   </svg>
                                 </button>
                                 {openSections[sectionKey] && (
-                                  <div className="p-3 border-t border-base-300 space-y-3">
+                                  <div className="w-full px-2 py-2 border-t border-base-300 space-y-3">
                                     {sectionKey === "general" && (
                                       <>
                                         <div className="form-control">
@@ -393,16 +396,29 @@ function SidePanelWeldForm({
                                   />
                                 </div>
                                 <div className="form-control">
-                                  <label className="label" htmlFor="side-heatNumber">
-                                    <span className="label-text">Heat number</span>
+                                  <label className="label" htmlFor="side-heatNumber1">
+                                    <span className="label-text">Heat number (part 1)</span>
                                   </label>
                                   <input
-                                    id="side-heatNumber"
+                                    id="side-heatNumber1"
                                     type="text"
                                     className="input input-bordered input-sm"
-                                    value={heatNumber}
-                                    onChange={(e) => setHeatNumber(e.target.value)}
+                                    value={heatNumber1}
+                                    onChange={(e) => setHeatNumber1(e.target.value)}
                                     placeholder="e.g. H12345"
+                                  />
+                                </div>
+                                <div className="form-control">
+                                  <label className="label" htmlFor="side-heatNumber2">
+                                    <span className="label-text">Heat number (part 2)</span>
+                                  </label>
+                                  <input
+                                    id="side-heatNumber2"
+                                    type="text"
+                                    className="input input-bordered input-sm"
+                                    value={heatNumber2}
+                                    onChange={(e) => setHeatNumber2(e.target.value)}
+                                    placeholder="e.g. H12346"
                                   />
                                 </div>
                               </div>
@@ -465,20 +481,27 @@ function SidePanelWeldForm({
                                           )}
                                         </div>
                                         <div className="form-control">
-                                          <label className="label py-0"><span className="label-text text-xs">Process</span></label>
-                                          <div className="flex flex-wrap gap-1">
+                                          <label className="label py-0" htmlFor={`side-process-${rec.id}`}>
+                                            <span className="label-text text-xs">Process</span>
+                                          </label>
+                                          <select
+                                            id={`side-process-${rec.id}`}
+                                            className="select select-bordered select-xs w-full"
+                                            value={(rec.weldingProcesses || [])[0] || ""}
+                                            onChange={(e) => {
+                                              const val = e.target.value;
+                                              handleUpdateWeldingRecord(idx, {
+                                                weldingProcesses: val ? [val] : [],
+                                              });
+                                            }}
+                                          >
+                                            <option value="">Select process</option>
                                             {WELDING_PROCESSES.map((proc) => (
-                                              <label key={proc} className="label cursor-pointer gap-1 py-0">
-                                                <input
-                                                  type="checkbox"
-                                                  className="checkbox checkbox-xs"
-                                                  checked={(rec.weldingProcesses || []).includes(proc)}
-                                                  onChange={() => toggleRecordWeldingProcess(idx, proc)}
-                                                />
-                                                <span className="label-text text-xs">{WELDING_PROCESS_LABELS[proc] || proc}</span>
-                                              </label>
+                                              <option key={proc} value={proc}>
+                                                {WELDING_PROCESS_LABELS[proc] || proc}
+                                              </option>
                                             ))}
-                                          </div>
+                                          </select>
                                         </div>
                                         <div className="form-control">
                                           <label className="label py-0"><span className="label-text text-xs">Electrode ref</span></label>

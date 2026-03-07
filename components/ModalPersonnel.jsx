@@ -90,7 +90,7 @@ function ModalPersonnel({
 
   return (
     <dialog open={isOpen} className="modal modal-open">
-      <div className="modal-box max-w-2xl max-h-[90vh] overflow-y-auto">
+      <div className="modal-box w-full min-w-80 max-w-4xl max-h-[90vh] overflow-y-auto">
         <h3 className="font-bold text-lg">Personnel</h3>
         <p className="text-sm text-base-content/70 mt-1">
           Manage fitters, welders, and welder qualifications (WQR)

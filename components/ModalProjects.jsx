@@ -48,7 +48,7 @@ function ModalProjects({ isOpen, onClose, onOpenProject }) {
 
   return (
     <dialog open={isOpen} className="modal modal-open">
-      <div className="modal-box max-h-[80vh] overflow-hidden flex flex-col">
+      <div className="modal-box w-full min-w-80 max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
         <h3 className="font-bold text-lg">Saved projects</h3>
         <p className="text-sm text-base-content/70 mt-1">
           Open a project to continue working offline
