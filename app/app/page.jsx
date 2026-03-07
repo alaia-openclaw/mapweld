@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback, useEffect } from "react";
+import { useRef, useState, useCallback, useEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import Toolbar from "@/components/Toolbar";
@@ -22,10 +22,10 @@ import {
   loadProject as loadFromIndexedDB,
   generateProjectId,
 } from "@/lib/offline-storage";
-import { createDefaultWeld } from "@/lib/defaults";
-import { getWeldName } from "@/lib/weld-utils";
+import { createDefaultWeld, createDefaultSpool } from "@/lib/defaults";
+import { getWeldName, getWeldOverallStatus, computeNdtSelection } from "@/lib/weld-utils";
 import { formatNdtRequirements } from "@/lib/constants";
-import * as XLSX from "xlsx";
+import { exportWeldsToExcel } from "@/lib/excel-export";
 
 const AUTO_SAVE_DELAY_MS = 1500;
 
@@ -171,10 +171,7 @@ export default function WeldTrackerApp() {
                 : max + "A";
           }
         }
-        newSpool = {
-          id: `spool-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-          name: `SP-${nextLetter}`,
-        };
+        newSpool = createDefaultSpool({ name: `SP-${nextLetter}` });
         return [...prev, newSpool];
       });
       const newMarker = {
@@ -412,57 +409,22 @@ export default function WeldTrackerApp() {
   }, [pdfBlob]);
 
   const handleExportExcel = useCallback(() => {
-    const rows = weldPoints.map((w) => {
-      const records = Array.isArray(w.weldingRecords) && w.weldingRecords.length > 0 ? w.weldingRecords : null;
-      let welderNames = "";
-      let dateWelded = "";
-      let electrode = "";
-      let processes = "";
-      if (records && records.length > 0) {
-        const allWelderIds = [...new Set(records.flatMap((r) => r.welderIds || []))];
-        welderNames = personnel?.welders?.length > 0
-          ? allWelderIds.map((id) => personnel.welders.find((x) => x.id === id)?.name).filter(Boolean).join(", ")
-          : "";
-        dateWelded = records.map((r) => r.date).filter(Boolean).join("; ") || "";
-        electrode = records
-          .flatMap((r) => (Array.isArray(r.electrodeNumbers) ? r.electrodeNumbers.filter(Boolean) : []))
-          .filter((v, i, a) => a.indexOf(v) === i)
-          .join(", ");
-        processes = [...new Set(records.flatMap((r) => r.weldingProcesses || []))].join(", ");
-      } else {
-        welderNames = (Array.isArray(w.welderIds) && w.welderIds.length > 0 && personnel?.welders?.length > 0)
-          ? w.welderIds.map((id) => personnel.welders.find((x) => x.id === id)?.name).filter(Boolean).join(", ")
-          : w.welderName || "";
-        dateWelded = w.weldingDate || "";
-        electrode = Array.isArray(w.electrodeNumbers) ? w.electrodeNumbers.filter(Boolean).join(", ") : "";
-        processes = Array.isArray(w.weldingProcesses) ? w.weldingProcesses.join(", ") : "";
-      }
-      return {
-        ID: getWeldName(w, weldPoints),
-        "Weld Type": w.weldType || "",
-        Location: w.weldLocation === "field" ? "Field" : "Shop",
-        WPS: w.wps || "",
-        "X %": w.xPercent?.toFixed(2),
-        "Y %": w.yPercent?.toFixed(2),
-        Page: (w.pageNumber ?? 0) + 1,
-        "Welder Name": welderNames,
-        "Date Welded": dateWelded,
-        "Fitter Name": w.fitterName || "",
-        "Date Fit-up": w.dateFitUp || "",
-        "Heat 1": w.heatNumber1 || "",
-        "Heat 2": w.heatNumber2 || "",
-        Electrode: electrode,
-        Processes: processes,
-        "NDT Required": w.ndtRequired || "",
-        "Visual Insp": w.visualInspection ? "Yes" : "No",
-        Spool: spools.find((s) => s.id === w.spoolId)?.name || "",
-      };
+    exportWeldsToExcel(weldPoints, {
+      pdfFilename,
+      spools,
+      personnel,
+      drawingSettings,
     });
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Welds");
-    XLSX.writeFile(wb, `${pdfFilename.replace(".pdf", "")}-welds.xlsx`);
-  }, [weldPoints, pdfFilename, spools, personnel]);
+  }, [weldPoints, pdfFilename, spools, personnel, drawingSettings]);
+
+  const weldStatusByWeldId = useMemo(() => {
+    const map = new Map();
+    weldPoints.forEach((w) => {
+      const ndtSel = computeNdtSelection(w, drawingSettings);
+      map.set(w.id, getWeldOverallStatus(w, ndtSel));
+    });
+    return map;
+  }, [weldPoints, drawingSettings]);
 
   return (
     <div className="container mx-auto p-4">
@@ -526,10 +488,12 @@ export default function WeldTrackerApp() {
               onMoveSpoolMarker={handleMoveSpoolMarker}
               onMoveSpoolIndicator={handleMoveSpoolIndicator}
               onDeleteSpoolMarker={handleDeleteSpoolMarker}
+              weldStatusByWeldId={weldStatusByWeldId}
               />
             </div>
             <SidePanelWeldForm
               weldPoints={weldPoints}
+              weldStatusByWeldId={weldStatusByWeldId}
               weld={formWeld}
               selectedWeldId={selectedWeldId}
               isOpen={showWeldPanel}
@@ -545,6 +509,7 @@ export default function WeldTrackerApp() {
               spools={spools}
               personnel={personnel}
               ndtAutoLabel={formatNdtRequirements(drawingSettings.ndtRequirements)}
+              drawingSettings={drawingSettings}
             />
             <SidePanelSpools
               spools={spools}
@@ -558,6 +523,9 @@ export default function WeldTrackerApp() {
               }}
               spoolMarkers={spoolMarkers}
               appMode={appMode}
+              weldPoints={weldPoints}
+              weldStatusByWeldId={weldStatusByWeldId}
+              getWeldName={getWeldName}
             />
           </>
         ) : (

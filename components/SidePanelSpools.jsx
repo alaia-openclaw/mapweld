@@ -1,10 +1,7 @@
 "use client";
 
 import { useState } from "react";
-
-function generateSpoolId() {
-  return `spool-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-}
+import { createDefaultSpool } from "@/lib/defaults";
 
 function SidePanelSpools({
   spools = [],
@@ -13,35 +10,77 @@ function SidePanelSpools({
   onSave,
   spoolMarkers = [],
   appMode = "edition",
+  weldPoints = [],
+  weldStatusByWeldId,
+  getWeldName,
 }) {
   const [name, setName] = useState("");
+  const [expandedSpoolId, setExpandedSpoolId] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState("");
+  const [editDimX, setEditDimX] = useState("");
+  const [editDimY, setEditDimY] = useState("");
+  const [editDimZ, setEditDimZ] = useState("");
+  const [editWeight, setEditWeight] = useState("");
+  const [editPressureValue, setEditPressureValue] = useState("");
+  const [editPressureUnit, setEditPressureUnit] = useState("bar");
+
+  function startEdit(s) {
+    setEditingId(s.id);
+    setEditName(s.name ?? "");
+    setEditDimX(String(s.dimX ?? ""));
+    setEditDimY(String(s.dimY ?? ""));
+    setEditDimZ(String(s.dimZ ?? ""));
+    setEditWeight(String(s.weight ?? ""));
+    setEditPressureValue(String(s.pressureTestValue ?? ""));
+    setEditPressureUnit(s.pressureTestUnit ?? "bar");
+  }
 
   function handleAdd(e) {
     e.preventDefault();
     if (!name.trim()) return;
     onSave?.([
       ...spools,
-      { id: generateSpoolId(), name: name.trim() },
+      createDefaultSpool({ name: name.trim() }),
     ]);
     setName("");
   }
 
   function handleUpdate(id) {
     const updated = spools.map((s) =>
-      s.id === id ? { ...s, name: editName.trim() || s.name } : s
+      s.id === id
+        ? {
+            ...s,
+            name: editName.trim() || s.name,
+            dimX: editDimX.trim() || "",
+            dimY: editDimY.trim() || "",
+            dimZ: editDimZ.trim() || "",
+            weight: editWeight.trim() || "",
+            pressureTestValue: editPressureValue.trim() || "",
+            pressureTestUnit: editPressureUnit,
+          }
+        : s
     );
     onSave?.(updated);
     setEditingId(null);
-    setEditName("");
+    setExpandedSpoolId(null);
   }
 
   function handleDelete(id) {
     if (confirm("Delete this spool? Its marker will be removed from the drawing.")) {
       onSave?.(spools.filter((s) => s.id !== id));
+      setExpandedSpoolId((prev) => (prev === id ? null : prev));
+      setEditingId((prev) => (prev === id ? null : prev));
     }
   }
+
+  const weldsBySpoolId = weldPoints.reduce((acc, w) => {
+    const sid = w.spoolId;
+    if (!sid) return acc;
+    if (!acc[sid]) acc[sid] = [];
+    acc[sid].push(w);
+    return acc;
+  }, {});
 
   return (
     <div
@@ -101,40 +140,47 @@ function SidePanelSpools({
               </div>
             ) : (
               <ul className="space-y-2">
-                {spools.map((s) => (
-                  <li
-                    key={s.id}
-                    className="flex items-center gap-2 p-2 bg-base-100 rounded-lg"
-                  >
-                    {editingId === s.id ? (
-                      <>
-                        <input
-                          type="text"
-                          className="input input-sm input-bordered flex-1"
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          autoFocus
-                        />
+                {spools.map((s) => {
+                  const isExpanded = s.id === expandedSpoolId;
+                  const isEditing = editingId === s.id;
+                  const attachedWelds = weldsBySpoolId[s.id] || [];
+                  return (
+                    <li
+                      key={s.id}
+                      className="bg-base-100 rounded-lg overflow-hidden border border-base-300"
+                    >
+                      <div className="flex items-center gap-2 p-2">
                         <button
                           type="button"
-                          className="btn btn-sm btn-ghost"
-                          onClick={() => handleUpdate(s.id)}
+                          className="flex-1 text-left truncate font-medium"
+                          onClick={() =>
+                            setExpandedSpoolId((prev) => (prev === s.id ? null : s.id))
+                          }
                         >
-                          Done
+                          {s.name}
                         </button>
-                      </>
-                    ) : (
-                      <>
-                        <span className="flex-1 truncate">{s.name}</span>
-                        {appMode === "edition" && (
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className={`h-4 w-4 flex-shrink-0 transition-transform ${
+                            isExpanded ? "rotate-180" : ""
+                          }`}
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 9l-7 7-7 7"
+                          />
+                        </svg>
+                        {appMode === "edition" && !isEditing && (
                           <>
                             <button
                               type="button"
                               className="btn btn-ghost btn-sm btn-square"
-                              onClick={() => {
-                                setEditingId(s.id);
-                                setEditName(s.name);
-                              }}
+                              onClick={() => startEdit(s)}
                               aria-label="Edit"
                             >
                               ✎
@@ -149,10 +195,183 @@ function SidePanelSpools({
                             </button>
                           </>
                         )}
-                      </>
-                    )}
-                  </li>
-                ))}
+                      </div>
+                      {isExpanded && (
+                        <div className="border-t border-base-300 px-3 py-3 space-y-3">
+                          {isEditing ? (
+                            <>
+                              <div className="form-control">
+                                <label className="label py-0">
+                                  <span className="label-text text-xs">Name</span>
+                                </label>
+                                <input
+                                  type="text"
+                                  className="input input-sm input-bordered"
+                                  value={editName}
+                                  onChange={(e) => setEditName(e.target.value)}
+                                  placeholder="Spool name"
+                                />
+                              </div>
+                              <div className="form-control">
+                                <label className="label py-0">
+                                  <span className="label-text text-xs">Dimensions (mm)</span>
+                                </label>
+                                <div className="flex gap-2">
+                                  <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    className="input input-sm input-bordered flex-1"
+                                    value={editDimX}
+                                    onChange={(e) => setEditDimX(e.target.value)}
+                                    placeholder="X"
+                                  />
+                                  <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    className="input input-sm input-bordered flex-1"
+                                    value={editDimY}
+                                    onChange={(e) => setEditDimY(e.target.value)}
+                                    placeholder="Y"
+                                  />
+                                  <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    className="input input-sm input-bordered flex-1"
+                                    value={editDimZ}
+                                    onChange={(e) => setEditDimZ(e.target.value)}
+                                    placeholder="Z"
+                                  />
+                                </div>
+                              </div>
+                              <div className="form-control">
+                                <label className="label py-0">
+                                  <span className="label-text text-xs">Weight (kg)</span>
+                                </label>
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  className="input input-sm input-bordered"
+                                  value={editWeight}
+                                  onChange={(e) => setEditWeight(e.target.value)}
+                                  placeholder="e.g. 125"
+                                />
+                              </div>
+                              <div className="form-control">
+                                <label className="label py-0">
+                                  <span className="label-text text-xs">Pressure test</span>
+                                </label>
+                                <div className="flex gap-2">
+                                  <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    className="input input-sm input-bordered flex-1"
+                                    value={editPressureValue}
+                                    onChange={(e) => setEditPressureValue(e.target.value)}
+                                    placeholder="Value"
+                                  />
+                                  <select
+                                    className="select select-bordered select-sm w-24"
+                                    value={editPressureUnit}
+                                    onChange={(e) => setEditPressureUnit(e.target.value)}
+                                  >
+                                    <option value="bar">bar</option>
+                                    <option value="psi">PSI</option>
+                                  </select>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                className="btn btn-primary btn-sm"
+                                onClick={() => handleUpdate(s.id)}
+                              >
+                                Save
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <div className="grid grid-cols-3 gap-2 text-sm">
+                                <div>
+                                  <span className="text-base-content/60 text-xs">X (mm)</span>
+                                  <p>{s.dimX || "—"}</p>
+                                </div>
+                                <div>
+                                  <span className="text-base-content/60 text-xs">Y (mm)</span>
+                                  <p>{s.dimY || "—"}</p>
+                                </div>
+                                <div>
+                                  <span className="text-base-content/60 text-xs">Z (mm)</span>
+                                  <p>{s.dimZ || "—"}</p>
+                                </div>
+                              </div>
+                              <div>
+                                <span className="text-base-content/60 text-xs">Weight (kg)</span>
+                                <p>{s.weight || "—"}</p>
+                              </div>
+                              <div>
+                                <span className="text-base-content/60 text-xs">Pressure test</span>
+                                <p>
+                                  {s.pressureTestValue
+                                    ? `${s.pressureTestValue} ${s.pressureTestUnit || "bar"}`
+                                    : "—"}
+                                </p>
+                              </div>
+                              {appMode === "edition" && (
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost btn-sm"
+                                  onClick={() => startEdit(s)}
+                                >
+                                  Edit details
+                                </button>
+                              )}
+                              <div>
+                                <span className="label-text text-xs font-medium">
+                                  Welds attached ({attachedWelds.length})
+                                </span>
+                                {attachedWelds.length === 0 ? (
+                                  <p className="text-sm text-base-content/60 mt-1">
+                                    No welds assigned to this spool
+                                  </p>
+                                ) : (
+                                  <ul className="mt-1 space-y-1">
+                                    {attachedWelds.map((w) => {
+                                      const status = weldStatusByWeldId?.get(w.id);
+                                      const statusLabel =
+                                        status === "complete"
+                                          ? "Complete"
+                                          : status === "incomplete"
+                                            ? "Incomplete"
+                                            : "Not started";
+                                      const statusClass =
+                                        status === "complete"
+                                          ? "text-success"
+                                          : status === "incomplete"
+                                            ? "text-warning"
+                                            : "text-base-content/60";
+                                      return (
+                                        <li
+                                          key={w.id}
+                                          className="flex items-center justify-between text-sm py-1 px-2 bg-base-200 rounded"
+                                        >
+                                          <span className="font-mono">
+                                            {getWeldName ? getWeldName(w, weldPoints) : w.id}
+                                          </span>
+                                          <span className={`text-xs ${statusClass}`}>
+                                            {statusLabel}
+                                          </span>
+                                        </li>
+                                      );
+                                    })}
+                                  </ul>
+                                )}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>
@@ -163,4 +382,3 @@ function SidePanelSpools({
 }
 
 export default SidePanelSpools;
-

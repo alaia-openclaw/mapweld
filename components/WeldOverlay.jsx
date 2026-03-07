@@ -13,6 +13,7 @@ function WeldOverlay({
   onResizeLabel,
   onMoveLineBend,
   pageWrapperRef,
+  weldStatusByWeldId,
 }) {
   return (
     <div className="absolute inset-0 pointer-events-none">
@@ -30,6 +31,7 @@ function WeldOverlay({
           onResizeLabel={onResizeLabel}
           onMoveLineBend={onMoveLineBend}
           pageWrapperRef={pageWrapperRef}
+          weldStatus={weldStatusByWeldId?.get(weld.id)}
         />
       ))}
     </div>

@@ -33,6 +33,7 @@ function PDFViewer({
   onMoveSpoolMarker,
   onMoveSpoolIndicator,
   onDeleteSpoolMarker,
+  weldStatusByWeldId,
 }) {
   const [loadError, setLoadError] = useState(null);
   const [scale, setScale] = useState(initialScale);
@@ -257,6 +258,7 @@ function PDFViewer({
             onMoveIndicator={onMoveIndicator}
             onResizeLabel={onResizeLabel}
             onMoveLineBend={onMoveLineBend}
+            weldStatusByWeldId={weldStatusByWeldId}
           />
           <div className="absolute inset-0 pointer-events-none">
             {spoolMarkersOnPage.map((m) => (

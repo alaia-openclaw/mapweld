@@ -38,6 +38,7 @@ function WeldPointMarker({
   onResizeLabel,
   onMoveLineBend,
   pageWrapperRef,
+  weldStatus,
 }) {
   const draggingRef = useRef(null);
   const resizeStartRef = useRef({ fontSize: 12, clientY: 0 });
@@ -308,7 +309,7 @@ function WeldPointMarker({
         className={`absolute -translate-x-1/2 -translate-y-1/2 flex items-center justify-center border-2 border-solid pointer-events-auto cursor-pointer z-10 ${bulletColourClass}
           ${isField ? "rotate-45" : "rounded-full"}
           ${lineColourClass}
-          ${isSelected ? (showHandles ? "ring-2 ring-error ring-offset-1" : "ring-2 ring-primary ring-offset-1") : ""}`}
+          ${isSelected ? (showHandles ? "ring-2 ring-error ring-offset-1" : "ring-2 ring-primary ring-offset-1") : weldStatus === "complete" ? "ring-2 ring-success ring-offset-1" : weldStatus === "incomplete" ? "ring-2 ring-warning ring-offset-1" : weldStatus === "not_started" ? "ring-2 ring-error ring-offset-1" : ""}`}
         style={{
           left: `${ix}%`,
           top: `${iy}%`,

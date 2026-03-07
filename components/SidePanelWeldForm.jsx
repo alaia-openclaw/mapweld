@@ -6,11 +6,15 @@ import {
   WELD_LOCATION_LABELS,
   NDT_REQUIRED_OPTIONS,
   NDT_REQUIRED_LABELS,
+  NDT_METHODS,
+  NDT_METHOD_LABELS,
+  NDT_OVERRIDE_OPTIONS,
+  NDT_OVERRIDE_LABELS,
   WELDING_PROCESSES,
   WELDING_PROCESS_LABELS,
 } from "@/lib/constants";
 import { createDefaultWeldingRecord } from "@/lib/defaults";
-import { getWeldName } from "@/lib/weld-utils";
+import { getWeldName, getWeldOverallStatus, getWeldSectionCompletion, computeNdtSelection } from "@/lib/weld-utils";
 
 function SidePanelWeldForm({
   weldPoints = [],
@@ -26,6 +30,8 @@ function SidePanelWeldForm({
   spools = [],
   personnel = { fitters: [], welders: [] },
   ndtAutoLabel,
+  drawingSettings = { ndtRequirements: [] },
+  weldStatusByWeldId,
 }) {
   const [weldType, setWeldType] = useState("butt");
   const [weldLocation, setWeldLocation] = useState("shop");
@@ -39,6 +45,8 @@ function SidePanelWeldForm({
   const [visualInspection, setVisualInspection] = useState(false);
   const [spoolId, setSpoolId] = useState("");
   const [weldingRecords, setWeldingRecords] = useState([]);
+  const [ndtOverrides, setNdtOverrides] = useState({});
+  const [ndtResults, setNdtResults] = useState({});
   const [openSections, setOpenSections] = useState({ general: true, fitup: false, welding: false, inspection: false });
 
   function toggleSection(key) {
@@ -62,24 +70,29 @@ function SidePanelWeldForm({
         ? weld.weldingRecords.map((r) => ({
             id: r.id || `wr-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
             welderIds: Array.isArray(r.welderIds) ? r.welderIds : [],
+            welderName: r.welderName ?? "",
             weldingProcesses: Array.isArray(r.weldingProcesses) ? r.weldingProcesses : [],
             electrodeNumbers: Array.isArray(r.electrodeNumbers) && r.electrodeNumbers.length > 0 ? r.electrodeNumbers : [""],
             date: r.date ?? "",
           }))
         : [];
       setWeldingRecords(records.length > 0 ? records : []);
+      setNdtOverrides(weld.ndtOverrides || {});
+      setNdtResults(weld.ndtResults || {});
     }
   }, [weld]);
 
-  function handleAddWeldingRecord() {
+  function handleAddWeldingRecord(initialData = {}) {
     setWeldingRecords((prev) => [
       ...prev,
       {
         id: `wr-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
         welderIds: [],
+        welderName: "",
         weldingProcesses: [],
         electrodeNumbers: [""],
         date: "",
+        ...initialData,
       },
     ]);
   }
@@ -170,6 +183,8 @@ function SidePanelWeldForm({
       weldingRecords: recordsToSave,
       ndtRequired,
       visualInspection,
+      ndtOverrides,
+      ndtResults,
       spoolId: spoolId || null,
     });
     onBackToList?.();
@@ -239,6 +254,15 @@ function SidePanelWeldForm({
               <ul className="w-full min-w-full max-w-full bg-base-100 rounded-lg p-0 gap-0 list-none">
                 {weldPoints.map((w) => {
                   const isExpanded = w.id === expandedWeldId;
+                  const listStatus = weldStatusByWeldId?.get(w.id);
+                  const statusBorder =
+                    w.id === selectedWeldId
+                      ? "border-primary"
+                      : listStatus === "complete"
+                        ? "border-success"
+                        : listStatus === "incomplete"
+                          ? "border-warning"
+                          : "border-error";
                   return (
                     <li key={w.id} className="w-full min-w-full border-b border-base-200 last:border-b-0">
                       <button
@@ -248,21 +272,30 @@ function SidePanelWeldForm({
                             ? onBackToList?.()
                             : onSelectWeld?.(w)
                         }
-                        className={`flex items-center justify-between gap-2 w-full text-left py-2 px-3 ${
-                          w.id === selectedWeldId
-                            ? "bg-primary/15 border-l-4 border-primary font-medium"
-                            : ""
+                        className={`flex items-center justify-between gap-2 w-full text-left py-2 px-3 border-l-4 ${statusBorder} ${
+                          w.id === selectedWeldId ? "bg-primary/15 font-medium" : ""
                         }`}
                       >
-                        <span className="flex items-center gap-2">
+                        <span className="flex flex-col items-start gap-0.5 min-w-0">
                           <span className="font-mono text-sm">
                             {getWeldName(w, weldPoints)}
                           </span>
-                          {w.weldType && (
-                            <span className="text-xs opacity-60">
-                              {WELD_TYPE_LABELS[w.weldType] || w.weldType}
-                            </span>
-                          )}
+                          <span className="text-xs opacity-70 truncate max-w-full">
+                            {(() => {
+                              const spool = w.spoolId && spools.find((s) => s.id === w.spoolId);
+                              const ndtSel = computeNdtSelection(w, drawingSettings);
+                              const section = getWeldSectionCompletion(w, ndtSel);
+                              const missing = [];
+                              if (!section.general) missing.push("General");
+                              if (!section.fitup) missing.push("Fitup");
+                              if (!section.welding) missing.push("Welding");
+                              if (!section.inspection) missing.push("Inspection");
+                              const parts = [];
+                              if (spool?.name) parts.push(spool.name);
+                              if (missing.length > 0) parts.push(`Missing: ${missing.join(", ")}`);
+                              return parts.join(" · ") || "—";
+                            })()}
+                          </span>
                         </span>
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
@@ -285,12 +318,31 @@ function SidePanelWeldForm({
                         <div className="w-full min-w-full border-t border-base-200 bg-base-100 px-1 py-3">
                           <form onSubmit={handleSubmit} className="space-y-0">
                             {/* Vertical collapsible sections */}
-                            {["general", "fitup", "welding", "inspection"].map((sectionKey) => (
+                            {(() => {
+                              const virtualWeld = {
+                                wps,
+                                fitterName,
+                                dateFitUp,
+                                heatNumber1,
+                                heatNumber2,
+                                weldingRecords,
+                                ndtRequired,
+                                visualInspection,
+                                ndtOverrides,
+                                ndtResults,
+                              };
+                              const ndtSel = computeNdtSelection(virtualWeld, drawingSettings);
+                              const sectionComplete = getWeldSectionCompletion(virtualWeld, ndtSel);
+                              return ["general", "fitup", "welding", "inspection"].map((sectionKey) => (
                               <div key={sectionKey} className="w-full border border-base-300 rounded-none overflow-hidden first:rounded-t-lg last:rounded-b-lg border-b-0 last:border-b border-base-300">
                                 <button
                                   type="button"
                                   onClick={() => toggleSection(sectionKey)}
-                                  className="w-full flex justify-start items-center gap-2 px-2 py-2 bg-base-200 hover:bg-base-300 text-left font-medium capitalize"
+                                  className={`w-full flex justify-start items-center gap-2 px-2 py-2 text-left font-medium capitalize border-l-4 ${
+                                    sectionComplete[sectionKey]
+                                      ? "bg-success/15 border-success hover:bg-success/25"
+                                      : "bg-warning/15 border-warning hover:bg-warning/25"
+                                  }`}
                                 >
                                   <span>{sectionKey}</span>
                                   <svg
@@ -352,6 +404,24 @@ function SidePanelWeldForm({
                                             </select>
                                           </div>
                                         </div>
+                                        {spools.length > 0 && (
+                                          <div className="form-control">
+                                            <label className="label" htmlFor="side-spoolId">
+                                              <span className="label-text">Spool</span>
+                                            </label>
+                                            <select
+                                              id="side-spoolId"
+                                              className="select select-bordered select-sm"
+                                              value={spoolId}
+                                              onChange={(e) => setSpoolId(e.target.value)}
+                                            >
+                                              <option value="">None</option>
+                                              {spools.map((s) => (
+                                                <option key={s.id} value={s.id}>{s.name}</option>
+                                              ))}
+                                            </select>
+                                          </div>
+                                        )}
                                       </>
                                     )}
                                     {sectionKey === "fitup" && (
@@ -437,7 +507,9 @@ function SidePanelWeldForm({
                                   </button>
                                 </div>
                                 {weldingRecords.length === 0 ? (
-                                  <p className="text-sm text-base-content/60">No records. Add to log root pass, capping, etc.</p>
+                                  <div className="p-2 bg-base-200 rounded-lg">
+                                    <p className="text-sm text-base-content/60">Click + Add to add a welding record.</p>
+                                  </div>
                                 ) : (
                                   <div className="space-y-3">
                                     {weldingRecords.map((rec, idx) => (
@@ -456,9 +528,20 @@ function SidePanelWeldForm({
                                           )}
                                         </div>
                                         <div className="form-control">
-                                          <label className="label py-0"><span className="label-text text-xs">Welder(s)</span></label>
-                                          {personnel?.welders?.length > 0 ? (
-                                            <div className="flex flex-wrap gap-1">
+                                          <label className="label py-0" htmlFor={`side-welder-${rec.id}`}>
+                                            <span className="label-text text-xs">Welder(s)</span>
+                                          </label>
+                                          <input
+                                            id={`side-welder-${rec.id}`}
+                                            type="text"
+                                            className="input input-bordered input-xs w-full"
+                                            placeholder={personnel?.welders?.length ? "Or type custom name" : "Welder name"}
+                                            value={rec.welderName ?? ""}
+                                            onChange={(e) => handleUpdateWeldingRecord(idx, { welderName: e.target.value })}
+                                            autoComplete="off"
+                                          />
+                                          {personnel?.welders?.length > 0 && (
+                                            <div className="flex flex-wrap gap-1 mt-1">
                                               {personnel.welders.map((welder) => (
                                                 <label key={welder.id} className="label cursor-pointer gap-1 py-0">
                                                   <input
@@ -471,13 +554,6 @@ function SidePanelWeldForm({
                                                 </label>
                                               ))}
                                             </div>
-                                          ) : (
-                                            <input
-                                              type="text"
-                                              className="input input-bordered input-xs"
-                                              placeholder="Welder name"
-                                              readOnly
-                                            />
                                           )}
                                         </div>
                                         <div className="form-control">
@@ -556,7 +632,7 @@ function SidePanelWeldForm({
                               <div className="space-y-3">
                                 <div className="form-control">
                                   <label className="label" htmlFor="side-ndtRequired">
-                                    <span className="label-text">NDT</span>
+                                    <span className="label-text">NDT (global)</span>
                                   </label>
                                   <select
                                     id="side-ndtRequired"
@@ -579,33 +655,79 @@ function SidePanelWeldForm({
                                       checked={visualInspection}
                                       onChange={(e) => setVisualInspection(e.target.checked)}
                                     />
-                                    <span className="label-text">Visual</span>
+                                    <span className="label-text">Visual inspection (VT)</span>
                                   </label>
                                 </div>
-                                {spools.length > 0 && (
-                                  <div className="form-control">
-                                    <label className="label" htmlFor="side-spoolId">
-                                      <span className="label-text">Spool</span>
-                                    </label>
-                                    <select
-                                      id="side-spoolId"
-                                      className="select select-bordered select-sm"
-                                      value={spoolId}
-                                      onChange={(e) => setSpoolId(e.target.value)}
-                                    >
-                                      <option value="">None</option>
-                                      {spools.map((s) => (
-                                        <option key={s.id} value={s.id}>{s.name}</option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                )}
+                                <div className="overflow-x-auto">
+                                  <table className="table table-xs">
+                                    <thead>
+                                      <tr>
+                                        <th>NDT</th>
+                                        <th>Override</th>
+                                        <th>Required</th>
+                                        <th>Done</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {NDT_METHODS.map((m) => {
+                                        const virtualW = {
+                                          ndtRequired,
+                                          visualInspection,
+                                          ndtOverrides,
+                                        };
+                                        const sel = computeNdtSelection(virtualW, drawingSettings);
+                                        const isRequired = !!sel[m];
+                                        const overrideVal = ndtOverrides[m] ?? NDT_OVERRIDE_OPTIONS.AUTO;
+                                        return (
+                                          <tr key={m}>
+                                            <td className="font-medium">{NDT_METHOD_LABELS[m] || m}</td>
+                                            <td>
+                                              <select
+                                                className="select select-bordered select-xs w-full max-w-[7rem]"
+                                                value={overrideVal}
+                                                onChange={(e) => {
+                                                  const v = e.target.value;
+                                                  setNdtOverrides((prev) => {
+                                                    const next = { ...prev };
+                                                    if (v === NDT_OVERRIDE_OPTIONS.AUTO) delete next[m];
+                                                    else next[m] = v;
+                                                    return next;
+                                                  });
+                                                }}
+                                              >
+                                                <option value={NDT_OVERRIDE_OPTIONS.AUTO}>Auto</option>
+                                                <option value={NDT_OVERRIDE_OPTIONS.REQUIRED}>Required</option>
+                                                <option value={NDT_OVERRIDE_OPTIONS.EXEMPT}>Excluded</option>
+                                              </select>
+                                            </td>
+                                            <td className="text-sm">{isRequired ? "Yes" : "No"}</td>
+                                            <td>
+                                              <input
+                                                type="checkbox"
+                                                className="checkbox checkbox-sm"
+                                                checked={!!ndtResults[m]}
+                                                onChange={(e) => {
+                                                  setNdtResults((prev) => ({
+                                                    ...prev,
+                                                    [m]: e.target.checked ? "ok" : undefined,
+                                                  }));
+                                                }}
+                                                disabled={!isRequired}
+                                                title={!isRequired ? "Not required" : "Mark as done"}
+                                              />
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </table>
+                                </div>
                               </div>
                             )}
                           </div>
                         )}
                               </div>
-                            ))}
+                            )); })()}
                             {/* end sections map */}
                             <div className="flex flex-wrap gap-2 mt-4">
                               {onDelete && appMode === "edition" && (
