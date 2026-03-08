@@ -8,6 +8,7 @@ import MarkupToolbar from "@/components/MarkupToolbar";
 import PDFViewer from "@/components/PDFViewer";
 import SidePanelWeldForm from "@/components/SidePanelWeldForm";
 import SidePanelSpools from "@/components/SidePanelSpools";
+import SidePanelPartForm from "@/components/SidePanelPartForm";
 import DashboardAnalytics from "@/components/DashboardAnalytics";
 import ModalParameters from "@/components/ModalParameters";
 import ModalProjects from "@/components/ModalProjects";
@@ -24,7 +25,7 @@ import {
   loadProject as loadFromIndexedDB,
   generateProjectId,
 } from "@/lib/offline-storage";
-import { createDefaultWeld, createDefaultSpool } from "@/lib/defaults";
+import { createDefaultWeld, createDefaultSpool, createDefaultPart } from "@/lib/defaults";
 import { getWeldName, getWeldOverallStatus, computeNdtSelection } from "@/lib/weld-utils";
 import { formatNdtRequirements, NDT_REPORT_STATUS } from "@/lib/constants";
 import { exportWeldsToExcel } from "@/lib/excel-export";
@@ -71,6 +72,10 @@ export default function WeldTrackerApp() {
   const [showNdtPanel, setShowNdtPanel] = useState(false);
   const [projectId, setProjectId] = useState(null);
   const [spoolMarkers, setSpoolMarkers] = useState([]);
+  const [parts, setParts] = useState([]);
+  const [partMarkers, setPartMarkers] = useState([]);
+  const [selectedPartMarkerId, setSelectedPartMarkerId] = useState(null);
+  const [showPartPanel, setShowPartPanel] = useState(false);
   const [personnel, setPersonnel] = useState({ fitters: [], welders: [], wqrs: [] });
   const [ndtRequests, setNdtRequests] = useState([]);
   const [ndtReports, setNdtReports] = useState([]);
@@ -82,6 +87,9 @@ export default function WeldTrackerApp() {
     setWeldPoints([]);
     setSpools([]);
     setSpoolMarkers([]);
+    setParts([]);
+    setPartMarkers([]);
+    setSelectedPartMarkerId(null);
     setPersonnel({ fitters: [], welders: [], wqrs: [] });
     setDrawingSettings({ ndtRequirements: [], weldingSpec: "" });
     setSelectedWeldId(null);
@@ -193,6 +201,7 @@ export default function WeldTrackerApp() {
   const handleSpoolMarkerClick = useCallback((marker) => {
     setSelectedSpoolMarkerId(marker.id);
     setSelectedWeldId(null);
+    setSelectedPartMarkerId(null);
   }, []);
 
   const handleMoveSpoolMarker = useCallback((markerId, { xPercent, yPercent }) => {
@@ -216,24 +225,91 @@ export default function WeldTrackerApp() {
     []
   );
 
+  const handleAddPartMarker = useCallback(
+    ({ xPercent, yPercent, pageNumber }) => {
+      const labelOffset = 4;
+      const nextNum = parts.length === 0 ? 1 : Math.max(...parts.map((p) => p.displayNumber ?? 0), 0) + 1;
+      const newPart = createDefaultPart({ displayNumber: nextNum });
+      const newMarker = {
+        id: `pm-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        partId: newPart.id,
+        xPercent,
+        yPercent,
+        indicatorXPercent: Math.min(100, Math.max(0, xPercent + labelOffset)),
+        indicatorYPercent: Math.min(100, Math.max(0, yPercent - labelOffset)),
+        pageNumber: pageNumber ?? 0,
+      };
+      setParts((prev) => [...prev, newPart]);
+      setPartMarkers((prev) => [...prev, newMarker]);
+    },
+    [parts.length, parts]
+  );
+
+  const handlePartMarkerClick = useCallback((marker) => {
+    setSelectedPartMarkerId(marker.id);
+    setSelectedWeldId(null);
+    setSelectedSpoolMarkerId(null);
+    setShowPartPanel(true);
+  }, []);
+
+  const handleMovePartMarker = useCallback((markerId, { xPercent, yPercent }) => {
+    setPartMarkers((prev) =>
+      prev.map((m) => (m.id === markerId ? { ...m, xPercent, yPercent } : m))
+    );
+  }, []);
+
+  const handleMovePartIndicator = useCallback(
+    (markerId, { indicatorXPercent, indicatorYPercent }) => {
+      setPartMarkers((prev) =>
+        prev.map((m) =>
+          m.id === markerId
+            ? { ...m, indicatorXPercent, indicatorYPercent }
+            : m
+        )
+      );
+    },
+    []
+  );
+
+  const handleSavePart = useCallback((updatedPart) => {
+    setParts((prev) =>
+      prev.map((p) => (p.id === updatedPart.id ? updatedPart : p))
+    );
+  }, []);
+
+  const handleDeletePart = useCallback((partId) => {
+    setParts((prev) => prev.filter((p) => p.id !== partId));
+    setPartMarkers((prev) => prev.filter((m) => m.partId !== partId));
+    setSelectedPartMarkerId(null);
+  }, []);
+
+  const handleDeletePartMarker = useCallback((markerId) => {
+    const marker = partMarkers.find((m) => m.id === markerId);
+    if (marker?.partId) handleDeletePart(marker.partId);
+  }, [partMarkers, handleDeletePart]);
+
   const handlePageClick = useCallback(
     ({ xPercent, yPercent, pageNumber }) => {
       if (appMode === "edition" && markupTool === "addSpool") {
         handleAddSpoolMarker({ xPercent, yPercent, pageNumber });
+      } else if (appMode === "edition" && markupTool === "addPart") {
+        handleAddPartMarker({ xPercent, yPercent, pageNumber });
       } else if (appMode === "edition" && markupTool === "add") {
         handleAddWeld({ xPercent, yPercent, pageNumber });
       } else if (markupTool === "select") {
         setSelectedWeldId(null);
         setSelectedSpoolMarkerId(null);
+        setSelectedPartMarkerId(null);
         setFormWeld(null);
       }
     },
-    [handleAddSpoolMarker, handleAddWeld, appMode, markupTool]
+    [handleAddSpoolMarker, handleAddPartMarker, handleAddWeld, appMode, markupTool]
   );
 
   const handleWeldClick = useCallback((weld) => {
     setSelectedWeldId(weld.id);
     setSelectedSpoolMarkerId(null);
+    setSelectedPartMarkerId(null);
   }, []);
 
   const handleWeldDoubleClick = useCallback((weld) => {
@@ -328,6 +404,8 @@ export default function WeldTrackerApp() {
     setWeldPoints(applyCompletedReportsToWelds(data.weldPoints || [], loadedReports));
     setSpools(data.spools || []);
     setSpoolMarkers(data.spoolMarkers || []);
+    setParts(data.parts || []);
+    setPartMarkers(data.partMarkers || []);
     setPersonnel(data.personnel || { fitters: [], welders: [], wqrs: [] });
     setDrawingSettings(
       migrateDrawingSettings(data.drawingSettings) || {
@@ -340,6 +418,7 @@ export default function WeldTrackerApp() {
     setFormWeld(null);
     setSelectedWeldId(null);
     setSelectedSpoolMarkerId(null);
+    setSelectedPartMarkerId(null);
     setProjectId(data.id);
   }, [pdfBlob]);
 
@@ -353,6 +432,8 @@ export default function WeldTrackerApp() {
       weldPoints,
       spools,
       spoolMarkers,
+      parts,
+      partMarkers,
       personnel,
       drawingSettings,
       ndtRequests,
@@ -373,6 +454,8 @@ export default function WeldTrackerApp() {
     weldPoints,
     spools,
     spoolMarkers,
+    parts,
+    partMarkers,
     personnel,
     drawingSettings,
     ndtRequests,
@@ -399,6 +482,8 @@ export default function WeldTrackerApp() {
       setWeldPoints(applyCompletedReportsToWelds(data.weldPoints || [], loadedReports));
       setSpools(data.spools || []);
       setSpoolMarkers(data.spoolMarkers || []);
+      setParts(data.parts || []);
+      setPartMarkers(data.partMarkers || []);
       setPersonnel(data.personnel || { fitters: [], welders: [], wqrs: [] });
       setDrawingSettings(
         migrateDrawingSettings(data.drawingSettings) || {
@@ -411,6 +496,7 @@ export default function WeldTrackerApp() {
       setFormWeld(null);
       setSelectedWeldId(null);
       setSelectedSpoolMarkerId(null);
+      setSelectedPartMarkerId(null);
       setProjectId(generateProjectId());
     } catch (err) {
       alert(err.message || "Failed to load project");
@@ -524,11 +610,18 @@ export default function WeldTrackerApp() {
                     onMoveSpoolIndicator={handleMoveSpoolIndicator}
                     onDeleteSpoolMarker={handleDeleteSpoolMarker}
                     weldStatusByWeldId={weldStatusByWeldId}
+                    partMarkers={partMarkers}
+                    parts={parts}
+                    selectedPartMarkerId={selectedPartMarkerId}
+                    onPartMarkerClick={handlePartMarkerClick}
+                    onMovePartMarker={handleMovePartMarker}
+                    onMovePartIndicator={handleMovePartIndicator}
+                    onDeletePartMarker={handleDeletePartMarker}
                   />
                 </div>
                 <div
                   className={`flex flex-shrink-0 overflow-hidden transition-all duration-300 ease-out ${
-                    !showWeldPanel && !showSpoolPanel ? "flex-col w-10" : "flex-row"
+                    !showWeldPanel && !showSpoolPanel && !showPartPanel ? "flex-col w-10" : "flex-row"
                   }`}
                 >
                   <SidePanelWeldForm
@@ -539,6 +632,7 @@ export default function WeldTrackerApp() {
                     isOpen={showWeldPanel}
                     onToggle={() => {
                       setShowSpoolPanel(false);
+                      setShowPartPanel(false);
                       setShowWeldPanel((v) => !v);
                     }}
                     onSelectWeld={(w) => {
@@ -553,16 +647,17 @@ export default function WeldTrackerApp() {
                     personnel={personnel}
                     ndtAutoLabel={formatNdtRequirements(drawingSettings.ndtRequirements)}
                     drawingSettings={drawingSettings}
-                    isStacked={!showWeldPanel && !showSpoolPanel}
+                    isStacked={!showWeldPanel && !showSpoolPanel && !showPartPanel}
                   />
                   <SidePanelSpools
                     spools={spools}
                     isOpen={showSpoolPanel}
                     onToggle={() => {
                       setShowWeldPanel(false);
+                      setShowPartPanel(false);
                       setShowSpoolPanel((v) => !v);
                     }}
-                    isStacked={!showWeldPanel && !showSpoolPanel}
+                    isStacked={!showWeldPanel && !showSpoolPanel && !showPartPanel}
                   onSave={(newSpools) => {
                     setSpools(newSpools);
                     setSpoolMarkers((prev) =>
@@ -575,6 +670,23 @@ export default function WeldTrackerApp() {
                   weldPoints={weldPoints}
                   weldStatusByWeldId={weldStatusByWeldId}
                     getWeldName={getWeldName}
+                  />
+                  <SidePanelPartForm
+                    parts={parts}
+                    partMarkers={partMarkers}
+                    spools={spools}
+                    selectedPartMarkerId={selectedPartMarkerId}
+                    isOpen={showPartPanel}
+                    onToggle={() => {
+                      setShowWeldPanel(false);
+                      setShowSpoolPanel(false);
+                      setShowPartPanel((v) => !v);
+                    }}
+                    onSelectPartMarker={setSelectedPartMarkerId}
+                    onSavePart={handleSavePart}
+                    onDeletePart={handleDeletePart}
+                    appMode={appMode}
+                    isStacked={!showWeldPanel && !showSpoolPanel && !showPartPanel}
                   />
                 </div>
               </>

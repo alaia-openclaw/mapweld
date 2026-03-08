@@ -4,6 +4,7 @@ import { Document, Page, pdfjs } from "react-pdf";
 import { useCallback, useEffect, useRef, useState } from "react";
 import WeldOverlay from "./WeldOverlay";
 import SpoolMarker from "./SpoolMarker";
+import PartMarker from "./PartMarker";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 
@@ -34,6 +35,13 @@ function PDFViewer({
   onMoveSpoolIndicator,
   onDeleteSpoolMarker,
   weldStatusByWeldId,
+  partMarkers = [],
+  parts = [],
+  selectedPartMarkerId,
+  onPartMarkerClick,
+  onMovePartMarker,
+  onMovePartIndicator,
+  onDeletePartMarker,
 }) {
   const [loadError, setLoadError] = useState(null);
   const [scale, setScale] = useState(initialScale);
@@ -64,7 +72,7 @@ function PDFViewer({
     (e) => {
       if (e.button !== 0) return;
       if (e.target.closest("button, [role='button']")) return;
-      if (markupTool === "add" || markupTool === "addSpool") return;
+      if (markupTool === "add" || markupTool === "addSpool" || markupTool === "addPart") return;
       const el = containerRef?.current;
       if (!el) return;
       panStartRef.current = {
@@ -152,6 +160,9 @@ function PDFViewer({
   const spoolMarkersOnPage = spoolMarkers.filter(
     (m) => (m.pageNumber ?? 0) === currentPage - 1
   );
+  const partMarkersOnPage = partMarkers.filter(
+    (m) => (m.pageNumber ?? 0) === currentPage - 1
+  );
 
   if (!pdfBlob) return null;
 
@@ -207,7 +218,7 @@ function PDFViewer({
       </div>
       <div
         ref={containerRef}
-        className={`relative bg-base-100 overflow-auto max-h-[calc(100dvh-10rem)] min-h-[50dvh] touch-pan-x touch-pan-y ${appMode === "edition" && (markupTool === "add" || markupTool === "addSpool") ? "cursor-crosshair" : "cursor-default"}`}
+        className={`relative bg-base-100 overflow-auto max-h-[calc(100dvh-10rem)] min-h-[50dvh] touch-pan-x touch-pan-y ${appMode === "edition" && (markupTool === "add" || markupTool === "addSpool" || markupTool === "addPart") ? "cursor-crosshair" : "cursor-default"}`}
         style={{ touchAction: "pan-x pan-y" }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -276,6 +287,23 @@ function PDFViewer({
                 onDelete={onDeleteSpoolMarker}
               />
             ))}
+            {partMarkersOnPage.map((m) => {
+              const part = parts.find((p) => p.id === m.partId);
+              return (
+                <PartMarker
+                  key={m.id}
+                  marker={m}
+                  displayNumber={part?.displayNumber}
+                  isSelected={m.id === selectedPartMarkerId}
+                  onClick={onPartMarkerClick}
+                  canDrag={appMode === "edition"}
+                  onMovePartMarker={onMovePartMarker}
+                  onMovePartIndicator={onMovePartIndicator}
+                  pageWrapperRef={pageWrapperRef}
+                  onDelete={onDeletePartMarker}
+                />
+              );
+            })}
           </div>
         </div>
       </div>
