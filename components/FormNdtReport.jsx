@@ -40,6 +40,7 @@ function FormNdtReport({
   weldPoints = [],
   ndtRequests = [],
   requestId: initialRequestId,
+  initialRequest = null,
   report: initialReport,
   onSubmit,
   onCancel,
@@ -48,11 +49,15 @@ function FormNdtReport({
 }) {
   const getWeldNameLocal = getWeldNameProp || ((w) => getWeldName(w, weldPoints));
 
-  const [method, setMethod] = useState(initialReport?.method || NDT_METHODS[0]);
+  const [method, setMethod] = useState(
+    initialReport?.method || initialRequest?.method || NDT_METHODS[0]
+  );
   const [reportDate, setReportDate] = useState(
     initialReport?.reportDate || new Date().toISOString().slice(0, 10)
   );
-  const [requestId, setRequestId] = useState(initialRequestId ?? initialReport?.requestId ?? "");
+  const [requestId, setRequestId] = useState(
+    initialRequestId ?? initialReport?.requestId ?? initialRequest?.id ?? ""
+  );
   const [attachments, setAttachments] = useState(initialReport?.attachments || []);
   const [rows, setRows] = useState(() => {
     if (initialReport?.weldResults?.length) {
@@ -60,6 +65,13 @@ function FormNdtReport({
         id: generateId(),
         weldId: r.weldId,
         result: r.result,
+      }));
+    }
+    if (initialRequest?.weldIds?.length) {
+      return initialRequest.weldIds.map((weldId) => ({
+        id: generateId(),
+        weldId,
+        result: NDT_RESULT_OUTCOMES.ACCEPTED,
       }));
     }
     return [];
@@ -132,8 +144,14 @@ function FormNdtReport({
   const handleSubmit = useCallback(
     (e) => {
       e.preventDefault();
+      const seen = new Set();
       const weldResults = rows
         .filter((r) => r.weldId)
+        .filter((r) => {
+          if (seen.has(r.weldId)) return false;
+          seen.add(r.weldId);
+          return true;
+        })
         .map((r) => ({ weldId: r.weldId, result: r.result }));
       if (weldResults.length === 0) return;
       const report = {
@@ -281,6 +299,10 @@ function FormNdtReport({
               {rows.map((row) => {
                 const weld = weldPoints.find((w) => w.id === row.weldId);
                 const weldLabel = weld ? getWeldNameLocal(weld) : "";
+                const selectedElsewhere = rows.filter((r) => r.id !== row.id).map((r) => r.weldId).filter(Boolean);
+                const availableWelds = weldPoints.filter(
+                  (w) => w.id === row.weldId || !selectedElsewhere.includes(w.id)
+                );
                 return (
                   <tr key={row.id}>
                     <td>
@@ -291,7 +313,7 @@ function FormNdtReport({
                         title={weldLabel ? `Weld: ${weldLabel}` : "Select weld"}
                       >
                         <option value="">Select weld…</option>
-                        {weldPoints.map((w) => (
+                        {availableWelds.map((w) => (
                           <option key={w.id} value={w.id}>
                             {getWeldNameLocal(w)}
                           </option>

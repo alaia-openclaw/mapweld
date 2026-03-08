@@ -11,6 +11,7 @@ import {
 } from "@/lib/constants";
 import {
   applyReportToWelds,
+  clearReportResultsFromWelds,
   getNextNdtRequestDisplayName,
   isWeldInNdtRequestForMethod,
 } from "@/lib/ndt-utils";
@@ -39,6 +40,7 @@ function PanelNdtManagement({
   const [editingRequestId, setEditingRequestId] = useState(null);
   const [creatingReport, setCreatingReport] = useState(false);
   const [creatingRequest, setCreatingRequest] = useState(false);
+  const [reportFromRequest, setReportFromRequest] = useState(null);
 
   const reportToEdit = editingReportId
     ? ndtReports.find((r) => r.id === editingReportId)
@@ -47,13 +49,15 @@ function PanelNdtManagement({
     ? ndtRequests.find((r) => r.id === editingRequestId)
     : null;
 
-  function handleCreateReport() {
+  function handleCreateReport(linkedRequest = null) {
     setEditingReportId(null);
+    setReportFromRequest(linkedRequest ?? null);
     setCreatingReport(true);
     setView("form");
   }
 
   function handleEditReport(report) {
+    setReportFromRequest(null);
     setCreatingReport(false);
     setEditingReportId(report.id);
     setView("form");
@@ -63,6 +67,7 @@ function PanelNdtManagement({
     setView("list");
     setCreatingReport(false);
     setEditingReportId(null);
+    setReportFromRequest(null);
     setCreatingRequest(false);
     setEditingRequestId(null);
   }
@@ -88,8 +93,9 @@ function PanelNdtManagement({
   function handleReportSubmit(report) {
     const reportWithStatus = {
       ...report,
-      status: report.status ?? NDT_REPORT_STATUS.CREATED,
+      status: NDT_REPORT_STATUS.CREATED,
     };
+    setWeldPoints((prev) => applyReportToWelds(reportWithStatus, prev));
     if (reportToEdit) {
       setNdtReports((prev) =>
         prev.map((r) => (r.id === report.id ? reportWithStatus : r))
@@ -97,6 +103,15 @@ function PanelNdtManagement({
     } else {
       setNdtReports((prev) => [...prev, reportWithStatus]);
     }
+    handleCloseForm();
+  }
+
+  function handleValidateReport(report) {
+    setNdtReports((prev) =>
+      prev.map((r) =>
+        r.id === report.id ? { ...r, status: NDT_REPORT_STATUS.COMPLETED } : r
+      )
+    );
     if (report.requestId) {
       setNdtRequests((prev) =>
         prev.map((r) =>
@@ -104,7 +119,6 @@ function PanelNdtManagement({
         )
       );
     }
-    handleCloseForm();
   }
 
   function handleRequestSubmit(request) {
@@ -119,7 +133,8 @@ function PanelNdtManagement({
   }
 
   function handleDeleteReport(report) {
-    if (confirm(`Delete NDT report (${NDT_METHOD_LABELS[report.method] || report.method}, ${report.reportDate})?`)) {
+    if (confirm(`Delete NDT report (${NDT_METHOD_LABELS[report.method] || report.method}, ${report.reportDate})? Results from this report will be removed from welds (manually overridden results are kept).`)) {
+      setWeldPoints((prev) => clearReportResultsFromWelds(report, prev));
       setNdtReports((prev) => prev.filter((r) => r.id !== report.id));
     }
   }
@@ -128,16 +143,6 @@ function PanelNdtManagement({
     if (confirm("Delete this NDT request?")) {
       setNdtRequests((prev) => prev.filter((r) => r.id !== request.id));
     }
-  }
-
-  function handleApplyToWelds(report) {
-    const nextWeldPoints = applyReportToWelds(report, weldPoints);
-    setWeldPoints(nextWeldPoints);
-    setNdtReports((prev) =>
-      prev.map((r) =>
-        r.id === report.id ? { ...r, status: NDT_REPORT_STATUS.COMPLETED } : r
-      )
-    );
   }
 
   function handleGenerateRequest(request) {
@@ -157,6 +162,7 @@ function PanelNdtManagement({
           const ndtSel = computeNdtSelection(w, drawingSettings, weldPoints);
           if (!ndtSel[method]) return false;
           return (
+            isWeldReadyForNdt(w) &&
             !isWeldRepairNeeded(w) &&
             !isWeldAlreadyAcceptedForMethod(w, method) &&
             !isWeldInNdtRequestForMethod(w.id, method, existingPlusNew())
@@ -289,152 +295,154 @@ function PanelNdtManagement({
               )}
             </section>
 
-            <p className="text-sm text-base-content/70 mb-3">
+            <p className="text-sm text-base-content/70 mb-4">
               {weldsReadyCount} weld{weldsReadyCount !== 1 ? "s" : ""} ready for NDT (fitter + welder info filled).
             </p>
-            <div className="flex flex-wrap gap-2 justify-end mb-4">
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
-                onClick={handleAutoGenerateNdtRequests}
-                title="Create one NDT request per type for welds that need that NDT (by %). Meets minimum count; fitter/welder optional—selection recalculates as you add info."
-              >
-                Auto generate NDT request
-              </button>
-              <button
-                type="button"
-                className="btn btn-outline btn-sm"
-                onClick={handleCreateRequest}
-              >
-                Create NDT request
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary btn-sm"
-                onClick={handleCreateReport}
-              >
-                Create NDT report
-              </button>
-            </div>
 
-            <div className="space-y-4">
-              <section>
-                <h3 className="font-medium mb-2">NDT requests</h3>
-                {ndtRequests.length === 0 ? (
-                  <p className="text-sm text-base-content/60">No NDT requests yet. Create one to select welds for NDT.</p>
-                ) : (
-                  <ul className="space-y-2 mb-4">
-                    {ndtRequests.map((req) => (
-                      <li
-                        key={req.id}
-                        className="border border-base-300 rounded-lg p-3 flex flex-wrap items-center justify-between gap-2"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <span className="font-medium">{req.title || `${req.method || "NDT"} request`}</span>
-                          <span className="text-base-content/60 mx-2">·</span>
-                          <span className="text-sm">{NDT_REQUEST_STATUS_LABELS[req.status] ?? req.status ?? "Draft"}</span>
-                          <span className="text-base-content/60 mx-2">·</span>
-                          <span className="text-sm">{req.weldIds?.length ?? 0} welds</span>
-                        </div>
-                        <div className="flex gap-1">
-                          {req.status === NDT_REQUEST_STATUS.DRAFT && (
-                            <button
-                              type="button"
-                              className="btn btn-primary btn-xs"
-                              onClick={() => handleGenerateRequest(req)}
-                              title="Mark as sent (placeholder for future action)"
-                            >
-                              Generate request
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            className="btn btn-ghost btn-xs"
-                            onClick={() => handleEditRequest(req)}
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-ghost btn-xs text-error"
-                            onClick={() => handleDeleteRequest(req)}
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-              <section>
-                <h3 className="font-medium mb-2">NDT reports</h3>
-                {ndtReports.length === 0 ? (
-                  <p className="text-sm text-base-content/60">No NDT reports yet. Create one to upload results and link welds.</p>
-                ) : (
-                  <ul className="space-y-2">
-                    {ndtReports.map((report) => (
-                      <li
-                        key={report.id}
-                        className="border border-base-300 rounded-lg p-3 flex flex-wrap items-center justify-between gap-2"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <span className="font-medium">
-                            {NDT_METHOD_LABELS[report.method] || report.method}
-                          </span>
-                          <span className="text-base-content/60 mx-2">·</span>
-                          <span className="text-sm">{report.reportDate}</span>
-                          <span className="text-base-content/60 mx-2">·</span>
-                          <span className="text-sm">{NDT_REPORT_STATUS_LABELS[report.status] ?? report.status ?? "Created"}</span>
-                          <span className="text-base-content/60 mx-2">·</span>
-                          <span className="text-sm">
-                            {report.weldResults?.length ?? 0} welds
-                          </span>
-                        </div>
-                        <div className="flex gap-1">
+            {/* Workflow: 1. NDT requests */}
+            <section className="mb-6">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="flex items-center justify-center w-7 h-7 rounded-full bg-primary text-primary-content text-sm font-bold">1</span>
+                <h3 className="font-semibold text-base">NDT requests</h3>
+              </div>
+              <p className="text-sm text-base-content/70 mb-2">Create a request (draft) then generate it to send. From a sent request you can create a linked report.</p>
+              <div className="flex flex-wrap gap-2 mb-3">
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={handleAutoGenerateNdtRequests}
+                  title="Create one NDT request per type for welds that are ready and need that NDT (by %)."
+                >
+                  Auto generate
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-outline btn-sm"
+                  onClick={handleCreateRequest}
+                >
+                  Create request
+                </button>
+              </div>
+              {ndtRequests.length === 0 ? (
+                <p className="text-sm text-base-content/60 py-2">No NDT requests yet.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {ndtRequests.map((req) => (
+                    <li
+                      key={req.id}
+                      className="border border-base-300 rounded-lg p-3 flex flex-wrap items-center justify-between gap-2"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <span className="font-medium">{req.title || `${req.method || "NDT"} request`}</span>
+                        <span className="text-base-content/60 mx-2">·</span>
+                        <span className="text-sm font-medium">{NDT_REQUEST_STATUS_LABELS[req.status] ?? req.status ?? "Draft"}</span>
+                        <span className="text-base-content/60 mx-2">·</span>
+                        <span className="text-sm">{req.weldIds?.length ?? 0} welds</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {req.status === NDT_REQUEST_STATUS.DRAFT && (
                           <button
                             type="button"
                             className="btn btn-primary btn-xs"
-                            onClick={() => handleApplyToWelds(report)}
-                            disabled={report.status === NDT_REPORT_STATUS.COMPLETED}
-                            title="Apply NDT results to welds"
+                            onClick={() => handleGenerateRequest(req)}
+                            title="Mark as sent"
                           >
-                            {report.status === NDT_REPORT_STATUS.COMPLETED ? "Result applied" : "Apply result"}
+                            Generate
                           </button>
+                        )}
+                        {req.status === NDT_REQUEST_STATUS.SENT && (
                           <button
                             type="button"
-                            className="btn btn-ghost btn-xs"
-                            onClick={() => handleEditReport(report)}
+                            className="btn btn-primary btn-xs"
+                            onClick={() => handleCreateReport(req)}
+                            title="Create report linked to this request (pre-filled)"
                           >
-                            Edit
+                            Create report
                           </button>
+                        )}
+                        <button type="button" className="btn btn-ghost btn-xs" onClick={() => handleEditRequest(req)}>Edit</button>
+                        <button type="button" className="btn btn-ghost btn-xs text-error" onClick={() => handleDeleteRequest(req)}>Delete</button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            {/* Workflow: 2. Create report (standalone) */}
+            <section className="mb-6">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="flex items-center justify-center w-7 h-7 rounded-full bg-primary text-primary-content text-sm font-bold">2</span>
+                <h3 className="font-semibold text-base">Create report</h3>
+              </div>
+              <p className="text-sm text-base-content/70 mb-2">Create a standalone report (not linked to a request), or use a sent request above to create a linked one.</p>
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                onClick={() => handleCreateReport(null)}
+              >
+                Create standalone report
+              </button>
+            </section>
+
+            {/* Workflow: 3. Reports & validate */}
+            <section>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="flex items-center justify-center w-7 h-7 rounded-full bg-primary text-primary-content text-sm font-bold">3</span>
+                <h3 className="font-semibold text-base">Reports & validate</h3>
+              </div>
+              <p className="text-sm text-base-content/70 mb-2">Validate a report to close the workflow (completes the linked request if any).</p>
+              {ndtReports.length === 0 ? (
+                <p className="text-sm text-base-content/60 py-2">No NDT reports yet.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {ndtReports.map((report) => (
+                    <li
+                      key={report.id}
+                      className="border border-base-300 rounded-lg p-3 flex flex-wrap items-center justify-between gap-2"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <span className="font-medium">{NDT_METHOD_LABELS[report.method] || report.method}</span>
+                        <span className="text-base-content/60 mx-2">·</span>
+                        <span className="text-sm">{report.reportDate}</span>
+                        <span className="text-base-content/60 mx-2">·</span>
+                        <span className="text-sm">{NDT_REPORT_STATUS_LABELS[report.status] ?? report.status ?? "Created"}</span>
+                        <span className="text-base-content/60 mx-2">·</span>
+                        <span className="text-sm">{report.weldResults?.length ?? 0} welds</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {report.status === NDT_REPORT_STATUS.CREATED && (
                           <button
                             type="button"
-                            className="btn btn-ghost btn-xs text-error"
-                            onClick={() => handleDeleteReport(report)}
+                            className="btn btn-primary btn-xs"
+                            onClick={() => handleValidateReport(report)}
+                            title="Close workflow (completes linked request)"
                           >
-                            Delete
+                            Validate
                           </button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-            </div>
+                        )}
+                        <button type="button" className="btn btn-ghost btn-xs" onClick={() => handleEditReport(report)}>Edit</button>
+                        <button type="button" className="btn btn-ghost btn-xs text-error" onClick={() => handleDeleteReport(report)}>Delete</button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
           </>
         )}
 
         {view === "form" && (
           <div>
             <h3 className="font-medium mb-3">
-              {reportToEdit ? "Edit NDT report" : "Create NDT report"}
+              {reportToEdit ? "Edit NDT report" : reportFromRequest ? "Create report from request" : "Create standalone report"}
             </h3>
             <FormNdtReport
               weldPoints={weldPoints}
               ndtRequests={ndtRequests}
               drawingSettings={drawingSettings}
-              requestId={null}
+              requestId={reportFromRequest?.id ?? null}
+              initialRequest={reportFromRequest}
               report={reportToEdit}
               onSubmit={handleReportSubmit}
               onCancel={handleCloseForm}

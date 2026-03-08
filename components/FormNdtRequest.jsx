@@ -154,6 +154,35 @@ function FormNdtRequest({
           </button>
         </div>
         <div className="border border-base-300 rounded-lg overflow-hidden max-h-64 overflow-y-auto">
+          {planned.length > 0 && (
+            <div className="p-2 bg-info/10 border-b border-base-300">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-semibold uppercase text-info">Planned (in NDT request)</span>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-xs"
+                  onClick={() => selectAllInGroup(planned)}
+                >
+                  Select all
+                </button>
+              </div>
+              <ul className="menu menu-xs bg-transparent gap-0.5">
+                {planned.map((w) => (
+                  <li key={w.id}>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="checkbox checkbox-sm"
+                        checked={weldIds.has(w.id)}
+                        onChange={() => toggleWeld(w.id)}
+                      />
+                      <span>{getWeldNameLocal(w)}</span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {readyForNdt.length > 0 && (
             <div className="p-2 bg-success/10 border-b border-base-300">
               <div className="flex items-center justify-between mb-1">
@@ -226,35 +255,6 @@ function FormNdtRequest({
               </div>
               <ul className="menu menu-xs bg-transparent gap-0.5">
                 {alreadyAccepted.map((w) => (
-                  <li key={w.id}>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="checkbox checkbox-sm"
-                        checked={weldIds.has(w.id)}
-                        onChange={() => toggleWeld(w.id)}
-                      />
-                      <span>{getWeldNameLocal(w)}</span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {planned.length > 0 && (
-            <div className="p-2 bg-info/10 border-b border-base-300">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-semibold uppercase text-info">Planned (in NDT request)</span>
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-xs"
-                  onClick={() => selectAllInGroup(planned)}
-                >
-                  Select all
-                </button>
-              </div>
-              <ul className="menu menu-xs bg-transparent gap-0.5">
-                {planned.map((w) => (
                   <li key={w.id}>
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input

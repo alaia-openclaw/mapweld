@@ -13,6 +13,7 @@ function SidePanelSpools({
   weldPoints = [],
   weldStatusByWeldId,
   getWeldName,
+  isStacked = false,
 }) {
   const [expandedSpoolId, setExpandedSpoolId] = useState(null);
   const [editName, setEditName] = useState("");
@@ -90,7 +91,7 @@ function SidePanelSpools({
         type="button"
         onClick={onToggle}
         className={`flex-shrink-0 flex items-center justify-center gap-2 py-3 px-2 border-b border-base-300 bg-base-100 hover:bg-base-200 transition-colors ${
-          isOpen ? "flex-row" : "flex-col min-h-24"
+          isOpen ? "flex-row" : `flex-col ${isStacked ? "min-h-12" : "min-h-24"}`
         }`}
         title={isOpen ? "Collapse spools panel" : "Expand spools panel"}
         aria-label={isOpen ? "Collapse spools panel" : "Expand spools panel"}

@@ -11,7 +11,7 @@ import SidePanelSpools from "@/components/SidePanelSpools";
 import DashboardAnalytics from "@/components/DashboardAnalytics";
 import ModalParameters from "@/components/ModalParameters";
 import ModalProjects from "@/components/ModalProjects";
-import PanelNdtManagement from "@/components/PanelNdtManagement";
+import NdtKanbanPage from "@/components/NdtKanbanPage";
 import OfflineBanner from "@/components/OfflineBanner";
 import {
   saveProject,
@@ -447,116 +447,133 @@ export default function WeldTrackerApp() {
         onOpenNdt={() => setShowNdtPanel(true)}
       />
 
-      {pdfBlob && appMode === "edition" && (
-        <MarkupToolbar
-          markupTool={markupTool}
-          onToolChange={handleToolChange}
-          className="mb-2"
-        />
-      )}
-
-      {pdfBlob && (
-        <DashboardAnalytics
-          weldPoints={weldPoints}
-          weldStatusByWeldId={weldStatusByWeldId}
-          drawingSettings={drawingSettings}
-          spools={spools}
-        />
-      )}
-
-      <div className="flex gap-0 rounded-lg overflow-hidden shadow bg-base-100">
-        {pdfBlob ? (
-          <>
-            <div className="flex-1 min-w-0 relative">
-              <PDFViewerDynamic
-              key={
-                typeof pdfBlob === "string"
-                  ? pdfBlob
-                  : pdfBlob.name + pdfBlob.lastModified
-              }
-              pdfBlob={pdfBlob}
-              onPageClick={handlePageClick}
-              containerRef={containerRef}
-              weldPoints={weldPoints}
-              selectedWeldId={selectedWeldId}
-              onWeldClick={handleWeldClick}
-              onWeldDoubleClick={handleWeldDoubleClick}
-              appMode={appMode}
+      {showNdtPanel ? (
+        <div className="flex-1 min-h-0 flex flex-col rounded-lg overflow-hidden shadow bg-base-100">
+          <NdtKanbanPage
+            ndtRequests={ndtRequests}
+            ndtReports={ndtReports}
+            setNdtRequests={setNdtRequests}
+            setNdtReports={setNdtReports}
+            weldPoints={weldPoints}
+            setWeldPoints={setWeldPoints}
+            drawingSettings={drawingSettings}
+            getWeldName={getWeldName}
+            onClose={() => setShowNdtPanel(false)}
+          />
+        </div>
+      ) : (
+        <>
+          {pdfBlob && appMode === "edition" && (
+            <MarkupToolbar
               markupTool={markupTool}
-              onMoveWeldPoint={handleMoveWeldPoint}
-              onMoveIndicator={handleMoveIndicator}
-              onResizeLabel={handleResizeLabel}
-              onMoveLineBend={handleMoveLineBend}
-              spoolMarkers={spoolMarkers}
-              spools={spools}
-              selectedSpoolMarkerId={selectedSpoolMarkerId}
-              onSpoolMarkerClick={handleSpoolMarkerClick}
-              onMoveSpoolMarker={handleMoveSpoolMarker}
-              onMoveSpoolIndicator={handleMoveSpoolIndicator}
-              onDeleteSpoolMarker={handleDeleteSpoolMarker}
-              weldStatusByWeldId={weldStatusByWeldId}
-              />
-            </div>
-            <SidePanelWeldForm
+              onToolChange={handleToolChange}
+              className="mb-2"
+            />
+          )}
+
+          {pdfBlob && (
+            <DashboardAnalytics
               weldPoints={weldPoints}
               weldStatusByWeldId={weldStatusByWeldId}
-              weld={formWeld}
-              selectedWeldId={selectedWeldId}
-              isOpen={showWeldPanel}
-              onToggle={() => setShowWeldPanel((v) => !v)}
-              onSelectWeld={(w) => {
-                setFormWeld(w);
-                setSelectedWeldId(w.id);
-              }}
-              onBackToList={handleBackToList}
-              onSave={handleSaveWeld}
-              onDelete={handleDeleteWeld}
-              appMode={appMode}
-              spools={spools}
-              personnel={personnel}
-              ndtAutoLabel={formatNdtRequirements(drawingSettings.ndtRequirements)}
               drawingSettings={drawingSettings}
-            />
-            <SidePanelSpools
               spools={spools}
-              isOpen={showSpoolPanel}
-              onToggle={() => setShowSpoolPanel((v) => !v)}
-              onSave={(newSpools) => {
-                setSpools(newSpools);
-                setSpoolMarkers((prev) =>
-                  prev.filter((m) => newSpools.some((s) => s.id === m.spoolId))
-                );
-              }}
-              onAssignWeldToSpool={handleAssignWeldToSpool}
-              spoolMarkers={spoolMarkers}
-              appMode={appMode}
-              weldPoints={weldPoints}
-              weldStatusByWeldId={weldStatusByWeldId}
-              getWeldName={getWeldName}
             />
-            {showNdtPanel && (
-              <div className="w-96 min-w-[18rem] flex-shrink-0 border-l border-base-300">
-                <PanelNdtManagement
-                  ndtRequests={ndtRequests}
-                  ndtReports={ndtReports}
-                  setNdtRequests={setNdtRequests}
-                  setNdtReports={setNdtReports}
+          )}
+
+          <div className="flex gap-0 rounded-lg overflow-hidden shadow bg-base-100">
+            {pdfBlob ? (
+              <>
+                <div className="flex-1 min-w-0 relative">
+                  <PDFViewerDynamic
+                    key={
+                      typeof pdfBlob === "string"
+                        ? pdfBlob
+                        : pdfBlob.name + pdfBlob.lastModified
+                    }
+                    pdfBlob={pdfBlob}
+                    onPageClick={handlePageClick}
+                    containerRef={containerRef}
+                    weldPoints={weldPoints}
+                    selectedWeldId={selectedWeldId}
+                    onWeldClick={handleWeldClick}
+                    onWeldDoubleClick={handleWeldDoubleClick}
+                    appMode={appMode}
+                    markupTool={markupTool}
+                    onMoveWeldPoint={handleMoveWeldPoint}
+                    onMoveIndicator={handleMoveIndicator}
+                    onResizeLabel={handleResizeLabel}
+                    onMoveLineBend={handleMoveLineBend}
+                    spoolMarkers={spoolMarkers}
+                    spools={spools}
+                    selectedSpoolMarkerId={selectedSpoolMarkerId}
+                    onSpoolMarkerClick={handleSpoolMarkerClick}
+                    onMoveSpoolMarker={handleMoveSpoolMarker}
+                    onMoveSpoolIndicator={handleMoveSpoolIndicator}
+                    onDeleteSpoolMarker={handleDeleteSpoolMarker}
+                    weldStatusByWeldId={weldStatusByWeldId}
+                  />
+                </div>
+                <div
+                  className={`flex flex-shrink-0 overflow-hidden transition-all duration-300 ease-out ${
+                    !showWeldPanel && !showSpoolPanel ? "flex-col w-10" : "flex-row"
+                  }`}
+                >
+                  <SidePanelWeldForm
+                    weldPoints={weldPoints}
+                    weldStatusByWeldId={weldStatusByWeldId}
+                    weld={formWeld}
+                    selectedWeldId={selectedWeldId}
+                    isOpen={showWeldPanel}
+                    onToggle={() => {
+                      setShowSpoolPanel(false);
+                      setShowWeldPanel((v) => !v);
+                    }}
+                    onSelectWeld={(w) => {
+                      setFormWeld(w);
+                      setSelectedWeldId(w.id);
+                    }}
+                    onBackToList={handleBackToList}
+                    onSave={handleSaveWeld}
+                    onDelete={handleDeleteWeld}
+                    appMode={appMode}
+                    spools={spools}
+                    personnel={personnel}
+                    ndtAutoLabel={formatNdtRequirements(drawingSettings.ndtRequirements)}
+                    drawingSettings={drawingSettings}
+                    isStacked={!showWeldPanel && !showSpoolPanel}
+                  />
+                  <SidePanelSpools
+                    spools={spools}
+                    isOpen={showSpoolPanel}
+                    onToggle={() => {
+                      setShowWeldPanel(false);
+                      setShowSpoolPanel((v) => !v);
+                    }}
+                    isStacked={!showWeldPanel && !showSpoolPanel}
+                  onSave={(newSpools) => {
+                    setSpools(newSpools);
+                    setSpoolMarkers((prev) =>
+                      prev.filter((m) => newSpools.some((s) => s.id === m.spoolId))
+                    );
+                  }}
+                  onAssignWeldToSpool={handleAssignWeldToSpool}
+                  spoolMarkers={spoolMarkers}
+                  appMode={appMode}
                   weldPoints={weldPoints}
-                  setWeldPoints={setWeldPoints}
-                  drawingSettings={drawingSettings}
-                  getWeldName={getWeldName}
-                  onClose={() => setShowNdtPanel(false)}
-                />
+                  weldStatusByWeldId={weldStatusByWeldId}
+                    getWeldName={getWeldName}
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-24 text-base-content/60">
+                <p className="text-lg">Load a PDF or open a project to get started</p>
+                <p className="text-sm mt-2">Click on the drawing to add weld points</p>
               </div>
             )}
-          </>
-        ) : (
-          <div className="flex flex-col items-center justify-center py-24 text-base-content/60">
-            <p className="text-lg">Load a PDF or open a project to get started</p>
-            <p className="text-sm mt-2">Click on the drawing to add weld points</p>
           </div>
-        )}
-      </div>
+        </>
+      )}
 
       <ModalParameters
         isOpen={showParameters}

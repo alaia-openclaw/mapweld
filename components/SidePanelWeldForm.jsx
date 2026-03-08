@@ -10,6 +10,7 @@ import {
   NDT_METHOD_LABELS,
   NDT_OVERRIDE_OPTIONS,
   NDT_OVERRIDE_LABELS,
+  NDT_RESULT_OUTCOMES,
   NDT_RESULT_OUTCOME_LABELS,
   WELDING_PROCESSES,
   WELDING_PROCESS_LABELS,
@@ -33,6 +34,7 @@ function SidePanelWeldForm({
   ndtAutoLabel,
   drawingSettings = { ndtRequirements: [] },
   weldStatusByWeldId,
+  isStacked = false,
 }) {
   const [weldType, setWeldType] = useState("butt");
   const [weldLocation, setWeldLocation] = useState("shop");
@@ -49,14 +51,25 @@ function SidePanelWeldForm({
   const [ndtOverrides, setNdtOverrides] = useState({});
   const [ndtResults, setNdtResults] = useState({});
   const [ndtResultOutcome, setNdtResultOutcome] = useState({});
+  const [ndtResultManualOverride, setNdtResultManualOverride] = useState({});
+  const [ndtResultOverrideUnlocked, setNdtResultOverrideUnlocked] = useState(false);
   const [openSections, setOpenSections] = useState({ general: true, fitup: false, welding: false, inspection: false });
 
   function toggleSection(key) {
-    setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
+    setOpenSections((prev) => {
+      const nextOpen = !prev[key];
+      if (nextOpen) {
+        return { general: false, fitup: false, welding: false, inspection: false, [key]: true };
+      }
+      return { ...prev, [key]: false };
+    });
   }
 
+  const previousWeldIdRef = useRef(null);
   useEffect(() => {
     if (weld) {
+      const isNewWeld = previousWeldIdRef.current !== weld.id;
+      previousWeldIdRef.current = weld.id;
       setWeldType(weld.weldType || "butt");
       setWeldLocation(weld.weldLocation || "shop");
       setWps(weld.wps || "");
@@ -82,6 +95,8 @@ function SidePanelWeldForm({
       setNdtOverrides(weld.ndtOverrides || {});
       setNdtResults(weld.ndtResults || {});
       setNdtResultOutcome(weld.ndtResultOutcome || {});
+      setNdtResultManualOverride(weld.ndtResultManualOverride || {});
+      if (isNewWeld) setNdtResultOverrideUnlocked(false);
     }
   }, [weld]);
 
@@ -112,6 +127,7 @@ function SidePanelWeldForm({
         ndtOverrides,
         ndtResults,
         ndtResultOutcome,
+        ndtResultManualOverride: Object.keys(ndtResultManualOverride).length ? ndtResultManualOverride : undefined,
         spoolId: spoolId || null,
       });
     }, 600);
@@ -134,6 +150,7 @@ function SidePanelWeldForm({
     ndtOverrides,
     ndtResults,
     ndtResultOutcome,
+    ndtResultManualOverride,
     spoolId,
     onSave,
   ]);
@@ -259,7 +276,7 @@ function SidePanelWeldForm({
         type="button"
         onClick={() => (expandedWeldId ? onBackToList?.() : onToggle?.())}
         className={`flex-shrink-0 flex items-center justify-center gap-2 py-3 px-2 border-b border-base-300 bg-base-100 hover:bg-base-200 transition-colors ${
-          isOpen ? "flex-row" : "flex-col min-h-24"
+          isOpen ? "flex-row" : `flex-col ${isStacked ? "min-h-12" : "min-h-24"}`
         }`}
         title={
           expandedWeldId
@@ -693,33 +710,26 @@ function SidePanelWeldForm({
 
                             {sectionKey === "inspection" && (
                               <div className="space-y-3">
-                                <div className="form-control">
-                                  <label className="label" htmlFor="side-ndtRequired">
-                                    <span className="label-text">NDT (global)</span>
-                                  </label>
-                                  <select
-                                    id="side-ndtRequired"
-                                    className="select select-bordered select-sm"
-                                    value={ndtRequired}
-                                    onChange={(e) => setNdtRequired(e.target.value)}
+                                <div className="form-control flex flex-row items-center gap-2 py-2">
+                                  <span className="label-text">Override NDT result</span>
+                                  <button
+                                    type="button"
+                                    className={`btn btn-sm ${ndtResultOverrideUnlocked ? "btn-warning" : "btn-ghost"}`}
+                                    onClick={() => setNdtResultOverrideUnlocked((v) => !v)}
+                                    title={ndtResultOverrideUnlocked ? "Lock to prevent accidental edits" : "Unlock to edit result (overrides system)"}
+                                    aria-label={ndtResultOverrideUnlocked ? "Lock" : "Unlock"}
                                   >
-                                    {Object.entries(NDT_REQUIRED_LABELS).map(([k, v]) => (
-                                      <option key={k} value={k}>
-                                        {k === "auto" && ndtAutoLabel ? `${v} (${ndtAutoLabel})` : v}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                                <div className="form-control">
-                                  <label className="label cursor-pointer justify-start gap-2 py-2">
-                                    <input
-                                      type="checkbox"
-                                      className="checkbox checkbox-sm"
-                                      checked={visualInspection}
-                                      onChange={(e) => setVisualInspection(e.target.checked)}
-                                    />
-                                    <span className="label-text">Visual inspection (VT)</span>
-                                  </label>
+                                    {ndtResultOverrideUnlocked ? (
+                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                                      </svg>
+                                    ) : (
+                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                      </svg>
+                                    )}
+                                    <span className="text-xs">{ndtResultOverrideUnlocked ? "Unlocked" : "Locked"}</span>
+                                  </button>
                                 </div>
                                 <div className="overflow-x-auto">
                                   <table className="table table-xs">
@@ -728,7 +738,6 @@ function SidePanelWeldForm({
                                         <th>NDT</th>
                                         <th>Override</th>
                                         <th>Required</th>
-                                        <th>Done</th>
                                         <th>Result</th>
                                       </tr>
                                     </thead>
@@ -763,30 +772,53 @@ function SidePanelWeldForm({
                                                 }}
                                               >
                                                 <option value={NDT_OVERRIDE_OPTIONS.AUTO}>Auto</option>
-                                                <option value={NDT_OVERRIDE_OPTIONS.REQUIRED}>Required</option>
-                                                <option value={NDT_OVERRIDE_OPTIONS.EXEMPT}>Excluded</option>
+                                                <option value={NDT_OVERRIDE_OPTIONS.REQUIRED}>Include</option>
+                                                <option value={NDT_OVERRIDE_OPTIONS.EXEMPT}>Exclude</option>
                                               </select>
                                             </td>
                                             <td className="text-sm">{isRequired ? "Yes" : "No"}</td>
-                                            <td>
-                                              <input
-                                                type="checkbox"
-                                                className="checkbox checkbox-sm"
-                                                checked={!!ndtResults[m]}
-                                                onChange={(e) => {
-                                                  setNdtResults((prev) => ({
-                                                    ...prev,
-                                                    [m]: e.target.checked ? "ok" : undefined,
-                                                  }));
-                                                }}
-                                                disabled={!isRequired}
-                                                title={!isRequired ? "Not required" : "Mark as done"}
-                                              />
-                                            </td>
                                             <td className="text-sm">
-                                              {outcome ? (
-                                                <span className={outcome === "rejected" || outcome === "reject" ? "text-error font-medium" : outcome === "omitted_or_inconclusive" || outcome === "repair" ? "text-warning font-medium" : ""}>
-                                                  {NDT_RESULT_OUTCOME_LABELS[outcome] ?? outcome}
+                                              {!isRequired ? (
+                                                <span className="text-base-content/50">N/A</span>
+                                              ) : ndtResultOverrideUnlocked ? (
+                                                <select
+                                                  className="select select-bordered select-xs w-full max-w-[10rem]"
+                                                  value={outcome ?? ""}
+                                                  onChange={(e) => {
+                                                    const v = e.target.value;
+                                                    setNdtResultOutcome((prev) => {
+                                                      const next = { ...prev };
+                                                      if (v) next[m] = v; else delete next[m];
+                                                      return next;
+                                                    });
+                                                    setNdtResults((prev) => ({ ...prev, [m]: v ? "ok" : undefined }));
+                                                    setNdtResultManualOverride((prev) => {
+                                                      const next = { ...prev };
+                                                      if (v) next[m] = true; else delete next[m];
+                                                      return next;
+                                                    });
+                                                  }}
+                                                  title="Override NDT result"
+                                                >
+                                                  <option value="">—</option>
+                                                  <option value={NDT_RESULT_OUTCOMES.ACCEPTED}>{NDT_RESULT_OUTCOME_LABELS[NDT_RESULT_OUTCOMES.ACCEPTED]}</option>
+                                                  <option value={NDT_RESULT_OUTCOMES.REJECTED}>{NDT_RESULT_OUTCOME_LABELS[NDT_RESULT_OUTCOMES.REJECTED]}</option>
+                                                  <option value={NDT_RESULT_OUTCOMES.OMITTED_OR_INCONCLUSIVE}>{NDT_RESULT_OUTCOME_LABELS[NDT_RESULT_OUTCOMES.OMITTED_OR_INCONCLUSIVE]}</option>
+                                                  <option value="repair">{NDT_RESULT_OUTCOME_LABELS.repair}</option>
+                                                </select>
+                                              ) : outcome ? (
+                                                <span className="inline-flex items-center gap-1">
+                                                  <span className={outcome === "rejected" || outcome === "reject" ? "text-error font-medium" : outcome === "omitted_or_inconclusive" || outcome === "repair" ? "text-warning font-medium" : ""}>
+                                                    {NDT_RESULT_OUTCOME_LABELS[outcome] ?? outcome}
+                                                  </span>
+                                                  {ndtResultManualOverride[m] && (
+                                                    <span
+                                                      className="text-xs font-mono bg-base-300 text-base-content/70 px-1 rounded align-middle"
+                                                      title="Manually overridden — may be missing linked report info"
+                                                    >
+                                                      m
+                                                    </span>
+                                                  )}
                                                 </span>
                                               ) : (
                                                 "—"
