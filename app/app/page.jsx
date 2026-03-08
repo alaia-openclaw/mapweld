@@ -26,8 +26,9 @@ import {
 } from "@/lib/offline-storage";
 import { createDefaultWeld, createDefaultSpool } from "@/lib/defaults";
 import { getWeldName, getWeldOverallStatus, computeNdtSelection } from "@/lib/weld-utils";
-import { formatNdtRequirements } from "@/lib/constants";
+import { formatNdtRequirements, NDT_REPORT_STATUS } from "@/lib/constants";
 import { exportWeldsToExcel } from "@/lib/excel-export";
+import { applyReportToWelds } from "@/lib/ndt-utils";
 
 const PDFViewerDynamic = dynamic(() => import("@/components/PDFViewer"), {
   ssr: false,
@@ -36,6 +37,16 @@ const PDFViewerDynamic = dynamic(() => import("@/components/PDFViewer"), {
 
 function generateId() {
   return `wp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function applyCompletedReportsToWelds(weldPoints, ndtReports) {
+  if (!Array.isArray(ndtReports) || !Array.isArray(weldPoints)) return weldPoints || [];
+  let points = weldPoints;
+  const completed = ndtReports.filter((r) => r.status === NDT_REPORT_STATUS.COMPLETED);
+  completed.forEach((report) => {
+    points = applyReportToWelds(report, points);
+  });
+  return points;
 }
 
 export default function WeldTrackerApp() {
@@ -313,7 +324,8 @@ export default function WeldTrackerApp() {
     if (pdfBlob && typeof pdfBlob === "string") URL.revokeObjectURL(pdfBlob);
     setPdfBlob(url);
     setPdfFilename(data.pdfFilename || "drawing.pdf");
-    setWeldPoints(data.weldPoints || []);
+    const loadedReports = Array.isArray(data.ndtReports) ? data.ndtReports : [];
+    setWeldPoints(applyCompletedReportsToWelds(data.weldPoints || [], loadedReports));
     setSpools(data.spools || []);
     setSpoolMarkers(data.spoolMarkers || []);
     setPersonnel(data.personnel || { fitters: [], welders: [], wqrs: [] });
@@ -324,7 +336,7 @@ export default function WeldTrackerApp() {
       }
     );
     setNdtRequests(Array.isArray(data.ndtRequests) ? data.ndtRequests : []);
-    setNdtReports(Array.isArray(data.ndtReports) ? data.ndtReports : []);
+    setNdtReports(loadedReports);
     setFormWeld(null);
     setSelectedWeldId(null);
     setSelectedSpoolMarkerId(null);
@@ -383,22 +395,23 @@ export default function WeldTrackerApp() {
       if (pdfBlob && typeof pdfBlob === "string") URL.revokeObjectURL(pdfBlob);
       setPdfBlob(url);
       setPdfFilename(data.pdfFilename || "drawing.pdf");
-    setWeldPoints(data.weldPoints || []);
-    setSpools(data.spools || []);
-    setSpoolMarkers(data.spoolMarkers || []);
-    setPersonnel(data.personnel || { fitters: [], welders: [], wqrs: [] });
-    setDrawingSettings(
-      migrateDrawingSettings(data.drawingSettings) || {
-        ndtRequirements: [],
-        weldingSpec: "",
-      }
-    );
-    setNdtRequests(Array.isArray(data.ndtRequests) ? data.ndtRequests : []);
-    setNdtReports(Array.isArray(data.ndtReports) ? data.ndtReports : []);
-    setFormWeld(null);
-    setSelectedWeldId(null);
-    setSelectedSpoolMarkerId(null);
-    setProjectId(generateProjectId());
+      const loadedReports = Array.isArray(data.ndtReports) ? data.ndtReports : [];
+      setWeldPoints(applyCompletedReportsToWelds(data.weldPoints || [], loadedReports));
+      setSpools(data.spools || []);
+      setSpoolMarkers(data.spoolMarkers || []);
+      setPersonnel(data.personnel || { fitters: [], welders: [], wqrs: [] });
+      setDrawingSettings(
+        migrateDrawingSettings(data.drawingSettings) || {
+          ndtRequirements: [],
+          weldingSpec: "",
+        }
+      );
+      setNdtRequests(Array.isArray(data.ndtRequests) ? data.ndtRequests : []);
+      setNdtReports(loadedReports);
+      setFormWeld(null);
+      setSelectedWeldId(null);
+      setSelectedSpoolMarkerId(null);
+      setProjectId(generateProjectId());
     } catch (err) {
       alert(err.message || "Failed to load project");
     }
