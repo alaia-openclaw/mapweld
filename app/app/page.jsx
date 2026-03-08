@@ -8,8 +8,10 @@ import MarkupToolbar from "@/components/MarkupToolbar";
 import PDFViewer from "@/components/PDFViewer";
 import SidePanelWeldForm from "@/components/SidePanelWeldForm";
 import SidePanelSpools from "@/components/SidePanelSpools";
+import DashboardAnalytics from "@/components/DashboardAnalytics";
 import ModalParameters from "@/components/ModalParameters";
 import ModalProjects from "@/components/ModalProjects";
+import PanelNdtManagement from "@/components/PanelNdtManagement";
 import OfflineBanner from "@/components/OfflineBanner";
 import {
   saveProject,
@@ -26,8 +28,6 @@ import { createDefaultWeld, createDefaultSpool } from "@/lib/defaults";
 import { getWeldName, getWeldOverallStatus, computeNdtSelection } from "@/lib/weld-utils";
 import { formatNdtRequirements } from "@/lib/constants";
 import { exportWeldsToExcel } from "@/lib/excel-export";
-
-const AUTO_SAVE_DELAY_MS = 1500;
 
 const PDFViewerDynamic = dynamic(() => import("@/components/PDFViewer"), {
   ssr: false,
@@ -57,9 +57,12 @@ export default function WeldTrackerApp() {
   const [showSpoolPanel, setShowSpoolPanel] = useState(false);
   const [showParameters, setShowParameters] = useState(false);
   const [showProjects, setShowProjects] = useState(false);
+  const [showNdtPanel, setShowNdtPanel] = useState(false);
   const [projectId, setProjectId] = useState(null);
   const [spoolMarkers, setSpoolMarkers] = useState([]);
   const [personnel, setPersonnel] = useState({ fitters: [], welders: [], wqrs: [] });
+  const [ndtRequests, setNdtRequests] = useState([]);
+  const [ndtReports, setNdtReports] = useState([]);
 
   const loadPdfFile = useCallback((file) => {
     if (pdfBlob && typeof pdfBlob === "string") URL.revokeObjectURL(pdfBlob);
@@ -73,6 +76,8 @@ export default function WeldTrackerApp() {
     setSelectedWeldId(null);
     setSelectedSpoolMarkerId(null);
     setProjectId(generateProjectId());
+    setNdtRequests([]);
+    setNdtReports([]);
   }, [pdfBlob]);
 
   const handleModeChange = useCallback((mode) => {
@@ -100,28 +105,6 @@ export default function WeldTrackerApp() {
       if (typeof source !== "string") URL.revokeObjectURL(url);
     }
   }, []);
-
-  useEffect(() => {
-    if (!pdfBlob || !projectId) return;
-    const timer = setTimeout(async () => {
-      try {
-        const pdfBase64 = await pdfToBase64(pdfBlob);
-        await saveToIndexedDB(projectId, {
-          version: PROJECT_FILE_VERSION,
-          pdfFilename,
-          pdfBase64,
-          weldPoints,
-          spools,
-          spoolMarkers,
-          personnel,
-          drawingSettings,
-        });
-      } catch {
-        // Ignore save errors (e.g. private window)
-      }
-    }, AUTO_SAVE_DELAY_MS);
-    return () => clearTimeout(timer);
-  }, [projectId, pdfBlob, pdfFilename, weldPoints, spools, spoolMarkers, personnel, drawingSettings, pdfToBase64]);
 
   const handleAddWeld = useCallback(
     ({ xPercent, yPercent, pageNumber }) => {
@@ -252,8 +235,7 @@ export default function WeldTrackerApp() {
     setWeldPoints((prev) =>
       prev.map((w) => (w.id === updatedWeld.id ? updatedWeld : w))
     );
-    setFormWeld(null);
-    setSelectedWeldId(null);
+    setFormWeld(updatedWeld);
   }, []);
 
   const handleClosePanel = useCallback(() => {
@@ -265,6 +247,12 @@ export default function WeldTrackerApp() {
   const handleBackToList = useCallback(() => {
     setFormWeld(null);
     setSelectedWeldId(null);
+  }, []);
+
+  const handleAssignWeldToSpool = useCallback((weldId, spoolId) => {
+    setWeldPoints((prev) =>
+      prev.map((w) => (w.id === weldId ? { ...w, spoolId } : w))
+    );
   }, []);
 
   const handleMoveWeldPoint = useCallback((weldId, { xPercent, yPercent }) => {
@@ -335,6 +323,8 @@ export default function WeldTrackerApp() {
         weldingSpec: "",
       }
     );
+    setNdtRequests(Array.isArray(data.ndtRequests) ? data.ndtRequests : []);
+    setNdtReports(Array.isArray(data.ndtReports) ? data.ndtReports : []);
     setFormWeld(null);
     setSelectedWeldId(null);
     setSelectedSpoolMarkerId(null);
@@ -353,6 +343,8 @@ export default function WeldTrackerApp() {
       spoolMarkers,
       personnel,
       drawingSettings,
+      ndtRequests,
+      ndtReports,
     };
     if (projectId) {
       try {
@@ -371,6 +363,8 @@ export default function WeldTrackerApp() {
     spoolMarkers,
     personnel,
     drawingSettings,
+    ndtRequests,
+    ndtReports,
     pdfToBase64,
   ]);
 
@@ -399,6 +393,8 @@ export default function WeldTrackerApp() {
         weldingSpec: "",
       }
     );
+    setNdtRequests(Array.isArray(data.ndtRequests) ? data.ndtRequests : []);
+    setNdtReports(Array.isArray(data.ndtReports) ? data.ndtReports : []);
     setFormWeld(null);
     setSelectedWeldId(null);
     setSelectedSpoolMarkerId(null);
@@ -420,7 +416,7 @@ export default function WeldTrackerApp() {
   const weldStatusByWeldId = useMemo(() => {
     const map = new Map();
     weldPoints.forEach((w) => {
-      const ndtSel = computeNdtSelection(w, drawingSettings);
+      const ndtSel = computeNdtSelection(w, drawingSettings, weldPoints);
       map.set(w.id, getWeldOverallStatus(w, ndtSel));
     });
     return map;
@@ -448,6 +444,7 @@ export default function WeldTrackerApp() {
         onExportExcel={handleExportExcel}
         onOpenParameters={() => setShowParameters(true)}
         onOpenProjects={() => setShowProjects(true)}
+        onOpenNdt={() => setShowNdtPanel(true)}
       />
 
       {pdfBlob && appMode === "edition" && (
@@ -455,6 +452,15 @@ export default function WeldTrackerApp() {
           markupTool={markupTool}
           onToolChange={handleToolChange}
           className="mb-2"
+        />
+      )}
+
+      {pdfBlob && (
+        <DashboardAnalytics
+          weldPoints={weldPoints}
+          weldStatusByWeldId={weldStatusByWeldId}
+          drawingSettings={drawingSettings}
+          spools={spools}
         />
       )}
 
@@ -521,12 +527,28 @@ export default function WeldTrackerApp() {
                   prev.filter((m) => newSpools.some((s) => s.id === m.spoolId))
                 );
               }}
+              onAssignWeldToSpool={handleAssignWeldToSpool}
               spoolMarkers={spoolMarkers}
               appMode={appMode}
               weldPoints={weldPoints}
               weldStatusByWeldId={weldStatusByWeldId}
               getWeldName={getWeldName}
             />
+            {showNdtPanel && (
+              <div className="w-96 min-w-[18rem] flex-shrink-0 border-l border-base-300">
+                <PanelNdtManagement
+                  ndtRequests={ndtRequests}
+                  ndtReports={ndtReports}
+                  setNdtRequests={setNdtRequests}
+                  setNdtReports={setNdtReports}
+                  weldPoints={weldPoints}
+                  setWeldPoints={setWeldPoints}
+                  drawingSettings={drawingSettings}
+                  getWeldName={getWeldName}
+                  onClose={() => setShowNdtPanel(false)}
+                />
+              </div>
+            )}
           </>
         ) : (
           <div className="flex flex-col items-center justify-center py-24 text-base-content/60">

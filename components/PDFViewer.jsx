@@ -259,6 +259,7 @@ function PDFViewer({
             onResizeLabel={onResizeLabel}
             onMoveLineBend={onMoveLineBend}
             weldStatusByWeldId={weldStatusByWeldId}
+            spools={spools}
           />
           <div className="absolute inset-0 pointer-events-none">
             {spoolMarkersOnPage.map((m) => (

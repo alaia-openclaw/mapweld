@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   DRAWING_NDT_PRESETS,
   NDT_METHODS,
@@ -57,14 +57,20 @@ function ModalDrawingSettings({ isOpen, onClose, settings, onSave }) {
     setNdtRequirements((prev) => prev.filter((r) => r.method !== method));
   }
 
-  function handleSubmit(e) {
-    e.preventDefault();
-    onSave?.({
-      ndtRequirements,
-      weldingSpec,
-    });
-    onClose?.();
-  }
+  const autoSaveTimeoutRef = useRef(null);
+  useEffect(() => {
+    if (!isOpen || !settings) return;
+    if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
+    autoSaveTimeoutRef.current = setTimeout(() => {
+      onSave?.({
+        ndtRequirements,
+        weldingSpec,
+      });
+    }, 500);
+    return () => {
+      if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
+    };
+  }, [isOpen, settings, ndtRequirements, weldingSpec, onSave]);
 
   if (!isOpen) return null;
 
@@ -72,7 +78,7 @@ function ModalDrawingSettings({ isOpen, onClose, settings, onSave }) {
     <dialog open={isOpen} className="modal modal-open">
       <div className="modal-box w-full min-w-80 max-w-4xl">
         <h3 className="font-bold text-lg">Drawing settings</h3>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={(e) => e.preventDefault()}>
           <div className="form-control mt-4">
             <label className="label" htmlFor="ndtPreset">
               <span className="label-text">NDT requirements</span>
@@ -165,15 +171,12 @@ function ModalDrawingSettings({ isOpen, onClose, settings, onSave }) {
               placeholder="e.g. WPS-001, ASME IX"
             />
           </div>
-          <div className="modal-action">
-            <button type="button" className="btn btn-ghost" onClick={onClose}>
-              Cancel
-            </button>
-            <button type="submit" className="btn btn-primary">
-              Save
-            </button>
-          </div>
-        </form>
+            <div className="modal-action">
+              <button type="button" className="btn btn-ghost" onClick={onClose}>
+                Close
+              </button>
+            </div>
+          </form>
       </div>
       <form method="dialog" className="modal-backdrop">
         <button type="button" onClick={onClose}>

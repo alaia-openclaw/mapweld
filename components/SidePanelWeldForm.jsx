@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   WELD_TYPE_LABELS,
   WELD_LOCATION_LABELS,
@@ -10,11 +10,12 @@ import {
   NDT_METHOD_LABELS,
   NDT_OVERRIDE_OPTIONS,
   NDT_OVERRIDE_LABELS,
+  NDT_RESULT_OUTCOME_LABELS,
   WELDING_PROCESSES,
   WELDING_PROCESS_LABELS,
 } from "@/lib/constants";
 import { createDefaultWeldingRecord } from "@/lib/defaults";
-import { getWeldName, getWeldOverallStatus, getWeldSectionCompletion, computeNdtSelection } from "@/lib/weld-utils";
+import { getWeldName, getWeldOverallStatus, getWeldSectionCompletion, computeNdtSelection, getNdtSelectionWarnings } from "@/lib/weld-utils";
 
 function SidePanelWeldForm({
   weldPoints = [],
@@ -47,6 +48,7 @@ function SidePanelWeldForm({
   const [weldingRecords, setWeldingRecords] = useState([]);
   const [ndtOverrides, setNdtOverrides] = useState({});
   const [ndtResults, setNdtResults] = useState({});
+  const [ndtResultOutcome, setNdtResultOutcome] = useState({});
   const [openSections, setOpenSections] = useState({ general: true, fitup: false, welding: false, inspection: false });
 
   function toggleSection(key) {
@@ -79,8 +81,62 @@ function SidePanelWeldForm({
       setWeldingRecords(records.length > 0 ? records : []);
       setNdtOverrides(weld.ndtOverrides || {});
       setNdtResults(weld.ndtResults || {});
+      setNdtResultOutcome(weld.ndtResultOutcome || {});
     }
   }, [weld]);
+
+  const autoSaveTimeoutRef = useRef(null);
+  useEffect(() => {
+    if (!weld) return;
+    if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
+    autoSaveTimeoutRef.current = setTimeout(() => {
+      const recordsToSave = weldingRecords.map((r) => ({
+        ...r,
+        electrodeNumbers: (r.electrodeNumbers || [""]).filter((s) => s?.trim?.() !== "").length > 0
+          ? (r.electrodeNumbers || [""]).filter((s) => s?.trim?.() !== "")
+          : [""],
+      }));
+      onSave?.({
+        ...weld,
+        weldType,
+        weldLocation,
+        wps,
+        fitterName,
+        dateFitUp,
+        heatNumber1,
+        heatNumber2,
+        welderName,
+        weldingRecords: recordsToSave,
+        ndtRequired,
+        visualInspection,
+        ndtOverrides,
+        ndtResults,
+        ndtResultOutcome,
+        spoolId: spoolId || null,
+      });
+    }, 600);
+    return () => {
+      if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
+    };
+  }, [
+    weld,
+    weldType,
+    weldLocation,
+    wps,
+    fitterName,
+    dateFitUp,
+    heatNumber1,
+    heatNumber2,
+    welderName,
+    weldingRecords,
+    ndtRequired,
+    visualInspection,
+    ndtOverrides,
+    ndtResults,
+    ndtResultOutcome,
+    spoolId,
+    onSave,
+  ]);
 
   function handleAddWeldingRecord(initialData = {}) {
     setWeldingRecords((prev) => [
@@ -185,9 +241,9 @@ function SidePanelWeldForm({
       visualInspection,
       ndtOverrides,
       ndtResults,
+      ndtResultOutcome,
       spoolId: spoolId || null,
     });
-    onBackToList?.();
   }
 
   const expandedWeldId = weld?.id;
@@ -277,23 +333,27 @@ function SidePanelWeldForm({
                         }`}
                       >
                         <span className="flex flex-col items-start gap-0.5 min-w-0">
-                          <span className="font-mono text-sm">
+                          <span className="font-mono text-sm flex items-center gap-1.5">
                             {getWeldName(w, weldPoints)}
+                            {w.spoolId && (() => {
+                              const spool = spools.find((s) => s.id === w.spoolId);
+                              return spool?.name ? (
+                                <span className="text-xs text-base-content/50 font-normal">
+                                  {spool.name}
+                                </span>
+                              ) : null;
+                            })()}
                           </span>
                           <span className="text-xs opacity-70 truncate max-w-full">
                             {(() => {
-                              const spool = w.spoolId && spools.find((s) => s.id === w.spoolId);
-                              const ndtSel = computeNdtSelection(w, drawingSettings);
+                              const ndtSel = computeNdtSelection(w, drawingSettings, weldPoints);
                               const section = getWeldSectionCompletion(w, ndtSel);
                               const missing = [];
                               if (!section.general) missing.push("General");
                               if (!section.fitup) missing.push("Fitup");
                               if (!section.welding) missing.push("Welding");
                               if (!section.inspection) missing.push("Inspection");
-                              const parts = [];
-                              if (spool?.name) parts.push(spool.name);
-                              if (missing.length > 0) parts.push(`Missing: ${missing.join(", ")}`);
-                              return parts.join(" · ") || "—";
+                              return missing.length > 0 ? `Missing: ${missing.join(", ")}` : "—";
                             })()}
                           </span>
                         </span>
@@ -320,6 +380,8 @@ function SidePanelWeldForm({
                             {/* Vertical collapsible sections */}
                             {(() => {
                               const virtualWeld = {
+                                id: weld?.id,
+                                weldLocation: weld?.weldLocation,
                                 wps,
                                 fitterName,
                                 dateFitUp,
@@ -330,8 +392,9 @@ function SidePanelWeldForm({
                                 visualInspection,
                                 ndtOverrides,
                                 ndtResults,
+                                ndtResultOutcome,
                               };
-                              const ndtSel = computeNdtSelection(virtualWeld, drawingSettings);
+                              const ndtSel = computeNdtSelection(virtualWeld, drawingSettings, weldPoints);
                               const sectionComplete = getWeldSectionCompletion(virtualWeld, ndtSel);
                               return ["general", "fitup", "welding", "inspection"].map((sectionKey) => (
                               <div key={sectionKey} className="w-full border border-base-300 rounded-none overflow-hidden first:rounded-t-lg last:rounded-b-lg border-b-0 last:border-b border-base-300">
@@ -666,18 +729,22 @@ function SidePanelWeldForm({
                                         <th>Override</th>
                                         <th>Required</th>
                                         <th>Done</th>
+                                        <th>Result</th>
                                       </tr>
                                     </thead>
                                     <tbody>
                                       {NDT_METHODS.map((m) => {
                                         const virtualW = {
+                                          id: weld?.id,
+                                          weldLocation: weld?.weldLocation,
                                           ndtRequired,
                                           visualInspection,
                                           ndtOverrides,
                                         };
-                                        const sel = computeNdtSelection(virtualW, drawingSettings);
+                                        const sel = computeNdtSelection(virtualW, drawingSettings, weldPoints);
                                         const isRequired = !!sel[m];
                                         const overrideVal = ndtOverrides[m] ?? NDT_OVERRIDE_OPTIONS.AUTO;
+                                        const outcome = ndtResultOutcome[m];
                                         return (
                                           <tr key={m}>
                                             <td className="font-medium">{NDT_METHOD_LABELS[m] || m}</td>
@@ -716,11 +783,33 @@ function SidePanelWeldForm({
                                                 title={!isRequired ? "Not required" : "Mark as done"}
                                               />
                                             </td>
+                                            <td className="text-sm">
+                                              {outcome ? (
+                                                <span className={outcome === "rejected" || outcome === "reject" ? "text-error font-medium" : outcome === "omitted_or_inconclusive" || outcome === "repair" ? "text-warning font-medium" : ""}>
+                                                  {NDT_RESULT_OUTCOME_LABELS[outcome] ?? outcome}
+                                                </span>
+                                              ) : (
+                                                "—"
+                                              )}
+                                            </td>
                                           </tr>
                                         );
                                       })}
                                     </tbody>
                                   </table>
+                                  {(() => {
+                                    const allWarnings = NDT_METHODS.flatMap((m) =>
+                                      getNdtSelectionWarnings(weldPoints, drawingSettings, m)
+                                    );
+                                    if (allWarnings.length === 0) return null;
+                                    return (
+                                      <div className="mt-2 p-2 bg-warning/10 border border-warning/30 rounded text-xs">
+                                        {allWarnings.map((msg, i) => (
+                                          <div key={i}>{msg}</div>
+                                        ))}
+                                      </div>
+                                    );
+                                  })()}
                                 </div>
                               </div>
                             )}
@@ -751,10 +840,7 @@ function SidePanelWeldForm({
                                 onClick={onBackToList}
                                 title="Collapse (or click weld again)"
                               >
-                                Cancel
-                              </button>
-                              <button type="submit" className="btn btn-primary btn-sm">
-                                Save
+                                Close
                               </button>
                             </div>
                           </form>

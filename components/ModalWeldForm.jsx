@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   WELD_TYPES,
   WELD_TYPE_LABELS,
@@ -52,26 +52,49 @@ function ModalWeldForm({
     }
   }, [weld]);
 
-  function handleSubmit(e) {
-    e.preventDefault();
-    onSave?.({
-      ...weld,
-      welderName,
-      weldingDate,
-      fitterName,
-      dateFitUp,
-      partNumber1,
-      partNumber2,
-      heatNumber1,
-      heatNumber2,
-      weldType,
-      weldLocation,
-      ndtRequired,
-      visualInspection,
-      spoolId: spoolId || null,
-    });
-    onClose?.();
-  }
+  const autoSaveTimeoutRef = useRef(null);
+  useEffect(() => {
+    if (!weld || !isOpen) return;
+    if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
+    autoSaveTimeoutRef.current = setTimeout(() => {
+      onSave?.({
+        ...weld,
+        welderName,
+        weldingDate,
+        fitterName,
+        dateFitUp,
+        partNumber1,
+        partNumber2,
+        heatNumber1,
+        heatNumber2,
+        weldType,
+        weldLocation,
+        ndtRequired,
+        visualInspection,
+        spoolId: spoolId || null,
+      });
+    }, 500);
+    return () => {
+      if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
+    };
+  }, [
+    weld,
+    isOpen,
+    welderName,
+    weldingDate,
+    fitterName,
+    dateFitUp,
+    partNumber1,
+    partNumber2,
+    heatNumber1,
+    heatNumber2,
+    weldType,
+    weldLocation,
+    ndtRequired,
+    visualInspection,
+    spoolId,
+    onSave,
+  ]);
 
   if (!isOpen) return null;
 
@@ -79,7 +102,7 @@ function ModalWeldForm({
     <dialog open={isOpen} className="modal modal-open">
       <div className="modal-box w-full max-w-none h-[100dvh] max-h-[100dvh] rounded-none md:w-auto md:max-w-4xl md:max-h-[90vh] md:h-auto md:rounded-lg overflow-y-auto">
         <h3 className="font-bold text-lg">Weld info</h3>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={(e) => e.preventDefault()}>
           <div className="grid grid-cols-2 gap-4 mt-4">
             <div className="form-control">
               <label className="label" htmlFor="weldType">
@@ -304,10 +327,7 @@ function ModalWeldForm({
             )}
             <div className="flex-1" />
             <button type="button" className="btn btn-ghost min-h-12" onClick={onClose}>
-              Cancel
-            </button>
-            <button type="submit" className="btn btn-primary min-h-12">
-              Save
+              Close
             </button>
           </div>
         </form>

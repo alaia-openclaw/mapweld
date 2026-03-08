@@ -14,6 +14,7 @@ function WeldOverlay({
   onMoveLineBend,
   pageWrapperRef,
   weldStatusByWeldId,
+  spools = [],
 }) {
   return (
     <div className="absolute inset-0 pointer-events-none">
@@ -22,6 +23,7 @@ function WeldOverlay({
           key={weld.id}
           weld={weld}
           weldPoints={weldPoints}
+          spools={spools}
           onClick={onWeldClick}
           onDoubleClick={onWeldDoubleClick}
           isSelected={weld.id === selectedWeldId}

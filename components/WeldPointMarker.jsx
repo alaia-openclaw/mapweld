@@ -29,6 +29,7 @@ function clientToPercent(clientX, clientY, pageWrapperRef) {
 function WeldPointMarker({
   weld,
   weldPoints = [],
+  spools = [],
   onClick,
   onDoubleClick,
   isSelected,
@@ -85,6 +86,9 @@ function WeldPointMarker({
   const bulletColourClass = BULLET_COLOURS[weldLocation] || BULLET_COLOURS[WELD_LOCATION.SHOP];
   const lineColourClass = LINE_COLOURS[weldLocation] || LINE_COLOURS[WELD_LOCATION.SHOP];
   const weldName = getWeldName(weld, weldPoints);
+  const spoolName = weld.spoolId
+    ? spools.find((s) => s.id === weld.spoolId)?.name
+    : null;
 
   const handlePointerMove = useCallback(
     (e) => {
@@ -318,11 +322,19 @@ function WeldPointMarker({
         }}
       >
         <span
-          className={`font-medium leading-none select-none text-base-100
+          className={`font-medium leading-none select-none text-base-100 flex flex-col items-center
             ${isField ? "-rotate-45" : ""}`}
           style={{ fontSize: `${weld.labelFontSize ?? 12}px` }}
         >
-          {weldName}
+          <span>{weldName}</span>
+          {spoolName && (
+            <span
+              className="opacity-70 text-[0.65em] leading-tight"
+              style={{ fontSize: `${Math.max(8, (weld.labelFontSize ?? 12) * 0.65)}px` }}
+            >
+              {spoolName}
+            </span>
+          )}
         </span>
         {showHandles && (
           <>

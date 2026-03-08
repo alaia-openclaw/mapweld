@@ -13,6 +13,7 @@ function Toolbar({
   onExportExcel,
   onOpenParameters,
   onOpenProjects,
+  onOpenNdt,
 }) {
   const projectInputRef = useRef(null);
 
@@ -85,6 +86,16 @@ function Toolbar({
           title="Parameters"
         >
           Parameters
+        </button>
+      )}
+      {hasPdf && onOpenNdt && (
+        <button
+          type="button"
+          className={buttonClass + " btn-outline"}
+          onClick={onOpenNdt}
+          title="NDT management"
+        >
+          NDT
         </button>
       )}
     </>
@@ -183,6 +194,13 @@ function Toolbar({
             <li>
               <button type="button" onClick={onOpenParameters}>
                 Parameters
+              </button>
+            </li>
+          )}
+          {hasPdf && onOpenNdt && (
+            <li>
+              <button type="button" onClick={onOpenNdt}>
+                NDT
               </button>
             </li>
           )}

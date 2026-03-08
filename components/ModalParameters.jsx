@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { NDT_METHODS, NDT_METHOD_LABELS } from "@/lib/constants";
 
 function generateId() {
@@ -139,14 +139,20 @@ function ModalParameters({
     });
   }
 
-  function handleSaveDefault(e) {
-    e.preventDefault();
-    onSave?.({
-      drawingSettings: { ndtRequirements, weldingSpec },
-      personnel,
-    });
-    onClose?.();
-  }
+  const autoSaveTimeoutRef = useRef(null);
+  useEffect(() => {
+    if (!isOpen) return;
+    if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
+    autoSaveTimeoutRef.current = setTimeout(() => {
+      onSave?.({
+        drawingSettings: { ndtRequirements, weldingSpec },
+        personnel,
+      });
+    }, 500);
+    return () => {
+      if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
+    };
+  }, [isOpen, ndtRequirements, weldingSpec, personnel, onSave]);
 
   if (!isOpen) return null;
 
@@ -175,7 +181,7 @@ function ModalParameters({
         </div>
 
         {activeTab === "default" && (
-          <form onSubmit={handleSaveDefault} className="mt-4">
+          <form onSubmit={(e) => e.preventDefault()} className="mt-4">
             <div className="form-control">
               <label className="label">
                 <span className="label-text">NDT / QC checks</span>
@@ -247,10 +253,7 @@ function ModalParameters({
             </div>
             <div className="modal-action">
               <button type="button" className="btn btn-ghost" onClick={onClose}>
-                Cancel
-              </button>
-              <button type="submit" className="btn btn-primary">
-                Save
+                Close
               </button>
             </div>
           </form>
