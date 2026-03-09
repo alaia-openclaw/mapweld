@@ -24,8 +24,12 @@ function SpoolMarker({
   onMoveSpoolMarker,
   onMoveSpoolIndicator,
   pageWrapperRef,
+  scale = 1,
 }) {
   const draggingRef = useRef(null);
+  const badgeMin = Math.round(18 * scale);
+  const badgeFontSize = Math.max(8, Math.round(10 * scale));
+  const dotSize = Math.max(1, Math.round(2 * scale));
 
   const wx = marker.xPercent ?? 0;
   const wy = marker.yPercent ?? 0;
@@ -184,7 +188,12 @@ function SpoolMarker({
         }}
       >
         <span
-          className={`flex items-center justify-center border-2 border-solid rounded-full min-w-[32px] min-h-[32px] px-2 font-medium leading-none select-none text-base-100 text-xs ${SPOOL_BADGE_COLOUR}`}
+          className={`flex items-center justify-center border border-solid rounded-full px-1 font-medium leading-none select-none text-base-100 ${SPOOL_BADGE_COLOUR}`}
+          style={{
+            minWidth: `${badgeMin}px`,
+            minHeight: `${badgeMin}px`,
+            fontSize: `${badgeFontSize}px`,
+          }}
         >
           {displayName}
         </span>
@@ -205,7 +214,11 @@ function SpoolMarker({
         className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none z-10"
         style={{ left: `${wx}%`, top: `${wy}%` }}
       >
-        <span className="block w-1.5 h-1.5 rounded-full bg-secondary" aria-hidden />
+        <span
+          className="block rounded-full bg-secondary"
+          style={{ width: `${dotSize}px`, height: `${dotSize}px` }}
+          aria-hidden
+        />
         {showHandles && (
           <div
             role="button"

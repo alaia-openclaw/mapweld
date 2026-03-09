@@ -27,6 +27,8 @@ function SidePanelPartForm({
   const [materialGrade, setMaterialGrade] = useState("");
   const [length, setLength] = useState("");
   const [spoolId, setSpoolId] = useState("");
+  const [heatNumber, setHeatNumber] = useState("");
+  const [showReconcile, setShowReconcile] = useState(false);
   const autoSaveTimeoutRef = useRef(null);
 
   useEffect(() => {
@@ -37,6 +39,7 @@ function SidePanelPartForm({
       setMaterialGrade(selectedPart.materialGrade ?? "");
       setLength(selectedPart.length ?? "");
       setSpoolId(selectedPart.spoolId ?? "");
+      setHeatNumber(selectedPart.heatNumber ?? "");
     }
   }, [selectedPart]);
 
@@ -52,6 +55,7 @@ function SidePanelPartForm({
         materialGrade: materialGrade.trim(),
         length: length.trim(),
         spoolId: spoolId || null,
+        heatNumber: heatNumber.trim(),
       });
     }, 400);
     return () => {
@@ -65,6 +69,7 @@ function SidePanelPartForm({
     materialGrade,
     length,
     spoolId,
+    heatNumber,
     onSavePart,
   ]);
 
@@ -90,7 +95,7 @@ function SidePanelPartForm({
   return (
     <div
       className={`flex-shrink-0 flex flex-col bg-base-200 border-l border-base-300 transition-all duration-300 ease-out overflow-hidden ${
-        isOpen ? "min-w-80 w-full max-w-lg" : "w-10"
+        isOpen ? "min-w-80 w-full max-w-lg min-h-0 max-h-full self-stretch" : "w-10"
       }`}
     >
       <button
@@ -124,12 +129,54 @@ function SidePanelPartForm({
       </button>
 
       {isOpen && (
-        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          <div className="flex-1 overflow-y-auto p-3 space-y-3">
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden w-full">
+          <div className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-3 space-y-3 pb-6">
             {parts.length === 0 ? (
               <div className="text-center py-6 text-base-content/60 text-sm">
                 <p>No parts yet</p>
                 <p className="mt-1">Add with the Add Part tool on the drawing</p>
+              </div>
+            ) : showReconcile ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-2 flex-shrink-0">
+                  <span className="font-medium text-sm">Heat reconciliation</span>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => setShowReconcile(false)}
+                  >
+                    Parts list
+                  </button>
+                </div>
+                <p className="text-xs text-base-content/60">
+                  Assign heat numbers to parts. Same heat can be used for multiple parts (e.g. same pipe cut to length).
+                </p>
+                <div className="space-y-2">
+                  {parts
+                    .slice()
+                    .sort((a, b) => (a.displayNumber ?? 0) - (b.displayNumber ?? 0))
+                    .map((p) => (
+                      <div
+                        key={p.id}
+                        className="flex items-center gap-2 p-2 rounded-lg bg-base-100 border border-base-300"
+                      >
+                        <span className="font-medium w-14 shrink-0">Part {p.displayNumber}</span>
+                        <span className="text-xs text-base-content/60 truncate flex-1 min-w-0">
+                          {[p.partType, p.nps, p.spoolId ? getSpoolName(p.spoolId) : null].filter(Boolean).join(" · ") || "—"}
+                        </span>
+                        <input
+                          type="text"
+                          className="input input-bordered input-sm w-28 shrink-0"
+                          placeholder="Heat"
+                          value={p.heatNumber ?? ""}
+                          onChange={(e) => {
+                            const v = e.target.value.trim();
+                            onSavePart?.({ ...p, heatNumber: v });
+                          }}
+                        />
+                      </div>
+                    ))}
+                </div>
               </div>
             ) : selectedPart ? (
               <>
@@ -232,34 +279,57 @@ function SidePanelPartForm({
                       </select>
                     </div>
                   )}
+                  <div className="form-control">
+                    <label className="label" htmlFor="part-heatNumber">
+                      <span className="label-text">Heat number</span>
+                    </label>
+                    <input
+                      id="part-heatNumber"
+                      type="text"
+                      className="input input-bordered input-sm"
+                      value={heatNumber}
+                      onChange={(e) => setHeatNumber(e.target.value)}
+                      placeholder="e.g. H12345"
+                    />
+                  </div>
                 </div>
               </>
             ) : (
-                <ul className="space-y-2">
-                  {parts
-                    .slice()
-                    .sort((a, b) => (a.displayNumber ?? 0) - (b.displayNumber ?? 0))
-                    .map((p) => {
-                      const marker = partMarkers.find((m) => m.partId === p.id);
-                      const spoolName = p.spoolId ? getSpoolName(p.spoolId) : null;
-                      return (
-                        <li key={p.id}>
-                          <button
-                            type="button"
-                            className="w-full text-left p-2 rounded-lg bg-base-100 border border-base-300 hover:bg-base-200 flex items-center justify-between gap-2"
-                            onClick={() => marker && onSelectPartMarker?.(marker.id)}
-                          >
-                            <span className="font-medium">Part {p.displayNumber}</span>
-                            {spoolName && (
-                              <span className="text-xs text-base-content/60 truncate max-w-[120px]">
-                                {spoolName}
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm w-full gap-1"
+                    onClick={() => {
+                      setShowReconcile(true);
+                      onSelectPartMarker?.(null);
+                    }}
+                  >
+                    Heat reconciliation
+                  </button>
+                  <ul className="space-y-2">
+                    {parts
+                      .slice()
+                      .sort((a, b) => (a.displayNumber ?? 0) - (b.displayNumber ?? 0))
+                      .map((p) => {
+                        const marker = partMarkers.find((m) => m.partId === p.id);
+                        const spoolName = p.spoolId ? getSpoolName(p.spoolId) : null;
+                        return (
+                          <li key={p.id}>
+                            <button
+                              type="button"
+                              className="w-full text-left p-2 rounded-lg bg-base-100 border border-base-300 hover:bg-base-200 flex items-center justify-between gap-2"
+                              onClick={() => marker && onSelectPartMarker?.(marker.id)}
+                            >
+                              <span className="font-medium">Part {p.displayNumber}</span>
+                              <span className="text-xs text-base-content/60 truncate max-w-[100px]">
+                                {spoolName || (p.heatNumber ? `Heat: ${p.heatNumber}` : "") || "—"}
                               </span>
-                            )}
-                          </button>
-                        </li>
-                      );
-                    })}
-                </ul>
+                            </button>
+                          </li>
+                        );
+                      })}
+                  </ul>
+                </div>
               )}
           </div>
         </div>

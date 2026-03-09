@@ -16,6 +16,7 @@ const LINE_COLOURS = {
 
 const LABEL_FONT_SIZE_MIN = 8;
 const LABEL_FONT_SIZE_MAX = 24;
+const WELD_MARKER_DISPLAY_SCALE = 0.5;
 
 function clientToPercent(clientX, clientY, pageWrapperRef) {
   const el = pageWrapperRef?.current;
@@ -40,6 +41,7 @@ function WeldPointMarker({
   onMoveLineBend,
   pageWrapperRef,
   weldStatus,
+  scale = 1,
 }) {
   const draggingRef = useRef(null);
   const resizeStartRef = useRef({ fontSize: 12, clientY: 0 });
@@ -89,6 +91,12 @@ function WeldPointMarker({
   const spoolName = weld.spoolId
     ? spools.find((s) => s.id === weld.spoolId)?.name
     : null;
+  const rawFontSize = weld.labelFontSize ?? 12;
+  const displayFontSize = Math.max(4, rawFontSize * WELD_MARKER_DISPLAY_SCALE);
+  const scaledFontSize = displayFontSize * scale;
+  const scaledMin = Math.max(16, displayFontSize * 2) * scale;
+  const bulletSize = Math.max(2, Math.round(6 * scale));
+  const dotSize = Math.max(1, Math.round(2 * scale));
 
   const handlePointerMove = useCallback(
     (e) => {
@@ -317,20 +325,20 @@ function WeldPointMarker({
         style={{
           left: `${ix}%`,
           top: `${iy}%`,
-          minWidth: `${Math.max(32, (weld.labelFontSize ?? 12) * 2)}px`,
-          minHeight: `${Math.max(32, (weld.labelFontSize ?? 12) * 2)}px`,
+          minWidth: `${scaledMin}px`,
+          minHeight: `${scaledMin}px`,
         }}
       >
         <span
           className={`font-medium leading-none select-none text-base-100 flex flex-col items-center
             ${isField ? "-rotate-45" : ""}`}
-          style={{ fontSize: `${weld.labelFontSize ?? 12}px` }}
+          style={{ fontSize: `${scaledFontSize}px` }}
         >
           <span>{weldName}</span>
           {spoolName && (
             <span
               className="opacity-70 text-[0.65em] leading-tight"
-              style={{ fontSize: `${Math.max(8, (weld.labelFontSize ?? 12) * 0.65)}px` }}
+              style={{ fontSize: `${Math.max(4, scaledFontSize * 0.65)}px` }}
             >
               {spoolName}
             </span>
@@ -380,30 +388,34 @@ function WeldPointMarker({
       >
         {isField ? (
           <svg
-            width="10"
-            height="10"
+            width={bulletSize}
+            height={bulletSize}
             className="text-current"
             aria-hidden
           >
             <line
-              x1="1"
-              y1="1"
-              x2="9"
-              y2="9"
+              x1="0.5"
+              y1="0.5"
+              x2={bulletSize - 0.5}
+              y2={bulletSize - 0.5}
               stroke="currentColor"
-              strokeWidth="1.2"
+              strokeWidth={Math.max(0.5, 1 * scale)}
             />
             <line
-              x1="9"
-              y1="1"
-              x2="1"
-              y2="9"
+              x1={bulletSize - 0.5}
+              y1="0.5"
+              x2="0.5"
+              y2={bulletSize - 0.5}
               stroke="currentColor"
-              strokeWidth="1.2"
+              strokeWidth={Math.max(0.5, 1 * scale)}
             />
           </svg>
         ) : (
-          <span className="block w-1.5 h-1.5 rounded-full bg-current" aria-hidden />
+          <span
+            className="block rounded-full bg-current"
+            style={{ width: `${dotSize}px`, height: `${dotSize}px` }}
+            aria-hidden
+          />
         )}
         {showHandles && (
           <div
