@@ -15,6 +15,7 @@ function WeldOverlay({
   pageWrapperRef,
   weldStatusByWeldId,
   spools = [],
+  scale = 1,
 }) {
   return (
     <div className="absolute inset-0 pointer-events-none">
@@ -34,6 +35,7 @@ function WeldOverlay({
           onMoveLineBend={onMoveLineBend}
           pageWrapperRef={pageWrapperRef}
           weldStatus={weldStatusByWeldId?.get(weld.id)}
+          scale={scale}
         />
       ))}
     </div>

@@ -35,19 +35,32 @@ function ModalDrawingSettings({ isOpen, onClose, settings, onSave }) {
   function addRow(method, pct = 100) {
     setNdtRequirements((prev) => {
       const filtered = prev.filter((r) => r.method !== method);
-      return [...filtered, { method, pct }].sort(
+      return [...filtered, { method, pct: Math.min(100, Math.max(0, pct)) }].sort(
         (a, b) => NDT_METHODS.indexOf(a.method) - NDT_METHODS.indexOf(b.method)
       );
     });
   }
 
-  function updateRow(method, pct) {
-    const num = parseInt(pct, 10);
-    if (isNaN(num) || num < 0) return;
+  function updateRow(method, field, value) {
+    const num = value === "" ? null : parseInt(value, 10);
+    if (num !== null && (isNaN(num) || num < 0)) return;
+    const clamped = num != null ? Math.min(100, Math.max(0, num)) : null;
     setNdtRequirements((prev) => {
-      const filtered = prev.filter((r) => r.method !== method);
-      if (num === 0) return filtered;
-      return [...filtered, { method, pct: Math.min(100, Math.max(0, num)) }].sort(
+      const prevReq = prev.find((r) => r.method === method);
+      if (!prevReq) return prev;
+      const next = { ...prevReq };
+      if (field === "pct") {
+        next.pct = clamped ?? 100;
+        delete next.pctShop;
+        delete next.pctField;
+      } else if (field === "shop") {
+        if (clamped == null || clamped === (prevReq.pct ?? 100)) delete next.pctShop;
+        else next.pctShop = clamped;
+      } else if (field === "field") {
+        if (clamped == null || clamped === (prevReq.pct ?? 100)) delete next.pctField;
+        else next.pctField = clamped;
+      }
+      return prev.map((r) => (r.method === method ? next : r)).sort(
         (a, b) => NDT_METHODS.indexOf(a.method) - NDT_METHODS.indexOf(b.method)
       );
     });
@@ -109,24 +122,42 @@ function ModalDrawingSettings({ isOpen, onClose, settings, onSave }) {
                 Add
               </button>
             </div>
+            <p className="text-xs text-base-content/60 mt-1">
+              Shop % and Field % apply to welds by location; leave same for both if not split.
+            </p>
             <div className="mt-3 space-y-2">
               {ndtRequirements.map((r) => (
                 <div
                   key={r.method}
-                  className="flex items-center gap-2 p-2 bg-base-200 rounded-lg"
+                  className="flex flex-wrap items-center gap-2 p-2 bg-base-200 rounded-lg"
                 >
                   <span className="w-24 font-medium">
                     {NDT_METHOD_LABELS[r.method] || r.method}
                   </span>
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    className="input input-bordered input-sm w-20"
-                    value={r.pct}
-                    onChange={(e) => updateRow(r.method, e.target.value)}
-                  />
-                  <span className="text-sm">%</span>
+                  <div className="flex items-center gap-1">
+                    <label className="text-xs text-base-content/60">Shop</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      className="input input-bordered input-sm w-16"
+                      value={r.pctShop ?? r.pct ?? 100}
+                      onChange={(e) => updateRow(r.method, "shop", e.target.value)}
+                    />
+                    <span className="text-sm">%</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <label className="text-xs text-base-content/60">Field</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      className="input input-bordered input-sm w-16"
+                      value={r.pctField ?? r.pct ?? 100}
+                      onChange={(e) => updateRow(r.method, "field", e.target.value)}
+                    />
+                    <span className="text-sm">%</span>
+                  </div>
                   <button
                     type="button"
                     className="btn btn-ghost btn-sm btn-square ml-auto"

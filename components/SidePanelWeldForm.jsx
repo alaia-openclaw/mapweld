@@ -30,6 +30,8 @@ function SidePanelWeldForm({
   onDelete,
   appMode = "edition",
   spools = [],
+  parts = [],
+  onUpdatePartHeat,
   personnel = { fitters: [], welders: [] },
   ndtAutoLabel,
   drawingSettings = { ndtRequirements: [] },
@@ -43,6 +45,8 @@ function SidePanelWeldForm({
   const [dateFitUp, setDateFitUp] = useState("");
   const [heatNumber1, setHeatNumber1] = useState("");
   const [heatNumber2, setHeatNumber2] = useState("");
+  const [partId1, setPartId1] = useState("");
+  const [partId2, setPartId2] = useState("");
   const [welderName, setWelderName] = useState("");
   const [ndtRequired, setNdtRequired] = useState(NDT_REQUIRED_OPTIONS.AUTO);
   const [visualInspection, setVisualInspection] = useState(false);
@@ -54,6 +58,15 @@ function SidePanelWeldForm({
   const [ndtResultManualOverride, setNdtResultManualOverride] = useState({});
   const [ndtResultOverrideUnlocked, setNdtResultOverrideUnlocked] = useState(false);
   const [openSections, setOpenSections] = useState({ general: true, fitup: false, welding: false, inspection: false });
+
+  const selectedPart1 = parts.find((p) => p.id === partId1) || null;
+  const selectedPart2 = parts.find((p) => p.id === partId2) || null;
+  const trimmedHeat1 = (heatNumber1 ?? "").trim();
+  const trimmedHeat2 = (heatNumber2 ?? "").trim();
+  const partHeat1 = (selectedPart1?.heatNumber ?? "").trim();
+  const partHeat2 = (selectedPart2?.heatNumber ?? "").trim();
+  const showSync1 = !!selectedPart1 && !!trimmedHeat1 && trimmedHeat1 !== partHeat1;
+  const showSync2 = !!selectedPart2 && !!trimmedHeat2 && trimmedHeat2 !== partHeat2;
 
   function toggleSection(key) {
     setOpenSections((prev) => {
@@ -77,6 +90,8 @@ function SidePanelWeldForm({
       setDateFitUp(weld.dateFitUp || "");
       setHeatNumber1(weld.heatNumber1 || "");
       setHeatNumber2(weld.heatNumber2 || "");
+      setPartId1(weld.partId1 || "");
+      setPartId2(weld.partId2 || "");
       setWelderName(weld.welderName || "");
       setNdtRequired(weld.ndtRequired || NDT_REQUIRED_OPTIONS.AUTO);
       setVisualInspection(weld.visualInspection || false);
@@ -120,6 +135,8 @@ function SidePanelWeldForm({
         dateFitUp,
         heatNumber1,
         heatNumber2,
+        partId1: partId1 || null,
+        partId2: partId2 || null,
         welderName,
         weldingRecords: recordsToSave,
         ndtRequired,
@@ -143,6 +160,8 @@ function SidePanelWeldForm({
     dateFitUp,
     heatNumber1,
     heatNumber2,
+    partId1,
+    partId2,
     welderName,
     weldingRecords,
     ndtRequired,
@@ -558,6 +577,11 @@ function SidePanelWeldForm({
                                     placeholder="e.g. H12345"
                                   />
                                 </div>
+                                {selectedPart1 && !selectedPart1.heatNumber && !trimmedHeat1 && (
+                                  <p className="text-xs text-base-content/60">
+                                    Type a heat number above and then assign it to Part {selectedPart1.displayNumber}.
+                                  </p>
+                                )}
                                 <div className="form-control">
                                   <label className="label" htmlFor="side-heatNumber2">
                                     <span className="label-text">Heat number (part 2)</span>
@@ -571,6 +595,123 @@ function SidePanelWeldForm({
                                     placeholder="e.g. H12346"
                                   />
                                 </div>
+                                {selectedPart2 && !selectedPart2.heatNumber && !trimmedHeat2 && (
+                                  <p className="text-xs text-base-content/60">
+                                    Type a heat number above and then assign it to Part {selectedPart2.displayNumber}.
+                                  </p>
+                                )}
+                                {parts.length > 0 && (
+                                  <>
+                                    <div className="form-control">
+                                      <label className="label" htmlFor="side-partId1">
+                                        <span className="label-text">Part 1</span>
+                                      </label>
+                                      <select
+                                        id="side-partId1"
+                                        className="select select-bordered select-sm w-full"
+                                        value={partId1}
+                                        onChange={(e) => {
+                                          const id = e.target.value || "";
+                                          setPartId1(id);
+                                          const p = parts.find((x) => x.id === id);
+                                          if (p?.heatNumber) {
+                                            setHeatNumber1((prev) =>
+                                              prev?.trim?.() ? prev : p.heatNumber
+                                            );
+                                          }
+                                        }}
+                                      >
+                                        <option value="">— or type heat above</option>
+                                        {parts
+                                          .slice()
+                                          .filter((p) => {
+                                            const heat = (heatNumber1 ?? "").trim();
+                                            if (!heat) return true;
+                                            const partHeat = (p.heatNumber ?? "").trim();
+                                            // When a heat is typed, show:
+                                            // - parts with matching heat
+                                            // - parts with no heat yet
+                                            // - always include the currently selected part
+                                            if (!partHeat) return true;
+                                            return partHeat === heat || p.id === partId1;
+                                          })
+                                          .sort((a, b) => (a.displayNumber ?? 0) - (b.displayNumber ?? 0))
+                                          .map((p) => (
+                                            <option key={p.id} value={p.id}>
+                                              Part {p.displayNumber}
+                                              {p.heatNumber ? ` (${p.heatNumber})` : ""}
+                                              {p.nps ? ` · ${p.nps}` : ""}
+                                            </option>
+                                          ))}
+                                      </select>
+                                      {showSync1 && onUpdatePartHeat && (
+                                        <button
+                                          type="button"
+                                          className="btn btn-ghost btn-xs mt-1"
+                                          onClick={() => onUpdatePartHeat(selectedPart1.id, trimmedHeat1)}
+                                        >
+                                          {partHeat1
+                                            ? `Update Part ${selectedPart1.displayNumber} to ${trimmedHeat1}`
+                                            : `Assign this heat to Part ${selectedPart1.displayNumber}`}
+                                        </button>
+                                      )}
+                                    </div>
+                                    <div className="form-control">
+                                      <label className="label" htmlFor="side-partId2">
+                                        <span className="label-text">Part 2</span>
+                                      </label>
+                                      <select
+                                        id="side-partId2"
+                                        className="select select-bordered select-sm w-full"
+                                        value={partId2}
+                                        onChange={(e) => {
+                                          const id = e.target.value || "";
+                                          setPartId2(id);
+                                          const p = parts.find((x) => x.id === id);
+                                          if (p?.heatNumber) {
+                                            setHeatNumber2((prev) =>
+                                              prev?.trim?.() ? prev : p.heatNumber
+                                            );
+                                          }
+                                        }}
+                                      >
+                                        <option value="">— or type heat above</option>
+                                        {parts
+                                          .slice()
+                                          .filter((p) => {
+                                            const heat = (heatNumber2 ?? "").trim();
+                                            if (!heat) return true;
+                                            const partHeat = (p.heatNumber ?? "").trim();
+                                            // When a heat is typed, show:
+                                            // - parts with matching heat
+                                            // - parts with no heat yet
+                                            // - always include the currently selected part
+                                            if (!partHeat) return true;
+                                            return partHeat === heat || p.id === partId2;
+                                          })
+                                          .sort((a, b) => (a.displayNumber ?? 0) - (b.displayNumber ?? 0))
+                                          .map((p) => (
+                                            <option key={p.id} value={p.id}>
+                                              Part {p.displayNumber}
+                                              {p.heatNumber ? ` (${p.heatNumber})` : ""}
+                                              {p.nps ? ` · ${p.nps}` : ""}
+                                            </option>
+                                          ))}
+                                      </select>
+                                      {showSync2 && onUpdatePartHeat && (
+                                        <button
+                                          type="button"
+                                          className="btn btn-ghost btn-xs mt-1"
+                                          onClick={() => onUpdatePartHeat(selectedPart2.id, trimmedHeat2)}
+                                        >
+                                          {partHeat2
+                                            ? `Update Part ${selectedPart2.displayNumber} to ${trimmedHeat2}`
+                                            : `Assign this heat to Part ${selectedPart2.displayNumber}`}
+                                        </button>
+                                      )}
+                                    </div>
+                                  </>
+                                )}
                               </div>
                             )}
 

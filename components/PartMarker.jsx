@@ -2,8 +2,8 @@
 
 import { useCallback, useRef, useEffect } from "react";
 
-const SPOOL_LINE_COLOUR = "text-secondary";
-const SPOOL_BADGE_COLOUR = "border-secondary bg-secondary";
+const PART_LINE_COLOUR = "text-accent";
+const PART_BADGE_COLOUR = "border-accent bg-accent";
 
 function clientToPercent(clientX, clientY, pageWrapperRef) {
   const el = pageWrapperRef?.current;
@@ -14,15 +14,15 @@ function clientToPercent(clientX, clientY, pageWrapperRef) {
   return { xPercent, yPercent };
 }
 
-function SpoolMarker({
+function PartMarker({
   marker,
-  spoolName,
+  displayNumber,
   onDelete,
   isSelected = false,
   onClick,
   canDrag = false,
-  onMoveSpoolMarker,
-  onMoveSpoolIndicator,
+  onMovePartMarker,
+  onMovePartIndicator,
   pageWrapperRef,
   scale = 1,
 }) {
@@ -45,7 +45,7 @@ function SpoolMarker({
   const width = Math.max(maxX - minX, 8);
   const height = Math.max(maxY - minY, 8);
 
-  const displayName = spoolName || "SP-?";
+  const label = displayNumber != null ? String(displayNumber) : "?";
   const showHandles = canDrag && isSelected;
 
   const handleClick = useCallback(
@@ -62,16 +62,16 @@ function SpoolMarker({
       if (!mode || !pageWrapperRef) return;
       const coords = clientToPercent(e.clientX, e.clientY, pageWrapperRef);
       if (!coords) return;
-      if (mode === "point" && onMoveSpoolMarker) {
-        onMoveSpoolMarker(marker.id, { xPercent: coords.xPercent, yPercent: coords.yPercent });
-      } else if (mode === "indicator" && onMoveSpoolIndicator) {
-        onMoveSpoolIndicator(marker.id, {
+      if (mode === "point" && onMovePartMarker) {
+        onMovePartMarker(marker.id, { xPercent: coords.xPercent, yPercent: coords.yPercent });
+      } else if (mode === "indicator" && onMovePartIndicator) {
+        onMovePartIndicator(marker.id, {
           indicatorXPercent: coords.xPercent,
           indicatorYPercent: coords.yPercent,
         });
       }
     },
-    [marker.id, onMoveSpoolMarker, onMoveSpoolIndicator, pageWrapperRef]
+    [marker.id, onMovePartMarker, onMovePartIndicator, pageWrapperRef]
   );
 
   const createDragOnUp = useCallback(() => {
@@ -88,7 +88,7 @@ function SpoolMarker({
     (e) => {
       e.preventDefault();
       e.stopPropagation();
-      if (!canDrag || !onMoveSpoolMarker) return;
+      if (!canDrag || !onMovePartMarker) return;
       try {
         e.currentTarget.setPointerCapture(e.pointerId);
       } catch (_) {}
@@ -107,14 +107,14 @@ function SpoolMarker({
       window.addEventListener("pointerup", onUp);
       window.addEventListener("pointerleave", onUp);
     },
-    [canDrag, onMoveSpoolMarker, handlePointerMove, createDragOnUp]
+    [canDrag, onMovePartMarker, handlePointerMove, createDragOnUp]
   );
 
   const handleIndicatorPointerDown = useCallback(
     (e) => {
       e.preventDefault();
       e.stopPropagation();
-      if (!canDrag || !onMoveSpoolIndicator) return;
+      if (!canDrag || !onMovePartIndicator) return;
       try {
         e.currentTarget.setPointerCapture(e.pointerId);
       } catch (_) {}
@@ -133,7 +133,7 @@ function SpoolMarker({
       window.addEventListener("pointerup", onUp);
       window.addEventListener("pointerleave", onUp);
     },
-    [canDrag, onMoveSpoolIndicator, handlePointerMove, createDragOnUp]
+    [canDrag, onMovePartIndicator, handlePointerMove, createDragOnUp]
   );
 
   useEffect(() => {
@@ -162,7 +162,7 @@ function SpoolMarker({
 
       {pathHasLength && (
         <svg
-          className="absolute inset-0 w-full h-full pointer-events-none text-secondary"
+          className={`absolute inset-0 w-full h-full pointer-events-none ${PART_LINE_COLOUR}`}
           viewBox="0 0 100 100"
           preserveAspectRatio="none"
           aria-hidden
@@ -188,14 +188,14 @@ function SpoolMarker({
         }}
       >
         <span
-          className={`flex items-center justify-center border border-solid rounded-full px-1 font-medium leading-none select-none text-base-100 ${SPOOL_BADGE_COLOUR}`}
+          className={`flex items-center justify-center border border-solid rounded-full px-1 font-medium leading-none select-none text-base-100 ${PART_BADGE_COLOUR}`}
           style={{
             minWidth: `${badgeMin}px`,
             minHeight: `${badgeMin}px`,
             fontSize: `${badgeFontSize}px`,
           }}
         >
-          {displayName}
+          {label}
         </span>
         {showHandles && (
           <div
@@ -215,7 +215,7 @@ function SpoolMarker({
         style={{ left: `${wx}%`, top: `${wy}%` }}
       >
         <span
-          className="block rounded-full bg-secondary"
+          className="block rounded-full bg-accent"
           style={{ width: `${dotSize}px`, height: `${dotSize}px` }}
           aria-hidden
         />
@@ -226,7 +226,7 @@ function SpoolMarker({
             className="absolute -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-2 border-error bg-white cursor-grab active:cursor-grabbing hover:scale-110 transition-transform pointer-events-auto"
             style={{ left: "50%", top: "50%", zIndex: 20 }}
             onPointerDown={handlePointPointerDown}
-            aria-label="Drag to move spool point"
+            aria-label="Drag to move part point"
           />
         )}
       </div>
@@ -234,4 +234,4 @@ function SpoolMarker({
   );
 }
 
-export default SpoolMarker;
+export default PartMarker;

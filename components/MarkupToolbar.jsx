@@ -82,6 +82,29 @@ function MarkupToolbar({ markupTool, onToolChange, className = "" }) {
         </svg>
         <span className="hidden sm:inline ml-1">Add spool</span>
       </button>
+      <button
+        type="button"
+        className={`${buttonClass} ${markupTool === "addPart" ? activeClass : ""}`}
+        onClick={() => onToolChange?.("addPart")}
+        title="Add part – click on drawing to place (1, 2, 3…)"
+        aria-pressed={markupTool === "addPart"}
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          className="h-5 w-5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M4 6h16M4 10h16M4 14h16M4 18h16"
+          />
+        </svg>
+        <span className="hidden sm:inline ml-1">Add part</span>
+      </button>
     </div>
   );
 }

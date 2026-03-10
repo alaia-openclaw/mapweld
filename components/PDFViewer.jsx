@@ -4,6 +4,7 @@ import { Document, Page, pdfjs } from "react-pdf";
 import { useCallback, useEffect, useRef, useState } from "react";
 import WeldOverlay from "./WeldOverlay";
 import SpoolMarker from "./SpoolMarker";
+import PartMarker from "./PartMarker";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 
@@ -34,6 +35,17 @@ function PDFViewer({
   onMoveSpoolIndicator,
   onDeleteSpoolMarker,
   weldStatusByWeldId,
+  partMarkers = [],
+  parts = [],
+  selectedPartMarkerId,
+  onPartMarkerClick,
+  onMovePartMarker,
+  onMovePartIndicator,
+  onDeletePartMarker,
+  scrollToTarget,
+  showOverlay = true,
+  onToggleOverlay,
+  focusMode = false,
 }) {
   const [loadError, setLoadError] = useState(null);
   const [scale, setScale] = useState(initialScale);
@@ -52,6 +64,28 @@ function PDFViewer({
     setNumPages(null);
   }, [pdfBlob]);
 
+  useEffect(() => {
+    if (!scrollToTarget || scrollToTarget.pageNumber == null) return;
+    const targetPage = scrollToTarget.pageNumber + 1;
+    if (currentPage !== targetPage) {
+      setCurrentPage(targetPage);
+      return;
+    }
+    const container = containerRef?.current;
+    const pageEl = pageWrapperRef?.current;
+    if (!container || !pageEl) return;
+    const xPercent = scrollToTarget.xPercent ?? 50;
+    const yPercent = scrollToTarget.yPercent ?? 50;
+    const runScroll = () => {
+      const left = pageEl.offsetLeft + (xPercent / 100) * pageEl.offsetWidth;
+      const top = pageEl.offsetTop + (yPercent / 100) * pageEl.offsetHeight;
+      container.scrollLeft = Math.max(0, Math.min(left - container.clientWidth / 2, container.scrollWidth - container.clientWidth));
+      container.scrollTop = Math.max(0, Math.min(top - container.clientHeight / 2, container.scrollHeight - container.clientHeight));
+    };
+    const t = setTimeout(runScroll, 80);
+    return () => clearTimeout(t);
+  }, [scrollToTarget, currentPage, containerRef]);
+
   const handleZoomIn = useCallback(() => {
     setScale((s) => Math.min(MAX_SCALE, s + SCALE_STEP));
   }, []);
@@ -64,7 +98,7 @@ function PDFViewer({
     (e) => {
       if (e.button !== 0) return;
       if (e.target.closest("button, [role='button']")) return;
-      if (markupTool === "add" || markupTool === "addSpool") return;
+      if (markupTool === "add" || markupTool === "addSpool" || markupTool === "addPart") return;
       const el = containerRef?.current;
       if (!el) return;
       panStartRef.current = {
@@ -152,6 +186,9 @@ function PDFViewer({
   const spoolMarkersOnPage = spoolMarkers.filter(
     (m) => (m.pageNumber ?? 0) === currentPage - 1
   );
+  const partMarkersOnPage = partMarkers.filter(
+    (m) => (m.pageNumber ?? 0) === currentPage - 1
+  );
 
   if (!pdfBlob) return null;
 
@@ -179,6 +216,17 @@ function PDFViewer({
         >
           +
         </button>
+        {onToggleOverlay && (
+          <button
+            type="button"
+            className="btn btn-sm btn-outline min-h-12 gap-1"
+            onClick={onToggleOverlay}
+            aria-label={showOverlay ? "Hide markers" : "Show markers"}
+            title={showOverlay ? "Hide weld/spool/part markers" : "Show markers"}
+          >
+            {showOverlay ? "Hide markers" : "Show markers"}
+          </button>
+        )}
         {numPages !== null && numPages > 1 && (
           <div className="flex items-center gap-1 ml-2 pl-2 border-l border-base-300">
             <button
@@ -207,7 +255,7 @@ function PDFViewer({
       </div>
       <div
         ref={containerRef}
-        className={`relative bg-base-100 overflow-auto max-h-[calc(100dvh-10rem)] min-h-[50dvh] touch-pan-x touch-pan-y ${appMode === "edition" && (markupTool === "add" || markupTool === "addSpool") ? "cursor-crosshair" : "cursor-default"}`}
+        className={`relative bg-base-100 overflow-auto min-h-[50dvh] touch-pan-x touch-pan-y ${focusMode ? "max-h-[100dvh]" : "max-h-[calc(100dvh-10rem)]"} ${appMode === "edition" && (markupTool === "add" || markupTool === "addSpool" || markupTool === "addPart") ? "cursor-crosshair" : "cursor-default"}`}
         style={{ touchAction: "pan-x pan-y" }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -246,37 +294,61 @@ function PDFViewer({
               renderAnnotationLayer={false}
             />
           </Document>
-          <WeldOverlay
-            weldPoints={weldPointsOnPage}
-            selectedWeldId={selectedWeldId}
-            onWeldClick={onWeldClick}
-            onWeldDoubleClick={onWeldDoubleClick}
-            appMode={appMode}
-            canDrag={appMode === "edition"}
-            pageWrapperRef={pageWrapperRef}
-            onMoveWeldPoint={onMoveWeldPoint}
-            onMoveIndicator={onMoveIndicator}
-            onResizeLabel={onResizeLabel}
-            onMoveLineBend={onMoveLineBend}
-            weldStatusByWeldId={weldStatusByWeldId}
-            spools={spools}
-          />
-          <div className="absolute inset-0 pointer-events-none">
-            {spoolMarkersOnPage.map((m) => (
-              <SpoolMarker
-                key={m.id}
-                marker={m}
-                spoolName={spools.find((s) => s.id === m.spoolId)?.name}
-                isSelected={m.id === selectedSpoolMarkerId}
-                onClick={onSpoolMarkerClick}
+          {showOverlay && (
+            <>
+              <WeldOverlay
+                weldPoints={weldPointsOnPage}
+                selectedWeldId={selectedWeldId}
+                onWeldClick={onWeldClick}
+                onWeldDoubleClick={onWeldDoubleClick}
+                appMode={appMode}
                 canDrag={appMode === "edition"}
-                onMoveSpoolMarker={onMoveSpoolMarker}
-                onMoveSpoolIndicator={onMoveSpoolIndicator}
                 pageWrapperRef={pageWrapperRef}
-                onDelete={onDeleteSpoolMarker}
+                onMoveWeldPoint={onMoveWeldPoint}
+                onMoveIndicator={onMoveIndicator}
+                onResizeLabel={onResizeLabel}
+                onMoveLineBend={onMoveLineBend}
+                weldStatusByWeldId={weldStatusByWeldId}
+                spools={spools}
+                scale={scale}
               />
-            ))}
-          </div>
+              <div className="absolute inset-0 pointer-events-none">
+                {spoolMarkersOnPage.map((m) => (
+                  <SpoolMarker
+                    key={m.id}
+                    marker={m}
+                    spoolName={spools.find((s) => s.id === m.spoolId)?.name}
+                    isSelected={m.id === selectedSpoolMarkerId}
+                    onClick={onSpoolMarkerClick}
+                    canDrag={appMode === "edition"}
+                    onMoveSpoolMarker={onMoveSpoolMarker}
+                    onMoveSpoolIndicator={onMoveSpoolIndicator}
+                    pageWrapperRef={pageWrapperRef}
+                    onDelete={onDeleteSpoolMarker}
+                    scale={scale}
+                  />
+                ))}
+                {partMarkersOnPage.map((m) => {
+                  const part = parts.find((p) => p.id === m.partId);
+                  return (
+                    <PartMarker
+                      key={m.id}
+                      marker={m}
+                      displayNumber={part?.displayNumber}
+                      isSelected={m.id === selectedPartMarkerId}
+                      onClick={onPartMarkerClick}
+                      canDrag={appMode === "edition"}
+                      onMovePartMarker={onMovePartMarker}
+                      onMovePartIndicator={onMovePartIndicator}
+                      pageWrapperRef={pageWrapperRef}
+                      onDelete={onDeletePartMarker}
+                      scale={scale}
+                    />
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
