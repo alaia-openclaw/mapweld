@@ -158,8 +158,8 @@ function SidePanelPartForm({
 
   return (
     <div
-      className={`flex-shrink-0 flex flex-col bg-base-200 border-l border-base-300 transition-all duration-300 ease-out overflow-hidden ${
-        isOpen ? "min-w-80 w-full max-w-lg min-h-0 max-h-full self-stretch" : "w-10"
+      className={`flex-shrink-0 flex flex-col bg-base-200 border-l border-base-300 transition-all duration-300 ease-out overflow-hidden min-w-0 ${
+        isOpen ? "w-full min-w-[16rem] min-h-0 flex-1" : "w-14"
       }`}
     >
       <button
@@ -193,8 +193,8 @@ function SidePanelPartForm({
       </button>
 
       {isOpen && (
-        <div className="flex-1 min-h-0 flex flex-col overflow-hidden w-full">
-          <div className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-3 space-y-3 pb-6">
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden w-full min-w-0">
+          <div className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-3 space-y-3 pb-6 overscroll-contain">
             {parts.length === 0 ? (
               <div className="text-center py-6 text-base-content/60 text-sm">
                 <p>No parts yet</p>

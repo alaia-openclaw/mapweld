@@ -8,6 +8,8 @@ function SidePanelSpools({
   onToggle,
   onSave,
   onAssignWeldToSpool,
+  onAssignPartToSpool,
+  parts = [],
   spoolMarkers = [],
   appMode = "edition",
   weldPoints = [],
@@ -76,6 +78,14 @@ function SidePanelSpools({
     return weldPoints.filter((w) => w.spoolId !== spoolId);
   }
 
+  function partsOnSpool(spoolId) {
+    return parts.filter((p) => p.spoolId === spoolId);
+  }
+
+  function partsNotOnSpool(spoolId) {
+    return parts.filter((p) => p.spoolId !== spoolId);
+  }
+
   function getSpoolName(spoolId) {
     const spool = spools.find((s) => s.id === spoolId);
     return spool?.name ?? null;
@@ -83,8 +93,8 @@ function SidePanelSpools({
 
   return (
     <div
-      className={`flex-shrink-0 flex flex-col bg-base-200 border-l border-base-300 transition-all duration-300 ease-out overflow-hidden ${
-        isOpen ? "min-w-80 w-full max-w-lg" : "w-10"
+      className={`flex-shrink-0 flex flex-col bg-base-200 border-l border-base-300 transition-all duration-300 ease-out overflow-hidden min-w-0 ${
+        isOpen ? "w-full min-w-[16rem] max-w-[28rem] min-h-0 flex-1" : "w-14"
       }`}
     >
       <button
@@ -118,8 +128,8 @@ function SidePanelSpools({
       </button>
 
       {isOpen && (
-        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          <div className="flex-1 overflow-y-auto p-0 py-2">
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden w-full min-w-0">
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-2 min-w-0 overscroll-contain">
             {spools.length === 0 ? (
               <div className="text-center py-6 text-base-content/60 text-sm">
                 <p>No spools yet</p>
@@ -163,14 +173,14 @@ function SidePanelSpools({
                         </svg>
                       </div>
                       {isExpanded && (
-                        <div className="border-t border-base-300 px-3 py-3 space-y-3">
+                        <div className="border-t border-base-300 px-2 py-2 space-y-2">
                           <div className="form-control">
-                            <label className="label py-0">
+                            <label className="label py-0 min-h-0">
                               <span className="label-text text-xs">Name</span>
                             </label>
                             <input
                               type="text"
-                              className="input input-sm input-bordered"
+                              className="input input-sm input-bordered w-full min-w-0"
                               value={editName}
                               onChange={(e) => setEditName(e.target.value)}
                               onBlur={() => handleUpdate(s.id)}
@@ -178,14 +188,14 @@ function SidePanelSpools({
                             />
                           </div>
                           <div className="form-control">
-                            <label className="label py-0">
+                            <label className="label py-0 min-h-0">
                               <span className="label-text text-xs">Dimensions (mm)</span>
                             </label>
-                            <div className="flex gap-2">
+                            <div className="flex gap-1">
                               <input
                                 type="text"
                                 inputMode="numeric"
-                                className="input input-sm input-bordered flex-1"
+                                className="input input-sm input-bordered flex-1 min-w-0 w-0"
                                 value={editDimX}
                                 onChange={(e) => setEditDimX(e.target.value)}
                                 onBlur={() => handleUpdate(s.id)}
@@ -194,7 +204,7 @@ function SidePanelSpools({
                               <input
                                 type="text"
                                 inputMode="numeric"
-                                className="input input-sm input-bordered flex-1"
+                                className="input input-sm input-bordered flex-1 min-w-0 w-0"
                                 value={editDimY}
                                 onChange={(e) => setEditDimY(e.target.value)}
                                 onBlur={() => handleUpdate(s.id)}
@@ -203,7 +213,7 @@ function SidePanelSpools({
                               <input
                                 type="text"
                                 inputMode="numeric"
-                                className="input input-sm input-bordered flex-1"
+                                className="input input-sm input-bordered flex-1 min-w-0 w-0"
                                 value={editDimZ}
                                 onChange={(e) => setEditDimZ(e.target.value)}
                                 onBlur={() => handleUpdate(s.id)}
@@ -212,13 +222,13 @@ function SidePanelSpools({
                             </div>
                           </div>
                           <div className="form-control">
-                            <label className="label py-0">
+                            <label className="label py-0 min-h-0">
                               <span className="label-text text-xs">Weight (kg)</span>
                             </label>
                             <input
                               type="text"
                               inputMode="decimal"
-                              className="input input-sm input-bordered"
+                              className="input input-sm input-bordered w-full min-w-0"
                               value={editWeight}
                               onChange={(e) => setEditWeight(e.target.value)}
                               onBlur={() => handleUpdate(s.id)}
@@ -226,21 +236,21 @@ function SidePanelSpools({
                             />
                           </div>
                           <div className="form-control">
-                            <label className="label py-0">
+                            <label className="label py-0 min-h-0">
                               <span className="label-text text-xs">Pressure test</span>
                             </label>
-                            <div className="flex gap-2">
+                            <div className="flex gap-1">
                               <input
                                 type="text"
                                 inputMode="decimal"
-                                className="input input-sm input-bordered flex-1"
+                                className="input input-sm input-bordered flex-1 min-w-0"
                                 value={editPressureValue}
                                 onChange={(e) => setEditPressureValue(e.target.value)}
                                 onBlur={() => handleUpdate(s.id)}
                                 placeholder="Value"
                               />
                               <select
-                                className="select select-bordered select-sm w-24"
+                                className="select select-bordered select-sm flex-shrink-0 w-16"
                                 value={editPressureUnit}
                                 onChange={(e) => {
                                   setEditPressureUnit(e.target.value);
@@ -252,56 +262,50 @@ function SidePanelSpools({
                               </select>
                             </div>
                           </div>
-                          <div>
-                            <span className="label-text text-xs font-medium">
-                              Welds attached ({attachedWelds.length})
-                            </span>
-                            {appMode === "edition" && onAssignWeldToSpool && (
-                              <div className="mt-2 space-y-1">
-                                <span className="label-text text-xs font-medium block mb-1">
-                                  Add weld to this spool
-                                </span>
-                                {weldsNotOnSpool(s.id).length === 0 ? (
-                                  <p className="text-sm text-base-content/50">
-                                    All welds assigned to a spool
-                                  </p>
-                                ) : (
-                                  weldsNotOnSpool(s.id).map((w) => {
-                                    const otherSpoolName = w.spoolId ? getSpoolName(w.spoolId) : null;
-                                    return (
-                                      <div
-                                        key={w.id}
-                                        className="flex items-center justify-between gap-2 py-1.5 px-2 bg-base-200 rounded text-sm"
-                                      >
-                                        <span className="min-w-0 flex items-center gap-1.5">
-                                          <span className="font-mono truncate">
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="label-text text-xs font-medium">
+                                Welds attached ({attachedWelds.length})
+                              </span>
+                              {appMode === "edition" && onAssignWeldToSpool && (
+                                <div className="dropdown dropdown-end">
+                                  <label
+                                    tabIndex={0}
+                                    className="btn btn-ghost btn-xs gap-0.5"
+                                  >
+                                    + Add weld
+                                  </label>
+                                  <ul
+                                    tabIndex={0}
+                                    className="dropdown-content menu p-1 bg-base-100 rounded-box shadow border border-base-300 z-50 max-h-48 overflow-y-auto min-w-[10rem]"
+                                  >
+                                    {weldsNotOnSpool(s.id).length === 0 ? (
+                                      <li className="px-2 py-1 text-xs text-base-content/50">
+                                        All welds assigned
+                                      </li>
+                                    ) : (
+                                      weldsNotOnSpool(s.id).map((w) => (
+                                        <li key={w.id}>
+                                          <button
+                                            type="button"
+                                            className="text-left text-sm py-1.5"
+                                            onClick={() => {
+                                              onAssignWeldToSpool(w.id, s.id);
+                                            }}
+                                          >
                                             {getWeldName ? getWeldName(w, weldPoints) : w.id}
-                                          </span>
-                                          {otherSpoolName && (
-                                            <span className="text-xs text-base-content/50 shrink-0">
-                                              {otherSpoolName}
-                                            </span>
-                                          )}
-                                        </span>
-                                        <button
-                                          type="button"
-                                          className="btn btn-ghost btn-xs"
-                                          onClick={() => onAssignWeldToSpool(w.id, s.id)}
-                                        >
-                                          + Add
-                                        </button>
-                                      </div>
-                                    );
-                                  })
-                                )}
-                              </div>
-                            )}
+                                          </button>
+                                        </li>
+                                      ))
+                                    )}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
                             {attachedWelds.length === 0 ? (
-                              <p className="text-sm text-base-content/60 mt-1">
-                                No welds assigned to this spool
-                              </p>
+                              <p className="text-xs text-base-content/50">None</p>
                             ) : (
-                              <ul className="mt-1 space-y-1">
+                              <ul className="space-y-0.5">
                                 {attachedWelds.map((w) => {
                                   const status = weldStatusByWeldId?.get(w.id);
                                   const statusLabel =
@@ -319,26 +323,17 @@ function SidePanelSpools({
                                   return (
                                     <li
                                       key={w.id}
-                                      className="flex items-center justify-between gap-2 text-sm py-1 px-2 bg-base-200 rounded"
+                                      className="flex items-center justify-between gap-1 text-xs py-1 px-1.5 bg-base-200 rounded min-w-0"
                                     >
-                                      <span className="min-w-0 flex items-center gap-1.5">
-                                        <span className="font-mono truncate">
-                                          {getWeldName ? getWeldName(w, weldPoints) : w.id}
-                                        </span>
-                                        {s.name && (
-                                          <span className="text-xs text-base-content/50 shrink-0">
-                                            {s.name}
-                                          </span>
-                                        )}
+                                      <span className="truncate font-mono" title={getWeldName ? getWeldName(w, weldPoints) : w.id}>
+                                        {getWeldName ? getWeldName(w, weldPoints) : w.id}
                                       </span>
-                                      <span className="flex items-center gap-1 flex-shrink-0">
-                                        <span className={`text-xs ${statusClass}`}>
-                                          {statusLabel}
-                                        </span>
+                                      <span className="flex items-center gap-0.5 flex-shrink-0">
+                                        <span className={statusClass}>{statusLabel}</span>
                                         {appMode === "edition" && onAssignWeldToSpool && (
                                           <button
                                             type="button"
-                                            className="btn btn-ghost btn-xs text-error px-1"
+                                            className="btn btn-ghost btn-xs text-error px-0.5 min-h-6"
                                             onClick={() => onAssignWeldToSpool(w.id, null)}
                                             aria-label="Remove from spool"
                                             title="Remove from spool"
@@ -353,8 +348,84 @@ function SidePanelSpools({
                               </ul>
                             )}
                           </div>
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="label-text text-xs font-medium">
+                                Parts attached ({partsOnSpool(s.id).length})
+                              </span>
+                              {appMode === "edition" && onAssignPartToSpool && (
+                                <div className="dropdown dropdown-end">
+                                  <label
+                                    tabIndex={0}
+                                    className="btn btn-ghost btn-xs gap-0.5"
+                                  >
+                                    + Add part
+                                  </label>
+                                  <ul
+                                    tabIndex={0}
+                                    className="dropdown-content menu p-1 bg-base-100 rounded-box shadow border border-base-300 z-50 max-h-48 overflow-y-auto min-w-[10rem]"
+                                  >
+                                    {partsNotOnSpool(s.id).length === 0 ? (
+                                      <li className="px-2 py-1 text-xs text-base-content/50">
+                                        All parts assigned
+                                      </li>
+                                    ) : (
+                                      partsNotOnSpool(s.id)
+                                        .slice()
+                                        .sort((a, b) => (a.displayNumber ?? 0) - (b.displayNumber ?? 0))
+                                        .map((p) => (
+                                          <li key={p.id}>
+                                            <button
+                                              type="button"
+                                              className="text-left text-sm py-1.5"
+                                              onClick={() => {
+                                                onAssignPartToSpool(p.id, s.id);
+                                              }}
+                                            >
+                                              Part {p.displayNumber}
+                                              {[p.partType, p.nps].filter(Boolean).length ? ` · ${[p.partType, p.nps].filter(Boolean).join(" ")}` : ""}
+                                            </button>
+                                          </li>
+                                        ))
+                                    )}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                            {partsOnSpool(s.id).length === 0 ? (
+                              <p className="text-xs text-base-content/50">None</p>
+                            ) : (
+                              <ul className="space-y-0.5">
+                                {partsOnSpool(s.id)
+                                  .slice()
+                                  .sort((a, b) => (a.displayNumber ?? 0) - (b.displayNumber ?? 0))
+                                  .map((p) => (
+                                    <li
+                                      key={p.id}
+                                      className="flex items-center justify-between gap-1 text-xs py-1 px-1.5 bg-base-200 rounded min-w-0"
+                                    >
+                                      <span className="truncate" title={`Part ${p.displayNumber} ${[p.partType, p.nps].filter(Boolean).join(" ")}`}>
+                                        Part {p.displayNumber}
+                                        {[p.partType, p.nps].filter(Boolean).length ? ` · ${[p.partType, p.nps].filter(Boolean).join(" ")}` : ""}
+                                      </span>
+                                      {appMode === "edition" && onAssignPartToSpool && (
+                                        <button
+                                          type="button"
+                                          className="btn btn-ghost btn-xs text-error px-0.5 min-h-6"
+                                          onClick={() => onAssignPartToSpool(p.id, null)}
+                                          aria-label="Remove from spool"
+                                          title="Remove from spool"
+                                        >
+                                          ×
+                                        </button>
+                                      )}
+                                    </li>
+                                  ))}
+                              </ul>
+                            )}
+                          </div>
                           {appMode === "edition" && (
-                            <div className="flex flex-wrap gap-2 pt-2 border-t border-base-300">
+                            <div className="flex flex-wrap gap-1 pt-2 border-t border-base-300">
                               <button
                                 type="button"
                                 className="btn btn-error btn-outline btn-sm"

@@ -2,7 +2,6 @@
 
 import { useRef, useState, useCallback, useEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
-import Link from "next/link";
 import Toolbar from "@/components/Toolbar";
 import MarkupToolbar from "@/components/MarkupToolbar";
 import PDFViewer from "@/components/PDFViewer";
@@ -94,11 +93,36 @@ export default function WeldTrackerApp() {
   });
   const [showOverlay, setShowOverlay] = useState(true);
   const [focusPdf, setFocusPdf] = useState(false);
+  const [pdfScale, setPdfScale] = useState(1.2);
+  const [pdfPage, setPdfPage] = useState(1);
+  const [numPdfPages, setNumPdfPages] = useState(null);
+  const [sidePanelWidth, setSidePanelWidth] = useState(320);
+  const sidePanelResizeRef = useRef(null);
+
+  useEffect(() => {
+    const move = (e) => {
+      if (!sidePanelResizeRef.current) return;
+      const { startX, startWidth } = sidePanelResizeRef.current;
+      const delta = e.clientX - startX;
+      setSidePanelWidth(Math.min(800, Math.max(200, startWidth - delta)));
+    };
+    const up = () => {
+      sidePanelResizeRef.current = null;
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+    return () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+    };
+  }, []);
 
   const loadPdfFile = useCallback((file) => {
     if (pdfBlob && typeof pdfBlob === "string") URL.revokeObjectURL(pdfBlob);
     setPdfBlob(file);
     setPdfFilename(file.name);
+    setPdfPage(1);
+    setNumPdfPages(null);
     setWeldPoints([]);
     setSpools([]);
     setSpoolMarkers([]);
@@ -314,6 +338,12 @@ export default function WeldTrackerApp() {
       prev.map((p) =>
         p.id === partId ? { ...p, heatNumber: newHeatNumber } : p
       )
+    );
+  }, []);
+
+  const handleAssignPartToSpool = useCallback((partId, spoolId) => {
+    setParts((prev) =>
+      prev.map((p) => (p.id === partId ? { ...p, spoolId } : p))
     );
   }, []);
 
@@ -589,14 +619,6 @@ export default function WeldTrackerApp() {
     <div className="container mx-auto p-4">
       {!focusPdf && (
         <>
-          <header className="mb-4 flex items-center justify-between">
-            <Link
-              href="/"
-              className="text-lg font-semibold text-primary hover:underline"
-            >
-              Weld Dashboard
-            </Link>
-          </header>
           <OfflineBanner />
           <Toolbar
         hasPdf={!!pdfBlob}
@@ -627,6 +649,11 @@ export default function WeldTrackerApp() {
                   : pdfBlob.name + pdfBlob.lastModified
               }
               pdfBlob={pdfBlob}
+              scale={pdfScale}
+              currentPage={pdfPage}
+              onScaleChange={setPdfScale}
+              onPageChange={setPdfPage}
+              onNumPages={setNumPdfPages}
               onPageClick={handlePageClick}
               containerRef={containerRef}
               weldPoints={weldPoints}
@@ -703,22 +730,6 @@ export default function WeldTrackerApp() {
         </div>
       ) : (
         <>
-          {pdfBlob && appMode === "edition" && (
-            <>
-              <MarkupToolbar
-                markupTool={markupTool}
-                onToolChange={handleToolChange}
-                className="mb-2"
-              />
-              <AddDefaultsBar
-                addDefaults={addDefaults}
-                onAddDefaultsChange={setAddDefaults}
-                spools={spools}
-                className="mb-2"
-              />
-            </>
-          )}
-
           {pdfBlob && (
             <DashboardAnalytics
               weldPoints={weldPoints}
@@ -728,9 +739,92 @@ export default function WeldTrackerApp() {
             />
           )}
 
-          <div className="flex gap-0 rounded-lg overflow-hidden shadow bg-base-100 min-h-0 max-h-[calc(100dvh-10rem)]">
+          <div className="relative flex gap-0 rounded-lg overflow-hidden shadow bg-base-100 h-[calc(100dvh-10rem)] min-h-0">
             {pdfBlob ? (
               <>
+                {pdfBlob && appMode === "edition" && (
+                  <div className="absolute top-2 left-2 z-20 flex flex-col gap-3 pointer-events-none items-start">
+                    <div className="pointer-events-auto shrink-0 flex items-center gap-2 px-2 py-1.5 rounded-lg bg-base-200/70 backdrop-blur-md border border-base-300/50 shadow-sm w-fit">
+                      <MarkupToolbar
+                        markupTool={markupTool}
+                        onToolChange={handleToolChange}
+                        className="!p-0 !bg-transparent !border-0 !shadow-none"
+                      />
+                      <span className="w-px h-5 bg-base-300/60 shrink-0" aria-hidden />
+                      <button
+                        type="button"
+                        className="btn btn-xs btn-ghost h-7 min-h-7 w-7 p-0"
+                        onClick={() => setPdfScale((s) => Math.max(0.5, s - 0.25))}
+                        disabled={pdfScale <= 0.5}
+                        aria-label="Zoom out"
+                        title="Zoom out"
+                      >
+                        −
+                      </button>
+                      <span className="text-xs tabular-nums min-w-[2.5rem] text-center text-base-content/70">
+                        {Math.round(pdfScale * 100)}%
+                      </span>
+                      <button
+                        type="button"
+                        className="btn btn-xs btn-ghost h-7 min-h-7 w-7 p-0"
+                        onClick={() => setPdfScale((s) => Math.min(2.5, s + 0.25))}
+                        disabled={pdfScale >= 2.5}
+                        aria-label="Zoom in"
+                        title="Zoom in"
+                      >
+                        +
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-xs btn-ghost h-7 min-h-7 gap-1"
+                        onClick={() => setShowOverlay((v) => !v)}
+                        aria-label={showOverlay ? "Hide markers" : "Show markers"}
+                        title={showOverlay ? "Hide markers" : "Show markers"}
+                      >
+                        {showOverlay ? "Hide markers" : "Show markers"}
+                      </button>
+                      {numPdfPages != null && numPdfPages > 1 && (
+                        <>
+                          <span className="w-px h-5 bg-base-300/60 shrink-0 ml-1" aria-hidden />
+                          <div className="flex items-center gap-0.5">
+                            <button
+                              type="button"
+                              className="btn btn-xs btn-ghost h-7 min-h-7 w-7 p-0"
+                              onClick={() => setPdfPage((p) => Math.max(1, p - 1))}
+                              disabled={pdfPage <= 1}
+                              aria-label="Previous page"
+                            >
+                              ‹
+                            </button>
+                            <span className="text-xs tabular-nums min-w-[2.5rem] text-center">
+                              {pdfPage}/{numPdfPages}
+                            </span>
+                            <button
+                              type="button"
+                              className="btn btn-xs btn-ghost h-7 min-h-7 w-7 p-0"
+                              onClick={() => setPdfPage((p) => Math.min(numPdfPages, p + 1))}
+                              disabled={pdfPage >= numPdfPages}
+                              aria-label="Next page"
+                            >
+                              ›
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    {markupTool !== "select" && (
+                      <div className="pointer-events-auto shrink-0">
+                        <AddDefaultsBar
+                          markupTool={markupTool}
+                          addDefaults={addDefaults}
+                          onAddDefaultsChange={setAddDefaults}
+                          spools={spools}
+                          className="shadow-lg"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="flex-1 min-w-0 min-h-0 relative">
                   <PDFViewerDynamic
                     key={
@@ -739,6 +833,11 @@ export default function WeldTrackerApp() {
                         : pdfBlob.name + pdfBlob.lastModified
                     }
                     pdfBlob={pdfBlob}
+                    scale={pdfScale}
+                    currentPage={pdfPage}
+                    onScaleChange={setPdfScale}
+                    onPageChange={setPdfPage}
+                    onNumPages={setNumPdfPages}
                     onPageClick={handlePageClick}
                     containerRef={containerRef}
                     weldPoints={weldPoints}
@@ -772,10 +871,33 @@ export default function WeldTrackerApp() {
                   />
                 </div>
                 <div
-                  className={`flex flex-shrink-0 min-h-0 overflow-hidden transition-all duration-300 ease-out ${
-                    !showWeldPanel && !showSpoolPanel && !showPartPanel ? "flex-col w-10" : "flex-row"
-                  }`}
+                  className="flex-shrink-0 flex flex-col min-h-0 overflow-hidden transition-[width] duration-200 ease-out border-l border-base-300"
+                  style={{
+                    width: !showWeldPanel && !showSpoolPanel && !showPartPanel ? 56 : sidePanelWidth,
+                    minWidth: !showWeldPanel && !showSpoolPanel && !showPartPanel ? 56 : undefined,
+                  }}
                 >
+                  {(!showWeldPanel && !showSpoolPanel && !showPartPanel) ? null : (
+                    <div
+                      className="w-1 flex-shrink-0 cursor-col-resize hover:bg-primary/20 bg-base-300/50 flex items-stretch"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        sidePanelResizeRef.current = {
+                          startX: e.clientX,
+                          startWidth: sidePanelWidth,
+                        };
+                      }}
+                      role="separator"
+                      aria-label="Resize side panel"
+                      title="Drag to resize"
+                    />
+                  )}
+                  <div
+                    className={`flex flex-1 min-w-0 min-h-0 overflow-hidden transition-all duration-300 ease-out ${
+                      !showWeldPanel && !showSpoolPanel && !showPartPanel ? "flex-col" : "flex-row"
+                    }`}
+                    style={{ minHeight: 0 }}
+                  >
                   <SidePanelWeldForm
                     weldPoints={weldPoints}
                     weldStatusByWeldId={weldStatusByWeldId}
@@ -812,17 +934,19 @@ export default function WeldTrackerApp() {
                       setShowSpoolPanel((v) => !v);
                     }}
                     isStacked={!showWeldPanel && !showSpoolPanel && !showPartPanel}
-                  onSave={(newSpools) => {
-                    setSpools(newSpools);
-                    setSpoolMarkers((prev) =>
-                      prev.filter((m) => newSpools.some((s) => s.id === m.spoolId))
-                    );
-                  }}
-                  onAssignWeldToSpool={handleAssignWeldToSpool}
-                  spoolMarkers={spoolMarkers}
-                  appMode={appMode}
-                  weldPoints={weldPoints}
-                  weldStatusByWeldId={weldStatusByWeldId}
+                    onSave={(newSpools) => {
+                      setSpools(newSpools);
+                      setSpoolMarkers((prev) =>
+                        prev.filter((m) => newSpools.some((s) => s.id === m.spoolId))
+                      );
+                    }}
+                    onAssignWeldToSpool={handleAssignWeldToSpool}
+                    onAssignPartToSpool={handleAssignPartToSpool}
+                    parts={parts}
+                    spoolMarkers={spoolMarkers}
+                    appMode={appMode}
+                    weldPoints={weldPoints}
+                    weldStatusByWeldId={weldStatusByWeldId}
                     getWeldName={getWeldName}
                   />
                   <SidePanelPartForm
@@ -842,6 +966,7 @@ export default function WeldTrackerApp() {
                     appMode={appMode}
                     isStacked={!showWeldPanel && !showSpoolPanel && !showPartPanel}
                   />
+                  </div>
                 </div>
               </>
             ) : (

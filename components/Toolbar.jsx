@@ -20,7 +20,8 @@ function Toolbar({
 }) {
   const projectInputRef = useRef(null);
 
-  const buttonClass = "btn btn-sm min-h-12 min-w-12 md:min-w-0";
+  // Compact buttons so the top bar takes less vertical space
+  const buttonClass = "btn btn-xs h-9 min-h-9 px-3 md:min-w-0";
 
   const primaryButtons = (
     <>
@@ -51,13 +52,6 @@ function Toolbar({
       />
       <button
         type="button"
-        className={buttonClass + " btn-outline"}
-        onClick={() => projectInputRef.current?.click()}
-      >
-        Load Project
-      </button>
-      <button
-        type="button"
         className={buttonClass + " btn-primary"}
         onClick={onSaveProject}
         disabled={!hasPdf}
@@ -72,15 +66,6 @@ function Toolbar({
       >
         Export Excel
       </button>
-      {onOpenProjects && (
-        <button
-          type="button"
-          className={buttonClass + " btn-outline"}
-          onClick={onOpenProjects}
-        >
-          Projects
-        </button>
-      )}
       {hasPdf && onOpenParameters && (
         <button
           type="button"
@@ -115,8 +100,8 @@ function Toolbar({
   );
 
   return (
-    <div className="navbar bg-base-100 shadow-lg rounded-lg mb-4">
-      <div className="flex-1 min-w-0">
+    <div className="flex items-center justify-between gap-2 bg-base-100 shadow-sm rounded-lg mb-3 px-3 py-2">
+      <div className="flex items-center min-w-0 gap-2">
         <span className="text-xl font-bold truncate hidden sm:inline">Weld Dashboard</span>
         <span className="text-lg font-bold sm:hidden">WD</span>
         {hasPdf && onModeChange && (
@@ -240,13 +225,7 @@ function Toolbar({
                 Export Excel
               </button>
             </li>
-            {onOpenProjects && (
-              <li>
-                <button type="button" onClick={onOpenProjects}>
-                  Projects
-                </button>
-              </li>
-            )}
+            {/* Projects button intentionally removed from the top bar to keep it minimal */}
             {hasPdf && onOpenParameters && (
               <li>
                 <button type="button" onClick={onOpenParameters}>
