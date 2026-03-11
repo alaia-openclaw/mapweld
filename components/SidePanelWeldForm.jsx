@@ -641,6 +641,7 @@ function SidePanelWeldForm({
                                               Part {p.displayNumber}
                                               {p.heatNumber ? ` (${p.heatNumber})` : ""}
                                               {p.nps ? ` · ${p.nps}` : ""}
+                                              {p.thickness ? ` – ${p.thickness}` : ""}
                                             </option>
                                           ))}
                                       </select>
@@ -695,6 +696,7 @@ function SidePanelWeldForm({
                                               Part {p.displayNumber}
                                               {p.heatNumber ? ` (${p.heatNumber})` : ""}
                                               {p.nps ? ` · ${p.nps}` : ""}
+                                              {p.thickness ? ` – ${p.thickness}` : ""}
                                             </option>
                                           ))}
                                       </select>

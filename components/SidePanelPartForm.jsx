@@ -2,6 +2,14 @@
 
 import { useState, useEffect, useRef } from "react";
 import { PART_TYPES, PART_TYPE_LABELS } from "@/lib/constants";
+import {
+  getCategories,
+  getPartTypesForCategory,
+  getNpsOptions,
+  getThicknessOptions,
+  getCatalogEntry,
+  findCatalogEntry,
+} from "@/lib/part-catalog";
 
 function SidePanelPartForm({
   parts = [],
@@ -21,6 +29,7 @@ function SidePanelPartForm({
     ? parts.find((p) => p.id === selectedMarker.partId)
     : null;
 
+  const [catalogCategory, setCatalogCategory] = useState("");
   const [partType, setPartType] = useState("");
   const [nps, setNps] = useState("");
   const [thickness, setThickness] = useState("");
@@ -28,18 +37,38 @@ function SidePanelPartForm({
   const [length, setLength] = useState("");
   const [spoolId, setSpoolId] = useState("");
   const [heatNumber, setHeatNumber] = useState("");
+  const [variation, setVariation] = useState("");
   const [showReconcile, setShowReconcile] = useState(false);
   const autoSaveTimeoutRef = useRef(null);
 
+  const categories = getCategories();
+
   useEffect(() => {
     if (selectedPart) {
-      setPartType(selectedPart.partType ?? "");
-      setNps(selectedPart.nps ?? "");
-      setThickness(selectedPart.thickness ?? "");
+      if (selectedPart.catalogPartId) {
+        const entry = getCatalogEntry(selectedPart.catalogPartId);
+        if (entry) {
+          setCatalogCategory(entry.catalogCategory);
+          setPartType(entry.partTypeLabel);
+          setNps(entry.nps);
+          setThickness(entry.thickness);
+        } else {
+          setCatalogCategory("");
+          setPartType(selectedPart.partType ?? "");
+          setNps(selectedPart.nps ?? "");
+          setThickness(selectedPart.thickness ?? "");
+        }
+      } else {
+        setCatalogCategory("");
+        setPartType(selectedPart.partType ?? "");
+        setNps(selectedPart.nps ?? "");
+        setThickness(selectedPart.thickness ?? "");
+      }
       setMaterialGrade(selectedPart.materialGrade ?? "");
       setLength(selectedPart.length ?? "");
       setSpoolId(selectedPart.spoolId ?? "");
       setHeatNumber(selectedPart.heatNumber ?? "");
+      setVariation(selectedPart.variation ?? "");
     }
   }, [selectedPart]);
 
@@ -47,8 +76,13 @@ function SidePanelPartForm({
     if (!selectedPart) return;
     if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
     autoSaveTimeoutRef.current = setTimeout(() => {
+      const isCatalog = catalogCategory && partType && nps && thickness;
+      const entry = isCatalog
+        ? findCatalogEntry(catalogCategory, partType, nps, thickness)
+        : null;
       onSavePart?.({
         ...selectedPart,
+        catalogPartId: entry?.catalogPartId ?? null,
         partType: partType.trim(),
         nps: nps.trim(),
         thickness: thickness.trim(),
@@ -56,6 +90,8 @@ function SidePanelPartForm({
         length: length.trim(),
         spoolId: spoolId || null,
         heatNumber: heatNumber.trim(),
+        variation: variation.trim(),
+        weightKg: entry?.weightKg ?? null,
       });
     }, 400);
     return () => {
@@ -63,6 +99,7 @@ function SidePanelPartForm({
     };
   }, [
     selectedPart,
+    catalogCategory,
     partType,
     nps,
     thickness,
@@ -70,6 +107,7 @@ function SidePanelPartForm({
     length,
     spoolId,
     heatNumber,
+    variation,
     onSavePart,
   ]);
 
@@ -91,6 +129,32 @@ function SidePanelPartForm({
       {label}
     </option>
   ));
+
+  const isCatalogMode = Boolean(catalogCategory);
+  const catalogPartTypes = isCatalogMode ? getPartTypesForCategory(catalogCategory) : [];
+  const catalogNpsOptions = isCatalogMode && partType ? getNpsOptions(catalogCategory, partType) : [];
+  const catalogThicknessOptions =
+    isCatalogMode && partType && nps
+      ? getThicknessOptions(catalogCategory, partType, nps)
+      : [];
+
+  function handleCatalogCategoryChange(value) {
+    setCatalogCategory(value);
+    setPartType("");
+    setNps("");
+    setThickness("");
+  }
+
+  function handleCatalogPartTypeChange(value) {
+    setPartType(value);
+    setNps("");
+    setThickness("");
+  }
+
+  function handleCatalogNpsChange(value) {
+    setNps(value);
+    setThickness("");
+  }
 
   return (
     <div
@@ -162,7 +226,7 @@ function SidePanelPartForm({
                       >
                         <span className="font-medium w-14 shrink-0">Part {p.displayNumber}</span>
                         <span className="text-xs text-base-content/60 truncate flex-1 min-w-0">
-                          {[p.partType, p.nps, p.spoolId ? getSpoolName(p.spoolId) : null].filter(Boolean).join(" · ") || "—"}
+                          {[p.partType, p.nps, p.thickness, p.spoolId ? getSpoolName(p.spoolId) : null].filter(Boolean).join(" · ") || "—"}
                         </span>
                         <input
                           type="text"
@@ -194,43 +258,135 @@ function SidePanelPartForm({
                 </div>
                 <div className="space-y-3">
                   <div className="form-control">
-                    <label className="label" htmlFor="part-type">
-                      <span className="label-text">Part type</span>
+                    <label className="label" htmlFor="part-catalog-category">
+                      <span className="label-text">Category</span>
                     </label>
                     <select
-                      id="part-type"
+                      id="part-catalog-category"
                       className="select select-bordered select-sm w-full"
-                      value={partType}
-                      onChange={(e) => setPartType(e.target.value)}
+                      value={catalogCategory}
+                      onChange={(e) => handleCatalogCategoryChange(e.target.value)}
                     >
-                      <option value="">—</option>
-                      {partTypeOptions}
+                      <option value="">Custom (free text)</option>
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.label}
+                        </option>
+                      ))}
                     </select>
                   </div>
+                  {isCatalogMode ? (
+                    <>
+                      <div className="form-control">
+                        <label className="label" htmlFor="part-type">
+                          <span className="label-text">Part type</span>
+                        </label>
+                        <select
+                          id="part-type"
+                          className="select select-bordered select-sm w-full"
+                          value={partType}
+                          onChange={(e) => handleCatalogPartTypeChange(e.target.value)}
+                        >
+                          <option value="">—</option>
+                          {catalogPartTypes.map((t) => (
+                            <option key={t} value={t}>
+                              {t}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="form-control">
+                        <label className="label" htmlFor="part-nps">
+                          <span className="label-text">NPS</span>
+                        </label>
+                        <select
+                          id="part-nps"
+                          className="select select-bordered select-sm w-full"
+                          value={nps}
+                          onChange={(e) => handleCatalogNpsChange(e.target.value)}
+                        >
+                          <option value="">—</option>
+                          {catalogNpsOptions.map((v) => (
+                            <option key={v} value={v}>
+                              {v}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="form-control">
+                        <label className="label" htmlFor="part-thickness">
+                          <span className="label-text">Thickness</span>
+                        </label>
+                        <select
+                          id="part-thickness"
+                          className="select select-bordered select-sm w-full"
+                          value={thickness}
+                          onChange={(e) => setThickness(e.target.value)}
+                        >
+                          <option value="">—</option>
+                          {catalogThicknessOptions.map((v) => (
+                            <option key={v} value={v}>
+                              {v}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="form-control">
+                        <label className="label" htmlFor="part-type">
+                          <span className="label-text">Part type</span>
+                        </label>
+                        <select
+                          id="part-type"
+                          className="select select-bordered select-sm w-full"
+                          value={partType}
+                          onChange={(e) => setPartType(e.target.value)}
+                        >
+                          <option value="">—</option>
+                          {partTypeOptions}
+                        </select>
+                      </div>
+                      <div className="form-control">
+                        <label className="label" htmlFor="part-nps">
+                          <span className="label-text">NPS</span>
+                        </label>
+                        <input
+                          id="part-nps"
+                          type="text"
+                          className="input input-bordered input-sm"
+                          value={nps}
+                          onChange={(e) => setNps(e.target.value)}
+                          placeholder="e.g. 2, 4, 6"
+                        />
+                      </div>
+                      <div className="form-control">
+                        <label className="label" htmlFor="part-thickness">
+                          <span className="label-text">Thickness</span>
+                        </label>
+                        <input
+                          id="part-thickness"
+                          type="text"
+                          className="input input-bordered input-sm"
+                          value={thickness}
+                          onChange={(e) => setThickness(e.target.value)}
+                          placeholder="e.g. SCH 40"
+                        />
+                      </div>
+                    </>
+                  )}
                   <div className="form-control">
-                    <label className="label" htmlFor="part-nps">
-                      <span className="label-text">NPS</span>
+                    <label className="label" htmlFor="part-variation">
+                      <span className="label-text">Variation (optional)</span>
                     </label>
                     <input
-                      id="part-nps"
+                      id="part-variation"
                       type="text"
                       className="input input-bordered input-sm"
-                      value={nps}
-                      onChange={(e) => setNps(e.target.value)}
-                      placeholder="e.g. 2, 4, 6"
-                    />
-                  </div>
-                  <div className="form-control">
-                    <label className="label" htmlFor="part-thickness">
-                      <span className="label-text">Thickness</span>
-                    </label>
-                    <input
-                      id="part-thickness"
-                      type="text"
-                      className="input input-bordered input-sm"
-                      value={thickness}
-                      onChange={(e) => setThickness(e.target.value)}
-                      placeholder="e.g. SCH 40"
+                      value={variation}
+                      onChange={(e) => setVariation(e.target.value)}
+                      placeholder="Case-by-case note"
                     />
                   </div>
                   <div className="form-control">

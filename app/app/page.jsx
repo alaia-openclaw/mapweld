@@ -28,6 +28,7 @@ import {
   generateProjectId,
 } from "@/lib/offline-storage";
 import { createDefaultWeld, createDefaultSpool, createDefaultPart } from "@/lib/defaults";
+import { findCatalogEntry } from "@/lib/part-catalog";
 import { getWeldName, getWeldOverallStatus, computeNdtSelection } from "@/lib/weld-utils";
 import { formatNdtRequirements, NDT_REPORT_STATUS } from "@/lib/constants";
 import { exportWeldsToExcel } from "@/lib/excel-export";
@@ -85,6 +86,7 @@ export default function WeldTrackerApp() {
   const [addDefaults, setAddDefaults] = useState({
     spoolId: null,
     weldLocation: "shop",
+    catalogCategory: "",
     partType: "",
     nps: "",
     thickness: "",
@@ -244,13 +246,21 @@ export default function WeldTrackerApp() {
     ({ xPercent, yPercent, pageNumber }) => {
       const labelOffset = 4;
       const nextNum = parts.length === 0 ? 1 : Math.max(...parts.map((p) => p.displayNumber ?? 0), 0) + 1;
+      const cat = addDefaults?.catalogCategory;
+      const pt = addDefaults?.partType ?? "";
+      const n = addDefaults?.nps ?? "";
+      const th = addDefaults?.thickness ?? "";
+      const catalogEntry =
+        cat && pt && n && th ? findCatalogEntry(cat, pt, n, th) : null;
       const newPart = createDefaultPart({
         displayNumber: nextNum,
         spoolId: addDefaults?.spoolId ?? null,
-        partType: addDefaults?.partType ?? "",
-        nps: addDefaults?.nps ?? "",
-        thickness: addDefaults?.thickness ?? "",
+        partType: pt,
+        nps: n,
+        thickness: th,
         materialGrade: addDefaults?.materialGrade ?? "",
+        catalogPartId: catalogEntry?.catalogPartId ?? null,
+        weightKg: catalogEntry?.weightKg ?? null,
       });
       const newMarker = {
         id: `pm-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
@@ -446,8 +456,8 @@ export default function WeldTrackerApp() {
     setNdtRequests(Array.isArray(data.ndtRequests) ? data.ndtRequests : []);
     setNdtReports(loadedReports);
     setAddDefaults(data.addDefaults && typeof data.addDefaults === "object"
-      ? { spoolId: null, weldLocation: "shop", partType: "", nps: "", thickness: "", materialGrade: "", ...data.addDefaults }
-      : { spoolId: null, weldLocation: "shop", partType: "", nps: "", thickness: "", materialGrade: "" });
+      ? { spoolId: null, weldLocation: "shop", catalogCategory: "", partType: "", nps: "", thickness: "", materialGrade: "", ...data.addDefaults }
+      : { spoolId: null, weldLocation: "shop", catalogCategory: "", partType: "", nps: "", thickness: "", materialGrade: "" });
     setFormWeld(null);
     setSelectedWeldId(null);
     setSelectedSpoolMarkerId(null);
@@ -529,8 +539,8 @@ export default function WeldTrackerApp() {
       setNdtRequests(Array.isArray(data.ndtRequests) ? data.ndtRequests : []);
       setNdtReports(loadedReports);
       setAddDefaults(data.addDefaults && typeof data.addDefaults === "object"
-        ? { spoolId: null, weldLocation: "shop", partType: "", nps: "", thickness: "", materialGrade: "", ...data.addDefaults }
-        : { spoolId: null, weldLocation: "shop", partType: "", nps: "", thickness: "", materialGrade: "" });
+        ? { spoolId: null, weldLocation: "shop", catalogCategory: "", partType: "", nps: "", thickness: "", materialGrade: "", ...data.addDefaults }
+        : { spoolId: null, weldLocation: "shop", catalogCategory: "", partType: "", nps: "", thickness: "", materialGrade: "" });
       setFormWeld(null);
       setSelectedWeldId(null);
       setSelectedSpoolMarkerId(null);
