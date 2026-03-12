@@ -158,8 +158,8 @@ function SidePanelPartForm({
 
   return (
     <div
-      className={`flex-shrink-0 flex flex-col bg-base-200 border-l border-base-300 transition-all duration-300 ease-out overflow-hidden min-w-0 ${
-        isOpen ? "w-full min-w-[16rem] min-h-0 flex-1" : "w-14"
+      className={`flex-shrink-0 flex flex-col bg-base-200 border-l border-base-300 transition-all duration-300 ease-out min-w-0 ${
+        isOpen ? "w-full min-w-[16rem] min-h-0 flex-1 h-full overflow-hidden" : "w-14 overflow-hidden"
       }`}
     >
       <button
@@ -193,8 +193,8 @@ function SidePanelPartForm({
       </button>
 
       {isOpen && (
-        <div className="flex-1 min-h-0 flex flex-col overflow-hidden w-full min-w-0">
-          <div className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-3 space-y-3 pb-6 overscroll-contain">
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden w-full min-w-0 h-0 basis-0">
+          <div className="flex-1 min-h-0 min-w-0 overflow-y-scroll overflow-x-auto p-3 space-y-3 pb-12 overscroll-contain [scrollbar-gutter:stable]">
             {parts.length === 0 ? (
               <div className="text-center py-6 text-base-content/60 text-sm">
                 <p>No parts yet</p>
@@ -244,19 +244,21 @@ function SidePanelPartForm({
               </div>
             ) : selectedPart ? (
               <>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium">Part {selectedPart.displayNumber}</span>
+                <div className="flex items-center justify-between gap-2 min-w-0">
+                  <span className="font-medium truncate min-w-0">
+                    Part {selectedPart.displayNumber}
+                  </span>
                   {appMode === "edition" && (
                     <button
                       type="button"
-                      className="btn btn-ghost btn-sm text-error"
+                      className="btn btn-ghost btn-sm text-error shrink-0 whitespace-nowrap"
                       onClick={handleDelete}
                     >
                       Delete
                     </button>
                   )}
                 </div>
-                <div className="space-y-3">
+                <div className="space-y-3 w-full min-w-0">
                   <div className="form-control">
                     <label className="label" htmlFor="part-catalog-category">
                       <span className="label-text">Category</span>
@@ -355,7 +357,7 @@ function SidePanelPartForm({
                         <input
                           id="part-nps"
                           type="text"
-                          className="input input-bordered input-sm"
+                          className="input input-bordered input-sm w-full min-w-0"
                           value={nps}
                           onChange={(e) => setNps(e.target.value)}
                           placeholder="e.g. 2, 4, 6"
@@ -368,7 +370,7 @@ function SidePanelPartForm({
                         <input
                           id="part-thickness"
                           type="text"
-                          className="input input-bordered input-sm"
+                          className="input input-bordered input-sm w-full min-w-0"
                           value={thickness}
                           onChange={(e) => setThickness(e.target.value)}
                           placeholder="e.g. SCH 40"
@@ -383,7 +385,7 @@ function SidePanelPartForm({
                     <input
                       id="part-variation"
                       type="text"
-                      className="input input-bordered input-sm"
+                      className="input input-bordered input-sm w-full min-w-0"
                       value={variation}
                       onChange={(e) => setVariation(e.target.value)}
                       placeholder="Case-by-case note"
@@ -396,7 +398,7 @@ function SidePanelPartForm({
                     <input
                       id="part-material"
                       type="text"
-                      className="input input-bordered input-sm"
+                      className="input input-bordered input-sm w-full min-w-0"
                       value={materialGrade}
                       onChange={(e) => setMaterialGrade(e.target.value)}
                       placeholder="e.g. A106 Gr.B"
@@ -409,7 +411,7 @@ function SidePanelPartForm({
                     <input
                       id="part-length"
                       type="text"
-                      className="input input-bordered input-sm"
+                      className="input input-bordered input-sm w-full min-w-0"
                       value={length}
                       onChange={(e) => setLength(e.target.value)}
                       placeholder="e.g. 500 mm"

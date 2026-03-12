@@ -69,6 +69,7 @@ function PDFViewer({
   }, []);
 
   useEffect(() => {
+    setLoadError(null);
     if (controlledPage === undefined) {
       setInternalPage(1);
       setInternalNumPages(null);

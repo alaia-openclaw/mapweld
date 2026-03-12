@@ -118,7 +118,12 @@ export default function WeldTrackerApp() {
   }, []);
 
   const loadPdfFile = useCallback((file) => {
-    if (pdfBlob && typeof pdfBlob === "string") URL.revokeObjectURL(pdfBlob);
+    if (!file) return;
+    try {
+      if (pdfBlob && typeof pdfBlob === "string") URL.revokeObjectURL(pdfBlob);
+    } catch {
+      /* ignore revoke errors */
+    }
     setPdfBlob(file);
     setPdfFilename(file.name);
     setPdfPage(1);
@@ -137,6 +142,10 @@ export default function WeldTrackerApp() {
     setNdtRequests([]);
     setNdtReports([]);
   }, [pdfBlob]);
+
+  /** Stable key for PDF viewer remount — avoid undefined access on Blob without name */
+  const pdfViewerKey =
+    !pdfBlob ? "no-pdf" : typeof pdfBlob === "string" ? pdfBlob : `${pdfBlob.name || "file"}-${pdfBlob.lastModified || 0}`;
 
   const handleModeChange = useCallback((mode) => {
     setAppMode(mode);
@@ -623,8 +632,6 @@ export default function WeldTrackerApp() {
           <Toolbar
         hasPdf={!!pdfBlob}
         hasWelds={weldPoints.length > 0}
-        appMode={appMode}
-        onModeChange={handleModeChange}
         onLoadPdf={loadPdfFile}
         onLoadProject={handleLoadProject}
         onSaveProject={handleSaveProject}
@@ -643,11 +650,7 @@ export default function WeldTrackerApp() {
         <div className="fixed inset-0 z-30 flex flex-col bg-base-100 md:inset-4 md:rounded-lg md:shadow-xl">
           <div className="flex-1 min-h-0 flex flex-col">
             <PDFViewerDynamic
-              key={
-                typeof pdfBlob === "string"
-                  ? pdfBlob
-                  : pdfBlob.name + pdfBlob.lastModified
-              }
+              key={pdfViewerKey}
               pdfBlob={pdfBlob}
               scale={pdfScale}
               currentPage={pdfPage}
@@ -701,7 +704,9 @@ export default function WeldTrackerApp() {
         <div className="flex-1 min-h-0 flex flex-col rounded-lg overflow-hidden shadow bg-base-100">
           <StatusPage
             weldPoints={weldPoints}
-            weldStatusByWeldId={weldStatusByWeldId}
+            drawingSettings={drawingSettings}
+            spools={spools}
+            onSpoolsChange={setSpools}
             getWeldName={getWeldName}
             onSelectWeld={(weldId) => {
               setSelectedWeldId(weldId);
@@ -739,15 +744,17 @@ export default function WeldTrackerApp() {
             />
           )}
 
-          <div className="relative flex gap-0 rounded-lg overflow-hidden shadow bg-base-100 h-[calc(100dvh-10rem)] min-h-0">
+          <div className="relative flex gap-0 items-stretch rounded-lg overflow-hidden shadow bg-base-100 h-[calc(100dvh-10rem)] min-h-0">
             {pdfBlob ? (
               <>
-                {pdfBlob && appMode === "edition" && (
+                {pdfBlob && (
                   <div className="absolute top-2 left-2 z-20 flex flex-col gap-3 pointer-events-none items-start">
                     <div className="pointer-events-auto shrink-0 flex items-center gap-2 px-2 py-1.5 rounded-lg bg-base-200/70 backdrop-blur-md border border-base-300/50 shadow-sm w-fit">
                       <MarkupToolbar
                         markupTool={markupTool}
                         onToolChange={handleToolChange}
+                        appMode={appMode}
+                        onModeChange={handleModeChange}
                         className="!p-0 !bg-transparent !border-0 !shadow-none"
                       />
                       <span className="w-px h-5 bg-base-300/60 shrink-0" aria-hidden />
@@ -812,7 +819,7 @@ export default function WeldTrackerApp() {
                         </>
                       )}
                     </div>
-                    {markupTool !== "select" && (
+                    {appMode === "edition" && markupTool !== "select" && (
                       <div className="pointer-events-auto shrink-0">
                         <AddDefaultsBar
                           markupTool={markupTool}
@@ -827,11 +834,7 @@ export default function WeldTrackerApp() {
                 )}
                 <div className="flex-1 min-w-0 min-h-0 relative">
                   <PDFViewerDynamic
-                    key={
-                      typeof pdfBlob === "string"
-                        ? pdfBlob
-                        : pdfBlob.name + pdfBlob.lastModified
-                    }
+                    key={pdfViewerKey}
                     pdfBlob={pdfBlob}
                     scale={pdfScale}
                     currentPage={pdfPage}
@@ -871,7 +874,7 @@ export default function WeldTrackerApp() {
                   />
                 </div>
                 <div
-                  className="flex-shrink-0 flex flex-col min-h-0 overflow-hidden transition-[width] duration-200 ease-out border-l border-base-300"
+                  className="flex-shrink-0 flex flex-col h-full min-h-0 overflow-hidden transition-[width] duration-200 ease-out border-l border-base-300"
                   style={{
                     width: !showWeldPanel && !showSpoolPanel && !showPartPanel ? 56 : sidePanelWidth,
                     minWidth: !showWeldPanel && !showSpoolPanel && !showPartPanel ? 56 : undefined,
@@ -893,8 +896,8 @@ export default function WeldTrackerApp() {
                     />
                   )}
                   <div
-                    className={`flex flex-1 min-w-0 min-h-0 overflow-hidden transition-all duration-300 ease-out ${
-                      !showWeldPanel && !showSpoolPanel && !showPartPanel ? "flex-col" : "flex-row"
+                    className={`flex flex-1 min-w-0 min-h-0 h-full overflow-hidden transition-all duration-300 ease-out ${
+                      !showWeldPanel && !showSpoolPanel && !showPartPanel ? "flex-col" : "flex-row items-stretch"
                     }`}
                     style={{ minHeight: 0 }}
                   >

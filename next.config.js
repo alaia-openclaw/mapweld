@@ -12,8 +12,9 @@ const nextConfig = {
 
 const pwaConfig = withPWA({
   dest: "public",
+  // Disable in dev so HMR/CSS chunks aren't precached (avoids 404 on stale app/app/page.css etc.)
   disable: process.env.NODE_ENV === "development",
-  register: true,
+  register: process.env.NODE_ENV === "production",
   skipWaiting: true,
 });
 
