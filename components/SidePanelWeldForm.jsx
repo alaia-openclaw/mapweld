@@ -286,8 +286,8 @@ function SidePanelWeldForm({
 
   return (
     <div
-      className={`flex-shrink-0 flex flex-col bg-base-200 border-l border-base-300 transition-all duration-300 ease-out overflow-hidden ${
-        isOpen ? "min-w-80 w-[28rem] flex-shrink-0" : "w-10"
+      className={`flex-shrink-0 flex flex-col bg-base-200 border-l border-base-300 transition-all duration-300 ease-out min-w-0 ${
+        isOpen ? "w-full min-w-[16rem] min-h-0 flex-1 h-full overflow-hidden" : "w-14 overflow-hidden"
       }`}
     >
       {/* Tab / header - when a weld is expanded, click collapses it; when in list, click collapses panel */}
@@ -335,8 +335,8 @@ function SidePanelWeldForm({
 
       {/* Panel content - scrollable list with accordion-style expandable weld details */}
       {isOpen && (
-        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          <div className="flex-1 w-full min-w-0 overflow-y-auto overflow-x-hidden p-0 py-2">
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden w-full min-w-0 h-0 basis-0">
+          <div className="flex-1 min-h-0 w-full min-w-0 overflow-y-scroll overflow-x-auto p-2 pb-12 overscroll-contain [scrollbar-gutter:stable]">
             {weldPoints.length === 0 ? (
               <div className="text-center py-8 text-base-content/60 text-sm">
                 <p>No welds yet</p>

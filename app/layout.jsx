@@ -1,4 +1,5 @@
 import "./globals.css";
+import DevServiceWorkerCleanup from "@/components/DevServiceWorkerCleanup";
 
 export const metadata = {
   title: {
@@ -21,7 +22,10 @@ export default function RootLayout({ children }) {
       <head>
         <link rel="manifest" href="/manifest.json" />
       </head>
-      <body className="min-h-screen bg-base-200 overscroll-none">{children}</body>
+      <body className="min-h-screen bg-base-200 overscroll-none">
+        {process.env.NODE_ENV === "development" && <DevServiceWorkerCleanup />}
+        {children}
+      </body>
     </html>
   );
 }

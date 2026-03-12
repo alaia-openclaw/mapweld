@@ -16,7 +16,11 @@ function PDFViewer({
   pdfBlob,
   onPageClick,
   containerRef,
-  scale: initialScale = 1.2,
+  scale: controlledScale,
+  currentPage: controlledPage,
+  onScaleChange,
+  onPageChange,
+  onNumPages,
   weldPoints = [],
   selectedWeldId,
   onWeldClick,
@@ -48,20 +52,28 @@ function PDFViewer({
   focusMode = false,
 }) {
   const [loadError, setLoadError] = useState(null);
-  const [scale, setScale] = useState(initialScale);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [numPages, setNumPages] = useState(null);
+  const [internalScale, setInternalScale] = useState(1.2);
+  const [internalPage, setInternalPage] = useState(1);
+  const [internalNumPages, setInternalNumPages] = useState(null);
   const pageWrapperRef = useRef(null);
   const panStartRef = useRef(null);
   const isPanningRef = useRef(false);
+
+  const scale = controlledScale !== undefined ? controlledScale : internalScale;
+  const currentPage = controlledPage !== undefined ? controlledPage : internalPage;
+  const setScale = onScaleChange ?? setInternalScale;
+  const setCurrentPage = onPageChange ?? setInternalPage;
 
   useEffect(() => {
     pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js";
   }, []);
 
   useEffect(() => {
-    setCurrentPage(1);
-    setNumPages(null);
+    setLoadError(null);
+    if (controlledPage === undefined) {
+      setInternalPage(1);
+      setInternalNumPages(null);
+    }
   }, [pdfBlob]);
 
   useEffect(() => {
@@ -86,13 +98,14 @@ function PDFViewer({
     return () => clearTimeout(t);
   }, [scrollToTarget, currentPage, containerRef]);
 
-  const handleZoomIn = useCallback(() => {
-    setScale((s) => Math.min(MAX_SCALE, s + SCALE_STEP));
-  }, []);
-
-  const handleZoomOut = useCallback(() => {
-    setScale((s) => Math.max(MIN_SCALE, s - SCALE_STEP));
-  }, []);
+  const handleLoadSuccess = useCallback(
+    ({ numPages: n }) => {
+      setLoadError(null);
+      if (onNumPages) onNumPages(n);
+      else setInternalNumPages(n);
+    },
+    [onNumPages]
+  );
 
   const handlePointerDown = useCallback(
     (e) => {
@@ -193,66 +206,7 @@ function PDFViewer({
   if (!pdfBlob) return null;
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          className="btn btn-sm btn-square btn-outline min-h-12 min-w-12"
-          onClick={handleZoomOut}
-          disabled={scale <= MIN_SCALE}
-          aria-label="Zoom out"
-        >
-          −
-        </button>
-        <span className="text-sm tabular-nums min-w-[4rem] py-2">
-          {Math.round(scale * 100)}%
-        </span>
-        <button
-          type="button"
-          className="btn btn-sm btn-square btn-outline min-h-12 min-w-12"
-          onClick={handleZoomIn}
-          disabled={scale >= MAX_SCALE}
-          aria-label="Zoom in"
-        >
-          +
-        </button>
-        {onToggleOverlay && (
-          <button
-            type="button"
-            className="btn btn-sm btn-outline min-h-12 gap-1"
-            onClick={onToggleOverlay}
-            aria-label={showOverlay ? "Hide markers" : "Show markers"}
-            title={showOverlay ? "Hide weld/spool/part markers" : "Show markers"}
-          >
-            {showOverlay ? "Hide markers" : "Show markers"}
-          </button>
-        )}
-        {numPages !== null && numPages > 1 && (
-          <div className="flex items-center gap-1 ml-2 pl-2 border-l border-base-300">
-            <button
-              type="button"
-              className="btn btn-sm btn-square btn-ghost min-h-12 min-w-12"
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage <= 1}
-              aria-label="Previous page"
-            >
-              ‹
-            </button>
-            <span className="text-sm tabular-nums min-w-[5rem] py-2 text-center">
-              {currentPage} / {numPages}
-            </span>
-            <button
-              type="button"
-              className="btn btn-sm btn-square btn-ghost min-h-12 min-w-12"
-              onClick={() => setCurrentPage((p) => Math.min(numPages, p + 1))}
-              disabled={currentPage >= numPages}
-              aria-label="Next page"
-            >
-              ›
-            </button>
-          </div>
-        )}
-      </div>
+    <div className="flex flex-col gap-0">
       <div
         ref={containerRef}
         className={`relative bg-base-100 overflow-auto min-h-[50dvh] touch-pan-x touch-pan-y ${focusMode ? "max-h-[100dvh]" : "max-h-[calc(100dvh-10rem)]"} ${appMode === "edition" && (markupTool === "add" || markupTool === "addSpool" || markupTool === "addPart") ? "cursor-crosshair" : "cursor-default"}`}
@@ -282,10 +236,7 @@ function PDFViewer({
             onSourceError={(error) =>
               setLoadError(error?.message || "Source error - check file or worker")
             }
-            onLoadSuccess={({ numPages: n }) => {
-              setLoadError(null);
-              setNumPages(n);
-            }}
+            onLoadSuccess={handleLoadSuccess}
           >
             <Page
               pageNumber={currentPage}
