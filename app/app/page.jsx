@@ -27,7 +27,8 @@ import {
   generateProjectId,
 } from "@/lib/offline-storage";
 import { createDefaultWeld, createDefaultSpool, createDefaultPart } from "@/lib/defaults";
-import { findCatalogEntry } from "@/lib/part-catalog";
+import { partCatalog, findCatalogEntry } from "@/lib/part-catalog";
+import { findEntryByHierarchy } from "@/lib/catalog-hierarchy";
 import { getWeldName, getWeldOverallStatus, computeNdtSelection } from "@/lib/weld-utils";
 import { formatNdtRequirements, NDT_REPORT_STATUS } from "@/lib/constants";
 import { exportWeldsToExcel } from "@/lib/excel-export";
@@ -86,6 +87,7 @@ export default function WeldTrackerApp() {
     spoolId: null,
     weldLocation: "shop",
     catalogCategory: "",
+    hierarchyState: {},
     partType: "",
     nps: "",
     thickness: "",
@@ -280,17 +282,27 @@ export default function WeldTrackerApp() {
       const labelOffset = 4;
       const nextNum = parts.length === 0 ? 1 : Math.max(...parts.map((p) => p.displayNumber ?? 0), 0) + 1;
       const cat = addDefaults?.catalogCategory;
+      const hierarchyState = addDefaults?.hierarchyState ?? {};
+      const entriesForCat = cat ? partCatalog.entries.filter((e) => e.catalogCategory === cat) : [];
+      const catalogEntryByHierarchy =
+        cat && Object.keys(hierarchyState).length > 0
+          ? findEntryByHierarchy(entriesForCat, hierarchyState, cat)
+          : null;
       const pt = addDefaults?.partType ?? "";
       const n = addDefaults?.nps ?? "";
       const th = addDefaults?.thickness ?? "";
       const catalogEntry =
-        cat && pt && n && th ? findCatalogEntry(cat, pt, n, th) : null;
+        catalogEntryByHierarchy ??
+        (cat && pt && n && th ? findCatalogEntry(cat, pt, n, th) : null);
+      const partType = catalogEntry?.partTypeLabel ?? pt;
+      const nps = catalogEntry?.nps ?? n;
+      const thickness = catalogEntry?.thickness ?? th;
       const newPart = createDefaultPart({
         displayNumber: nextNum,
         spoolId: addDefaults?.spoolId ?? null,
-        partType: pt,
-        nps: n,
-        thickness: th,
+        partType,
+        nps,
+        thickness,
         materialGrade: addDefaults?.materialGrade ?? "",
         catalogPartId: catalogEntry?.catalogPartId ?? null,
         weightKg: catalogEntry?.weightKg ?? null,
@@ -495,8 +507,8 @@ export default function WeldTrackerApp() {
     setNdtRequests(Array.isArray(data.ndtRequests) ? data.ndtRequests : []);
     setNdtReports(loadedReports);
     setAddDefaults(data.addDefaults && typeof data.addDefaults === "object"
-      ? { spoolId: null, weldLocation: "shop", catalogCategory: "", partType: "", nps: "", thickness: "", materialGrade: "", ...data.addDefaults }
-      : { spoolId: null, weldLocation: "shop", catalogCategory: "", partType: "", nps: "", thickness: "", materialGrade: "" });
+      ? { spoolId: null, weldLocation: "shop", catalogCategory: "", hierarchyState: {}, partType: "", nps: "", thickness: "", materialGrade: "", ...data.addDefaults }
+      : { spoolId: null, weldLocation: "shop", catalogCategory: "", hierarchyState: {}, partType: "", nps: "", thickness: "", materialGrade: "" });
     setFormWeld(null);
     setSelectedWeldId(null);
     setSelectedSpoolMarkerId(null);
@@ -578,8 +590,8 @@ export default function WeldTrackerApp() {
       setNdtRequests(Array.isArray(data.ndtRequests) ? data.ndtRequests : []);
       setNdtReports(loadedReports);
       setAddDefaults(data.addDefaults && typeof data.addDefaults === "object"
-        ? { spoolId: null, weldLocation: "shop", catalogCategory: "", partType: "", nps: "", thickness: "", materialGrade: "", ...data.addDefaults }
-        : { spoolId: null, weldLocation: "shop", catalogCategory: "", partType: "", nps: "", thickness: "", materialGrade: "" });
+        ? { spoolId: null, weldLocation: "shop", catalogCategory: "", hierarchyState: {}, partType: "", nps: "", thickness: "", materialGrade: "", ...data.addDefaults }
+        : { spoolId: null, weldLocation: "shop", catalogCategory: "", hierarchyState: {}, partType: "", nps: "", thickness: "", materialGrade: "" });
       setFormWeld(null);
       setSelectedWeldId(null);
       setSelectedSpoolMarkerId(null);

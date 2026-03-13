@@ -1,15 +1,18 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { PART_TYPES, PART_TYPE_LABELS } from "@/lib/constants";
 import {
+  partCatalog,
   getCategories,
-  getPartTypesForCategory,
-  getNpsOptions,
-  getThicknessOptions,
   getCatalogEntry,
-  findCatalogEntry,
 } from "@/lib/part-catalog";
+import {
+  getHierarchyForCategory,
+  getHierarchyStateFromEntry,
+  getOptionsForStep,
+  findEntryByHierarchy,
+} from "@/lib/catalog-hierarchy";
 
 function SidePanelPartForm({
   parts = [],
@@ -30,6 +33,7 @@ function SidePanelPartForm({
     : null;
 
   const [catalogCategory, setCatalogCategory] = useState("");
+  const [hierarchyState, setHierarchyState] = useState({});
   const [partType, setPartType] = useState("");
   const [nps, setNps] = useState("");
   const [thickness, setThickness] = useState("");
@@ -42,6 +46,13 @@ function SidePanelPartForm({
   const autoSaveTimeoutRef = useRef(null);
 
   const categories = getCategories();
+  const catalogEntriesForCategory = useMemo(
+    () =>
+      catalogCategory
+        ? partCatalog.entries.filter((e) => e.catalogCategory === catalogCategory)
+        : [],
+    [catalogCategory]
+  );
 
   useEffect(() => {
     if (selectedPart) {
@@ -49,17 +60,20 @@ function SidePanelPartForm({
         const entry = getCatalogEntry(selectedPart.catalogPartId);
         if (entry) {
           setCatalogCategory(entry.catalogCategory);
-          setPartType(entry.partTypeLabel);
-          setNps(entry.nps);
-          setThickness(entry.thickness);
+          setHierarchyState(getHierarchyStateFromEntry(entry, entry.catalogCategory));
+          setPartType(entry.partTypeLabel ?? "");
+          setNps(entry.nps ?? "");
+          setThickness(entry.thickness ?? "");
         } else {
           setCatalogCategory("");
+          setHierarchyState({});
           setPartType(selectedPart.partType ?? "");
           setNps(selectedPart.nps ?? "");
           setThickness(selectedPart.thickness ?? "");
         }
       } else {
         setCatalogCategory("");
+        setHierarchyState({});
         setPartType(selectedPart.partType ?? "");
         setNps(selectedPart.nps ?? "");
         setThickness(selectedPart.thickness ?? "");
@@ -76,16 +90,24 @@ function SidePanelPartForm({
     if (!selectedPart) return;
     if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
     autoSaveTimeoutRef.current = setTimeout(() => {
-      const isCatalog = catalogCategory && partType && nps && thickness;
-      const entry = isCatalog
-        ? findCatalogEntry(catalogCategory, partType, nps, thickness)
-        : null;
+      const entry =
+        catalogCategory && Object.keys(hierarchyState).length > 0
+          ? findEntryByHierarchy(catalogEntriesForCategory, hierarchyState, catalogCategory)
+          : null;
+      const resolvedPartType =
+        entry?.partTypeLabel ??
+        hierarchyState.flangeType ??
+        hierarchyState.fittingType ??
+        partType.trim();
+      const resolvedNps = entry?.nps ?? hierarchyState.nps ?? nps.trim();
+      const resolvedThickness =
+        entry?.thickness ?? hierarchyState.schedule ?? thickness.trim();
       onSavePart?.({
         ...selectedPart,
         catalogPartId: entry?.catalogPartId ?? null,
-        partType: partType.trim(),
-        nps: nps.trim(),
-        thickness: thickness.trim(),
+        partType: resolvedPartType,
+        nps: resolvedNps,
+        thickness: resolvedThickness,
         materialGrade: materialGrade.trim(),
         length: length.trim(),
         spoolId: spoolId || null,
@@ -100,6 +122,7 @@ function SidePanelPartForm({
   }, [
     selectedPart,
     catalogCategory,
+    hierarchyState,
     partType,
     nps,
     thickness,
@@ -108,6 +131,7 @@ function SidePanelPartForm({
     spoolId,
     heatNumber,
     variation,
+    catalogEntriesForCategory,
     onSavePart,
   ]);
 
@@ -131,29 +155,29 @@ function SidePanelPartForm({
   ));
 
   const isCatalogMode = Boolean(catalogCategory);
-  const catalogPartTypes = isCatalogMode ? getPartTypesForCategory(catalogCategory) : [];
-  const catalogNpsOptions = isCatalogMode && partType ? getNpsOptions(catalogCategory, partType) : [];
-  const catalogThicknessOptions =
-    isCatalogMode && partType && nps
-      ? getThicknessOptions(catalogCategory, partType, nps)
-      : [];
+  const hierarchySteps = useMemo(
+    () => getHierarchyForCategory(catalogCategory),
+    [catalogCategory]
+  );
 
   function handleCatalogCategoryChange(value) {
     setCatalogCategory(value);
+    setHierarchyState({});
     setPartType("");
     setNps("");
     setThickness("");
   }
 
-  function handleCatalogPartTypeChange(value) {
-    setPartType(value);
-    setNps("");
-    setThickness("");
-  }
-
-  function handleCatalogNpsChange(value) {
-    setNps(value);
-    setThickness("");
+  function handleHierarchyChange(stepKey, value) {
+    const stepIndex = hierarchySteps.findIndex((s) => s.key === stepKey);
+    if (stepIndex < 0) return;
+    setHierarchyState((prev) => {
+      const next = { ...prev, [stepKey]: value };
+      for (let j = stepIndex + 1; j < hierarchySteps.length; j++) {
+        delete next[hierarchySteps[j].key];
+      }
+      return next;
+    });
   }
 
   return (
@@ -279,60 +303,35 @@ function SidePanelPartForm({
                   </div>
                   {isCatalogMode ? (
                     <>
-                      <div className="form-control">
-                        <label className="label" htmlFor="part-type">
-                          <span className="label-text">Part type</span>
-                        </label>
-                        <select
-                          id="part-type"
-                          className="select select-bordered select-sm w-full"
-                          value={partType}
-                          onChange={(e) => handleCatalogPartTypeChange(e.target.value)}
-                        >
-                          <option value="">—</option>
-                          {catalogPartTypes.map((t) => (
-                            <option key={t} value={t}>
-                              {t}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="form-control">
-                        <label className="label" htmlFor="part-nps">
-                          <span className="label-text">NPS</span>
-                        </label>
-                        <select
-                          id="part-nps"
-                          className="select select-bordered select-sm w-full"
-                          value={nps}
-                          onChange={(e) => handleCatalogNpsChange(e.target.value)}
-                        >
-                          <option value="">—</option>
-                          {catalogNpsOptions.map((v) => (
-                            <option key={v} value={v}>
-                              {v}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="form-control">
-                        <label className="label" htmlFor="part-thickness">
-                          <span className="label-text">Thickness</span>
-                        </label>
-                        <select
-                          id="part-thickness"
-                          className="select select-bordered select-sm w-full"
-                          value={thickness}
-                          onChange={(e) => setThickness(e.target.value)}
-                        >
-                          <option value="">—</option>
-                          {catalogThicknessOptions.map((v) => (
-                            <option key={v} value={v}>
-                              {v}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      {hierarchySteps.map((step) => {
+                        const value = hierarchyState[step.key] ?? "";
+                        const options = getOptionsForStep(
+                          catalogEntriesForCategory,
+                          hierarchyState,
+                          catalogCategory,
+                          step.key
+                        );
+                        return (
+                          <div key={step.key} className="form-control">
+                            <label className="label" htmlFor={`part-hierarchy-${step.key}`}>
+                              <span className="label-text">{step.label}</span>
+                            </label>
+                            <select
+                              id={`part-hierarchy-${step.key}`}
+                              className="select select-bordered select-sm w-full"
+                              value={value}
+                              onChange={(e) => handleHierarchyChange(step.key, e.target.value)}
+                            >
+                              <option value="">—</option>
+                              {options.map((opt) => (
+                                <option key={opt} value={opt}>
+                                  {opt}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        );
+                      })}
                     </>
                   ) : (
                     <>
