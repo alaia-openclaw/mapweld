@@ -1,12 +1,12 @@
 "use client";
 
+import { useMemo } from "react";
 import { PART_TYPE_LABELS, WELD_LOCATION_LABELS } from "@/lib/constants";
+import { partCatalog, getCategories } from "@/lib/part-catalog";
 import {
-  getCategories,
-  getPartTypesForCategory,
-  getNpsOptions,
-  getThicknessOptions,
-} from "@/lib/part-catalog";
+  getHierarchyForCategory,
+  getOptionsForStep,
+} from "@/lib/catalog-hierarchy";
 
 function AddDefaultsBar({
   markupTool,
@@ -16,17 +16,20 @@ function AddDefaultsBar({
   className = "",
 }) {
   const catalogCategory = addDefaults?.catalogCategory ?? "";
+  const hierarchyState = addDefaults?.hierarchyState ?? {};
   const isCatalogMode = Boolean(catalogCategory);
   const categories = getCategories();
-  const catalogPartTypes = isCatalogMode ? getPartTypesForCategory(catalogCategory) : [];
-  const catalogNpsOptions =
-    isCatalogMode && addDefaults?.partType
-      ? getNpsOptions(catalogCategory, addDefaults.partType)
-      : [];
-  const catalogThicknessOptions =
-    isCatalogMode && addDefaults?.partType && addDefaults?.nps
-      ? getThicknessOptions(catalogCategory, addDefaults.partType, addDefaults.nps)
-      : [];
+  const catalogEntriesForCategory = useMemo(
+    () =>
+      catalogCategory
+        ? partCatalog.entries.filter((e) => e.catalogCategory === catalogCategory)
+        : [],
+    [catalogCategory]
+  );
+  const hierarchySteps = useMemo(
+    () => getHierarchyForCategory(catalogCategory),
+    [catalogCategory]
+  );
 
   const showWeld = markupTool === "add";
   const showSpool = markupTool === "add" || markupTool === "addSpool";
@@ -36,26 +39,23 @@ function AddDefaultsBar({
     onAddDefaultsChange?.({
       ...addDefaults,
       catalogCategory: value,
+      hierarchyState: {},
       partType: "",
       nps: "",
       thickness: "",
     });
   }
 
-  function handleCatalogPartTypeChange(value) {
+  function handleHierarchyChange(stepKey, value) {
+    const stepIndex = hierarchySteps.findIndex((s) => s.key === stepKey);
+    if (stepIndex < 0) return;
+    const next = { ...hierarchyState, [stepKey]: value };
+    for (let j = stepIndex + 1; j < hierarchySteps.length; j++) {
+      delete next[hierarchySteps[j].key];
+    }
     onAddDefaultsChange?.({
       ...addDefaults,
-      partType: value,
-      nps: "",
-      thickness: "",
-    });
-  }
-
-  function handleCatalogNpsChange(value) {
-    onAddDefaultsChange?.({
-      ...addDefaults,
-      nps: value,
-      thickness: "",
+      hierarchyState: next,
     });
   }
 
@@ -123,48 +123,32 @@ function AddDefaultsBar({
           </div>
           {isCatalogMode ? (
         <>
-          <select
-            id="default-partType"
-            className="select select-bordered select-xs h-7 min-h-7 py-0.5 w-24 max-w-full text-xs"
-            value={addDefaults?.partType ?? ""}
-            onChange={(e) => handleCatalogPartTypeChange(e.target.value)}
-            aria-label="Part type"
-          >
-            <option value="">—</option>
-            {catalogPartTypes.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-          <select
-            id="default-nps"
-            className="select select-bordered select-xs h-7 min-h-7 py-0.5 w-12 max-w-full text-xs"
-            value={addDefaults?.nps ?? ""}
-            onChange={(e) => handleCatalogNpsChange(e.target.value)}
-            aria-label="NPS"
-          >
-            <option value="">—</option>
-            {catalogNpsOptions.map((v) => (
-              <option key={v} value={v}>
-                {v}
-              </option>
-            ))}
-          </select>
-          <select
-            id="default-thickness"
-            className="select select-bordered select-xs h-7 min-h-7 py-0.5 w-12 max-w-full text-xs"
-            value={addDefaults?.thickness ?? ""}
-            onChange={(e) => onAddDefaultsChange?.({ ...addDefaults, thickness: e.target.value })}
-            aria-label="Thickness"
-          >
-            <option value="">—</option>
-            {catalogThicknessOptions.map((v) => (
-              <option key={v} value={v}>
-                {v}
-              </option>
-            ))}
-          </select>
+          {hierarchySteps.map((step) => {
+            const value = hierarchyState[step.key] ?? "";
+            const options = getOptionsForStep(
+              catalogEntriesForCategory,
+              hierarchyState,
+              catalogCategory,
+              step.key
+            );
+            return (
+              <select
+                key={step.key}
+                id={`default-${step.key}`}
+                className="select select-bordered select-xs h-7 min-h-7 py-0.5 w-20 max-w-full text-xs"
+                value={value}
+                onChange={(e) => handleHierarchyChange(step.key, e.target.value)}
+                aria-label={step.label}
+              >
+                <option value="">—</option>
+                {options.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            );
+          })}
         </>
       ) : (
         <>
