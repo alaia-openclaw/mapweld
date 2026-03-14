@@ -1,5 +1,5 @@
 /**
- * Build data/part-catalog.json from Pipedata-Pro 15.0 Database (Node-only, uses fs).
+ * Build data/part-catalog.json from reference database (Node-only, uses fs).
  * Run from project root: npm run build:part-catalog-pipedata
  * The built JSON is then imported by lib/part-catalog.js so the client bundle never uses fs.
  */

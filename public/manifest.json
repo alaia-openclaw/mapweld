@@ -1,7 +1,7 @@
 {
-  "name": "Weld Dashboard",
-  "short_name": "Weld",
-  "description": "Weld tracking - load PDF, mark welds, export to Excel",
+  "name": "MapWeld",
+  "short_name": "MapWeld",
+  "description": "Track welds on PDF drawings — mark, track status, export to Excel",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f3f4f6",
