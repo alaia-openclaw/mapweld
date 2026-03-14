@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { matchFlangeRowSearch, matchFlangeRowFilters } from "@/lib/catalog-structure";
 
 function MenuFlangesStandard({ standards, activeId, onChange }) {
   return (
@@ -150,7 +151,7 @@ function CardFlangeDrawing({ standard, activeSubtype, selectedRow }) {
   );
 }
 
-function TableFlangeDimensions({ selectedClass, selectedRowId, onSelectRow }) {
+function TableFlangeDimensions({ selectedClass, selectedRowId, onSelectRow, search = "", filters = [], standardLabel = "" }) {
   const allRows = useMemo(() => {
     if (!selectedClass) return [];
     const rows = [];
@@ -159,11 +160,21 @@ function TableFlangeDimensions({ selectedClass, selectedRowId, onSelectRow }) {
         rows.push({
           ...row,
           system: ds.system,
+          standardLabel,
+          pressureClass: selectedClass.pressureClass,
         });
       });
     });
     return rows;
-  }, [selectedClass]);
+  }, [selectedClass, standardLabel]);
+
+  const filteredRows = useMemo(() => {
+    return allRows.filter((row) => {
+      if (search?.trim() && !matchFlangeRowSearch(row, search)) return false;
+      if (!matchFlangeRowFilters(row, filters)) return false;
+      return true;
+    });
+  }, [allRows, search, filters]);
 
   if (!selectedClass || !allRows.length) {
     return (
@@ -186,7 +197,7 @@ function TableFlangeDimensions({ selectedClass, selectedRowId, onSelectRow }) {
           </tr>
         </thead>
         <tbody>
-          {allRows.map((row) => {
+          {filteredRows.map((row) => {
             const isActive = row.id === selectedRowId;
             return (
               <tr
@@ -208,10 +219,18 @@ function TableFlangeDimensions({ selectedClass, selectedRowId, onSelectRow }) {
   );
 }
 
-function PanelCatalogFlanges({ standards }) {
-  const [activeStandardId, setActiveStandardId] = useState(
-    () => standards.find((s) => s.classes?.length)?.id || standards[0]?.id
-  );
+function PanelCatalogFlanges({ standards, initialStandardId, search = "", filters = [] }) {
+  const [activeStandardId, setActiveStandardId] = useState(() => {
+    if (initialStandardId && standards.some((s) => s.id === initialStandardId))
+      return initialStandardId;
+    return standards.find((s) => s.classes?.length)?.id || standards[0]?.id;
+  });
+
+  useEffect(() => {
+    if (initialStandardId && standards.some((s) => s.id === initialStandardId)) {
+      setActiveStandardId(initialStandardId);
+    }
+  }, [initialStandardId, standards]);
 
   const activeStandard = useMemo(
     () => standards.find((s) => s.id === activeStandardId) || standards[0],
@@ -274,6 +293,9 @@ function PanelCatalogFlanges({ standards }) {
             selectedClass={selectedClass}
             selectedRowId={selectedRow?.id}
             onSelectRow={handleSelectRow}
+            search={search}
+            filters={filters}
+            standardLabel={activeStandard?.label ?? ""}
           />
         </div>
       </div>

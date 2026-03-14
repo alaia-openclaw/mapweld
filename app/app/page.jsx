@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState, useCallback, useEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
 import Toolbar from "@/components/Toolbar";
@@ -100,6 +101,8 @@ export default function WeldTrackerApp() {
   const [numPdfPages, setNumPdfPages] = useState(null);
   const [sidePanelWidth, setSidePanelWidth] = useState(320);
   const sidePanelResizeRef = useRef(null);
+  const emptyStatePdfInputRef = useRef(null);
+  const emptyStateProjectInputRef = useRef(null);
 
   useEffect(() => {
     const move = (e) => {
@@ -985,9 +988,77 @@ export default function WeldTrackerApp() {
                 </div>
               </>
             ) : (
-              <div className="flex flex-col items-center justify-center py-24 text-base-content/60">
-                <p className="text-lg">Load a PDF or open a project to get started</p>
-                <p className="text-sm mt-2">Click on the drawing to add weld points</p>
+              <div className="flex flex-1 w-full min-h-0 flex-col items-center justify-center py-16 px-4">
+                <input
+                  ref={emptyStatePdfInputRef}
+                  type="file"
+                  accept=".pdf,application/pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) loadPdfFile(file);
+                    e.target.value = "";
+                  }}
+                />
+                <input
+                  ref={emptyStateProjectInputRef}
+                  type="file"
+                  accept=".weldproject,.json"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleLoadProject(file);
+                    e.target.value = "";
+                  }}
+                />
+                <div className="max-w-md w-full text-center space-y-8">
+                  <div className="flex justify-center">
+                    <div className="w-20 h-20 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                      <svg className="w-10 h-10 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <h2 className="text-xl font-bold text-base-content">
+                      No drawing loaded
+                    </h2>
+                    <p className="text-base-content/70 text-sm leading-relaxed">
+                      Load a PDF drawing or open a saved project to start marking weld points and recording details.
+                    </p>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                    <button
+                      type="button"
+                      className="btn btn-primary gap-2"
+                      onClick={() => emptyStatePdfInputRef.current?.click()}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
+                      Load PDF
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-outline gap-2"
+                      onClick={() => emptyStateProjectInputRef.current?.click()}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
+                      </svg>
+                      Open project
+                    </button>
+                  </div>
+                  <p className="text-xs text-base-content/50">
+                    Then click on the drawing to add weld points, spools, and parts.
+                  </p>
+                  <Link
+                    href="/catalog"
+                    className="link link-hover text-sm text-primary/90"
+                  >
+                    Browse part catalog →
+                  </Link>
+                </div>
               </div>
             )}
           </div>
