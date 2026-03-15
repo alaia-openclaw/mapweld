@@ -1,4 +1,5 @@
 import "./globals.css";
+import { Analytics } from "@vercel/analytics/next";
 import DevServiceWorkerCleanup from "@/components/DevServiceWorkerCleanup";
 
 export const metadata = {
@@ -61,6 +62,7 @@ export default function RootLayout({ children }) {
       <body className="min-h-screen bg-base-200 overscroll-none">
         {process.env.NODE_ENV === "development" && <DevServiceWorkerCleanup />}
         {children}
+        <Analytics />
       </body>
     </html>
   );

@@ -62,6 +62,14 @@ function IconChart() {
   );
 }
 
+function IconPrint() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+    </svg>
+  );
+}
+
 function Toolbar({
   hasPdf,
   hasWelds,
@@ -69,6 +77,7 @@ function Toolbar({
   onLoadProject,
   onSaveProject,
   onExportExcel,
+  onPrint,
   onOpenParameters,
   onOpenProjects,
   onOpenNdt,
@@ -136,6 +145,17 @@ function Toolbar({
         <IconTable />
         <span className="hidden lg:inline">Excel</span>
       </button>
+      {onPrint && (
+        <button
+          type="button"
+          className={`${btn} btn-ghost`}
+          onClick={onPrint}
+          title="Print"
+        >
+          <IconPrint />
+          <span className="hidden xl:inline">Print</span>
+        </button>
+      )}
       {hasPdf && onOpenParameters && (
         <button type="button" className={`${btn} btn-ghost`} onClick={onOpenParameters} title="Parameters">
           <IconCog />
@@ -240,6 +260,13 @@ function Toolbar({
                 Export Excel
               </button>
             </li>
+            {onPrint && (
+              <li>
+                <button type="button" onClick={onPrint}>
+                  Print
+                </button>
+              </li>
+            )}
             {hasPdf && onOpenParameters && (
               <li>
                 <button type="button" onClick={onOpenParameters}>
