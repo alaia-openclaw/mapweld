@@ -1,3 +1,9 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Hide side panel and thumbnail panel when capturing for print */
+body.print-capture-active [data-print-hide] {
+  display: none !important;
+  visibility: hidden !important;
+}

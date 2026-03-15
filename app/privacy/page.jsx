@@ -48,19 +48,20 @@ export default function PrivacyPage() {
             Cookies
           </h2>
           <p>
-            MapWeld does not use tracking cookies or analytics cookies. The
-            only storage used is IndexedDB for saving your project data
-            locally, and the service worker cache for offline support.
+            MapWeld does not use tracking or analytics cookies. The only
+            storage used is IndexedDB for saving your project data locally,
+            and the service worker cache for offline support.
           </p>
 
           <h2 className="text-xl font-bold text-base-content mt-8">
             Third-party services
           </h2>
           <p>
-            MapWeld does not integrate with third-party analytics, advertising,
-            or tracking services. The site is hosted on standard web
-            infrastructure which may log basic server access data (IP address,
-            request timestamp) as part of normal operations.
+            MapWeld uses Vercel Web Analytics to understand how visitors use
+            the site. This analytics service is cookieless and does not track
+            individuals across sites. The site is hosted on Vercel, which may
+            log basic server access data (IP address, request timestamp) as
+            part of normal operations.
           </p>
 
           <h2 className="text-xl font-bold text-base-content mt-8">

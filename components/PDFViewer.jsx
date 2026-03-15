@@ -218,6 +218,7 @@ function PDFViewer({
       >
         <div
           ref={pageWrapperRef}
+          data-print-target="pdf-with-overlays"
           className="relative inline-block min-w-0"
           onClick={handleClick}
         >

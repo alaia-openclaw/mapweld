@@ -15,6 +15,7 @@ import ModalParameters from "@/components/ModalParameters";
 import ModalProjects from "@/components/ModalProjects";
 import NdtKanbanPage from "@/components/NdtKanbanPage";
 import StatusPage from "@/components/StatusPage";
+import PageThumbnailPanel from "@/components/PageThumbnailPanel";
 import OfflineBanner from "@/components/OfflineBanner";
 import {
   saveProject,
@@ -38,6 +39,10 @@ import { applyReportToWelds } from "@/lib/ndt-utils";
 const PDFViewerDynamic = dynamic(() => import("@/components/PDFViewer"), {
   ssr: false,
   loading: () => <div className="p-8">Loading viewer...</div>,
+});
+
+const ModalPrintDynamic = dynamic(() => import("@/components/ModalPrint"), {
+  ssr: false,
 });
 
 function generateId() {
@@ -75,6 +80,7 @@ export default function WeldTrackerApp() {
   const [showProjects, setShowProjects] = useState(false);
   const [showNdtPanel, setShowNdtPanel] = useState(false);
   const [showStatusPage, setShowStatusPage] = useState(false);
+  const [showPrintModal, setShowPrintModal] = useState(false);
   const [projectId, setProjectId] = useState(null);
   const [spoolMarkers, setSpoolMarkers] = useState([]);
   const [parts, setParts] = useState([]);
@@ -95,6 +101,7 @@ export default function WeldTrackerApp() {
     materialGrade: "",
   });
   const [showOverlay, setShowOverlay] = useState(true);
+  const [showPagePanel, setShowPagePanel] = useState(true);
   const [focusPdf, setFocusPdf] = useState(false);
   const [pdfScale, setPdfScale] = useState(1.2);
   const [pdfPage, setPdfPage] = useState(1);
@@ -623,6 +630,86 @@ export default function WeldTrackerApp() {
     return map;
   }, [weldPoints, drawingSettings]);
 
+  const handlePrint = useCallback(
+    async (options) => {
+      const { runPrint } = await import("@/lib/print-utils");
+      const prevOverlay = showOverlay;
+      const includeMarkers = options.pdfDrawing && options.markers && (options.markers.welds || options.markers.spools || options.markers.parts);
+      if (includeMarkers !== prevOverlay) {
+        setShowOverlay(!!includeMarkers);
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      try {
+        await runPrint({
+          pdfDrawing: options.pdfDrawing,
+          markers: options.markers,
+          weldMap: options.weldMap,
+          projectProgress: options.projectProgress,
+          projectSummary: options.projectSummary,
+          pdfBlob,
+          pdfFilename,
+          weldPoints,
+          spools,
+          parts,
+          personnel,
+          drawingSettings,
+          weldStatusByWeldId,
+          getWeldName,
+        });
+      } finally {
+        if (includeMarkers !== prevOverlay) setShowOverlay(prevOverlay);
+      }
+    },
+    [
+      showOverlay,
+      pdfBlob,
+      pdfFilename,
+      weldPoints,
+      spools,
+      parts,
+      personnel,
+      drawingSettings,
+      weldStatusByWeldId,
+    ]
+  );
+
+  const currentPage0 = pdfPage - 1;
+
+  const weldsOnCurrentPage = useMemo(
+    () => weldPoints.filter((w) => (w.pageNumber ?? 0) === currentPage0),
+    [weldPoints, currentPage0]
+  );
+
+  const spoolMarkersOnCurrentPage = useMemo(
+    () => spoolMarkers.filter((m) => (m.pageNumber ?? 0) === currentPage0),
+    [spoolMarkers, currentPage0]
+  );
+
+  const partMarkersOnCurrentPage = useMemo(
+    () => partMarkers.filter((m) => (m.pageNumber ?? 0) === currentPage0),
+    [partMarkers, currentPage0]
+  );
+
+  const spoolIdsOnCurrentPage = useMemo(
+    () => [...new Set(spoolMarkersOnCurrentPage.map((m) => m.spoolId).filter(Boolean))],
+    [spoolMarkersOnCurrentPage]
+  );
+
+  const partIdsOnCurrentPage = useMemo(
+    () => [...new Set(partMarkersOnCurrentPage.map((m) => m.partId).filter(Boolean))],
+    [partMarkersOnCurrentPage]
+  );
+
+  const spoolsOnCurrentPage = useMemo(
+    () => spools.filter((s) => spoolIdsOnCurrentPage.includes(s.id)),
+    [spools, spoolIdsOnCurrentPage]
+  );
+
+  const partsOnCurrentPage = useMemo(
+    () => parts.filter((p) => partIdsOnCurrentPage.includes(p.id)),
+    [parts, partIdsOnCurrentPage]
+  );
+
   const scrollToTarget = useMemo(() => {
     if (selectedWeldId) {
       const w = weldPoints.find((x) => x.id === selectedWeldId);
@@ -655,6 +742,7 @@ export default function WeldTrackerApp() {
         onOpenProjects={() => setShowProjects(true)}
         onOpenNdt={() => setShowNdtPanel(true)}
         onOpenStatus={() => setShowStatusPage(true)}
+        onPrint={() => setShowPrintModal(true)}
         focusPdf={focusPdf}
         onToggleFocusPdf={() => setFocusPdf((v) => !v)}
       />
@@ -662,8 +750,19 @@ export default function WeldTrackerApp() {
       )}
 
       {focusPdf && pdfBlob ? (
-        <div className="fixed inset-0 z-30 flex flex-col bg-base-100 md:inset-4 md:rounded-lg md:shadow-xl">
-          <div className="flex-1 min-h-0 flex flex-col">
+        <div className="fixed inset-0 z-30 flex flex-row bg-base-100 md:inset-4 md:rounded-lg md:shadow-xl">
+          <PageThumbnailPanel
+            pdfBlob={pdfBlob}
+            numPages={numPdfPages}
+            currentPage={pdfPage}
+            onPageSelect={setPdfPage}
+            weldPoints={weldPoints}
+            spoolMarkers={spoolMarkers}
+            partMarkers={partMarkers}
+            isOpen={showPagePanel}
+            onToggle={() => setShowPagePanel((v) => !v)}
+          />
+          <div className="flex-1 min-h-0 min-w-0 flex flex-col">
             <PDFViewerDynamic
               key={pdfViewerKey}
               pdfBlob={pdfBlob}
@@ -847,6 +946,17 @@ export default function WeldTrackerApp() {
                     )}
                   </div>
                 )}
+                <PageThumbnailPanel
+                  pdfBlob={pdfBlob}
+                  numPages={numPdfPages}
+                  currentPage={pdfPage}
+                  onPageSelect={setPdfPage}
+                  weldPoints={weldPoints}
+                  spoolMarkers={spoolMarkers}
+                  partMarkers={partMarkers}
+                  isOpen={showPagePanel}
+                  onToggle={() => setShowPagePanel((v) => !v)}
+                />
                 <div className="flex-1 min-w-0 min-h-0 relative">
                   <PDFViewerDynamic
                     key={pdfViewerKey}
@@ -890,6 +1000,7 @@ export default function WeldTrackerApp() {
                 </div>
                 <div
                   className="flex-shrink-0 flex flex-col h-full min-h-0 overflow-hidden transition-[width] duration-200 ease-out border-l border-base-300"
+                  data-print-hide
                   style={{
                     width: !showWeldPanel && !showSpoolPanel && !showPartPanel ? 56 : sidePanelWidth,
                     minWidth: !showWeldPanel && !showSpoolPanel && !showPartPanel ? 56 : undefined,
@@ -917,7 +1028,7 @@ export default function WeldTrackerApp() {
                     style={{ minHeight: 0 }}
                   >
                   <SidePanelWeldForm
-                    weldPoints={weldPoints}
+                    weldPoints={weldsOnCurrentPage}
                     weldStatusByWeldId={weldStatusByWeldId}
                     weld={formWeld}
                     selectedWeldId={selectedWeldId}
@@ -935,8 +1046,8 @@ export default function WeldTrackerApp() {
                     onSave={handleSaveWeld}
                     onDelete={handleDeleteWeld}
                     appMode={appMode}
-                    spools={spools}
-                    parts={parts}
+                    spools={spoolsOnCurrentPage}
+                    parts={partsOnCurrentPage}
                     onUpdatePartHeat={handleUpdatePartHeat}
                     personnel={personnel}
                     ndtAutoLabel={formatNdtRequirements(drawingSettings.ndtRequirements)}
@@ -944,7 +1055,7 @@ export default function WeldTrackerApp() {
                     isStacked={!showWeldPanel && !showSpoolPanel && !showPartPanel}
                   />
                   <SidePanelSpools
-                    spools={spools}
+                    spools={spoolsOnCurrentPage}
                     isOpen={showSpoolPanel}
                     onToggle={() => {
                       setShowWeldPanel(false);
@@ -960,17 +1071,17 @@ export default function WeldTrackerApp() {
                     }}
                     onAssignWeldToSpool={handleAssignWeldToSpool}
                     onAssignPartToSpool={handleAssignPartToSpool}
-                    parts={parts}
-                    spoolMarkers={spoolMarkers}
+                    parts={partsOnCurrentPage}
+                    spoolMarkers={spoolMarkersOnCurrentPage}
                     appMode={appMode}
-                    weldPoints={weldPoints}
+                    weldPoints={weldsOnCurrentPage}
                     weldStatusByWeldId={weldStatusByWeldId}
                     getWeldName={getWeldName}
                   />
                   <SidePanelPartForm
-                    parts={parts}
-                    partMarkers={partMarkers}
-                    spools={spools}
+                    parts={partsOnCurrentPage}
+                    partMarkers={partMarkersOnCurrentPage}
+                    spools={spoolsOnCurrentPage}
                     selectedPartMarkerId={selectedPartMarkerId}
                     isOpen={showPartPanel}
                     onToggle={() => {
@@ -1080,6 +1191,16 @@ export default function WeldTrackerApp() {
         isOpen={showProjects}
         onClose={() => setShowProjects(false)}
         onOpenProject={handleOpenProjectFromStorage}
+      />
+
+      <ModalPrintDynamic
+        isOpen={showPrintModal}
+        onClose={() => setShowPrintModal(false)}
+        onPrint={handlePrint}
+        hasPdf={!!pdfBlob}
+        hasWelds={weldPoints.length > 0}
+        hasSpools={spools.length > 0}
+        hasParts={parts.length > 0}
       />
     </div>
   );
