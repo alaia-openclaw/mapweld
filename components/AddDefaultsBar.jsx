@@ -32,7 +32,7 @@ function AddDefaultsBar({
   );
 
   const showWeld = markupTool === "add";
-  const showSpool = markupTool === "add" || markupTool === "addSpool";
+  const showSpool = markupTool === "add";
   const showPart = markupTool === "addPart";
 
   function handleCatalogCategoryChange(value) {
