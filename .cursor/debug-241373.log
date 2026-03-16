@@ -1,0 +1,132 @@
+{"sessionId":"241373","location":"page.jsx:handleAddWeld-entry","message":"handleAddWeld called","data":{"xPercent":23.66368006993007,"yPercent":41.14441522277228,"pageNumber":0},"timestamp":1773688898374,"hypothesisId":"ALL"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773688898375-oy2b8fb"},"timestamp":1773688898375,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:after-setWeldPoints","message":"after setWeldPoints, newWeld value","data":{"newWeldDefined":true,"newWeldId":"wp-1773688898375-oy2b8fb"},"timestamp":1773688898375,"hypothesisId":"A-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773688898375-3jtxofx"},"timestamp":1773688898375,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":32,"loc":"shop"},"timestamp":1773688898374,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":32,"loc":"shop"},"timestamp":1773688898375,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:handleAddWeld-entry","message":"handleAddWeld called","data":{"xPercent":22.40493881118881,"yPercent":30.154316212871286,"pageNumber":0},"timestamp":1773688900135,"hypothesisId":"ALL"}
+{"sessionId":"241373","location":"page.jsx:after-setWeldPoints","message":"after setWeldPoints, newWeld value","data":{"newWeldDefined":false},"timestamp":1773688900136,"hypothesisId":"A-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773688900137-zfbgh8b"},"timestamp":1773688900137,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":33,"loc":"shop"},"timestamp":1773688900137,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773688900137-9o4bfhp"},"timestamp":1773688900137,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":33,"loc":"shop"},"timestamp":1773688900136,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:handleAddWeld-entry","message":"handleAddWeld called","data":{"xPercent":23.94340034965035,"yPercent":18.5701577970297,"pageNumber":0},"timestamp":1773688901797,"hypothesisId":"ALL"}
+{"sessionId":"241373","location":"page.jsx:after-setWeldPoints","message":"after setWeldPoints, newWeld value","data":{"newWeldDefined":false},"timestamp":1773688901797,"hypothesisId":"A-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773688901798-s0a2qc0"},"timestamp":1773688901798,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":34,"loc":"shop"},"timestamp":1773688901798,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773688901798-imofy5b"},"timestamp":1773688901798,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":34,"loc":"shop"},"timestamp":1773688901798,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:handleAddWeld-entry","message":"handleAddWeld called","data":{"xPercent":30.097246503496507,"yPercent":20.352336014851485,"pageNumber":0},"timestamp":1773688903566,"hypothesisId":"ALL"}
+{"sessionId":"241373","location":"page.jsx:after-setWeldPoints","message":"after setWeldPoints, newWeld value","data":{"newWeldDefined":false},"timestamp":1773688903566,"hypothesisId":"A-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773688903567-3ltxcd2"},"timestamp":1773688903567,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":35,"loc":"shop"},"timestamp":1773688903567,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":35,"loc":"shop"},"timestamp":1773688903566,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773688903567-ej56k3s"},"timestamp":1773688903567,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:handleAddWeld-entry","message":"handleAddWeld called","data":{"xPercent":34.9923513986014,"yPercent":19.164217202970296,"pageNumber":0},"timestamp":1773688905102,"hypothesisId":"ALL"}
+{"sessionId":"241373","location":"page.jsx:after-setWeldPoints","message":"after setWeldPoints, newWeld value","data":{"newWeldDefined":false},"timestamp":1773688905102,"hypothesisId":"A-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":36,"loc":"shop"},"timestamp":1773688905103,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773688905103-ftamdjv"},"timestamp":1773688905103,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":36,"loc":"shop"},"timestamp":1773688905103,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773688905103-rfb54sb"},"timestamp":1773688905103,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:handleAddWeld-entry","message":"handleAddWeld called","data":{"xPercent":36.46088286713287,"yPercent":23.520652846534652,"pageNumber":0},"timestamp":1773688940527,"hypothesisId":"ALL"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":37,"loc":"shop"},"timestamp":1773688940528,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:after-setWeldPoints","message":"after setWeldPoints, newWeld value","data":{"newWeldDefined":false},"timestamp":1773688940528,"hypothesisId":"A-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773688940528-6a6gjax"},"timestamp":1773688940528,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773688940529-2rtldsh"},"timestamp":1773688940529,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":37,"loc":"shop"},"timestamp":1773688940529,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:handleAddWeld-entry","message":"handleAddWeld called","data":{"xPercent":40.0972465034965,"yPercent":19.164217202970296,"pageNumber":0},"timestamp":1773688943096,"hypothesisId":"ALL"}
+{"sessionId":"241373","location":"page.jsx:after-setWeldPoints","message":"after setWeldPoints, newWeld value","data":{"newWeldDefined":false},"timestamp":1773688943096,"hypothesisId":"A-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773688943097-255kwrv"},"timestamp":1773688943097,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":38,"loc":"shop"},"timestamp":1773688943097,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773688943097-avkfbe0"},"timestamp":1773688943097,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":38,"loc":"shop"},"timestamp":1773688943096,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:handleAddWeld-entry","message":"handleAddWeld called","data":{"xPercent":40.23710664335665,"yPercent":26.490949876237625,"pageNumber":0},"timestamp":1773688944473,"hypothesisId":"ALL"}
+{"sessionId":"241373","location":"page.jsx:after-setWeldPoints","message":"after setWeldPoints, newWeld value","data":{"newWeldDefined":false},"timestamp":1773688944473,"hypothesisId":"A-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773688944473-50v6523"},"timestamp":1773688944473,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":39,"loc":"shop"},"timestamp":1773688944474,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":39,"loc":"shop"},"timestamp":1773688944473,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773688944474-c3x6ar4"},"timestamp":1773688944474,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:handleAddWeld-entry","message":"handleAddWeld called","data":{"xPercent":0.37696678321678323,"yPercent":5.401840965346535,"pageNumber":0},"timestamp":1773688946292,"hypothesisId":"ALL"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":40,"loc":"shop"},"timestamp":1773688946293,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":40,"loc":"shop"},"timestamp":1773688946292,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:after-setWeldPoints","message":"after setWeldPoints, newWeld value","data":{"newWeldDefined":true,"newWeldId":"wp-1773688946293-4alyzlr"},"timestamp":1773688946293,"hypothesisId":"A-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773688946293-0vzu7xq"},"timestamp":1773688946293,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773688946293-4alyzlr"},"timestamp":1773688946293,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:handleAddWeld-entry","message":"handleAddWeld called","data":{"xPercent":17.160183566433567,"yPercent":12.134514232673267,"pageNumber":0},"timestamp":1773688949164,"hypothesisId":"ALL"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":41,"loc":"shop"},"timestamp":1773688949165,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773688949165-uiiubyg"},"timestamp":1773688949165,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":41,"loc":"shop"},"timestamp":1773688949165,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773688949165-sabq3x8"},"timestamp":1773688949165,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:after-setWeldPoints","message":"after setWeldPoints, newWeld value","data":{"newWeldDefined":false},"timestamp":1773688949164,"hypothesisId":"A-C"}
+{"sessionId":"241373","location":"page.jsx:handleAddWeld-entry","message":"handleAddWeld called","data":{"xPercent":29.048295454545453,"yPercent":11.243425123762377,"pageNumber":0},"timestamp":1773688951945,"hypothesisId":"ALL"}
+{"sessionId":"241373","location":"page.jsx:after-setWeldPoints","message":"after setWeldPoints, newWeld value","data":{"newWeldDefined":false},"timestamp":1773688951946,"hypothesisId":"A-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":42,"loc":"shop"},"timestamp":1773688951946,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773688951946-si0jz5n"},"timestamp":1773688951946,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":42,"loc":"shop"},"timestamp":1773688951947,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773688951947-btjrpec"},"timestamp":1773688951947,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:handleAddWeld-entry","message":"handleAddWeld called","data":{"xPercent":43.943400349650354,"yPercent":17.184019183168317,"pageNumber":0},"timestamp":1773688956936,"hypothesisId":"ALL"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":43,"loc":"shop"},"timestamp":1773688956936,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773688956936-rqxi0d4"},"timestamp":1773688956936,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":43,"loc":"shop"},"timestamp":1773688956937,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773688956937-dpo59qq"},"timestamp":1773688956937,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:after-setWeldPoints","message":"after setWeldPoints, newWeld value","data":{"newWeldDefined":false},"timestamp":1773688956936,"hypothesisId":"A-C"}
+{"sessionId":"241373","location":"page.jsx:handleAddWeld-entry","message":"handleAddWeld called","data":{"xPercent":37.43990384615385,"yPercent":15.599860767326732,"pageNumber":0},"timestamp":1773688959571,"hypothesisId":"ALL"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":44,"loc":"shop"},"timestamp":1773688959572,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773688959572-hmbrvyx"},"timestamp":1773688959572,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:after-setWeldPoints","message":"after setWeldPoints, newWeld value","data":{"newWeldDefined":false},"timestamp":1773688959572,"hypothesisId":"A-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":44,"loc":"shop"},"timestamp":1773688959573,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773688959573-4iq69kp"},"timestamp":1773688959573,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:handleAddWeld-entry","message":"handleAddWeld called","data":{"xPercent":38.69864510489511,"yPercent":11.639464727722771,"pageNumber":0},"timestamp":1773688960956,"hypothesisId":"ALL"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":45,"loc":"shop"},"timestamp":1773688960956,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773688960957-n0bfz3v"},"timestamp":1773688960957,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":45,"loc":"shop"},"timestamp":1773688960957,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773688960957-n8lw489"},"timestamp":1773688960957,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:after-setWeldPoints","message":"after setWeldPoints, newWeld value","data":{"newWeldDefined":false},"timestamp":1773688960956,"hypothesisId":"A-C"}
+{"sessionId":"241373","location":"page.jsx:handleAddWeld-entry","message":"handleAddWeld called","data":{"xPercent":11.355987762237763,"yPercent":28.570157797029704,"pageNumber":0},"timestamp":1773689603529,"hypothesisId":"ALL"}
+{"sessionId":"241373","location":"page.jsx:after-setWeldPoints","message":"after setWeldPoints, newWeld value","data":{"newWeldDefined":false},"timestamp":1773689603532,"hypothesisId":"A-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":46,"loc":"shop"},"timestamp":1773689603532,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":46,"loc":"shop"},"timestamp":1773689603533,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773689603533-937n69p"},"timestamp":1773689603533,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773689603533-ac5bqgs"},"timestamp":1773689603533,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:handleAddWeld-entry","message":"handleAddWeld called","data":{"xPercent":50.00043792423911,"yPercent":42.15557000030953,"pageNumber":0},"timestamp":1773692306461,"hypothesisId":"ALL"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773692306462-1dygw3g"},"timestamp":1773692306462,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:after-setWeldPoints","message":"after setWeldPoints, newWeld value","data":{"newWeldDefined":true,"newWeldId":"wp-1773692306462-1dygw3g"},"timestamp":1773692306462,"hypothesisId":"A-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773692306463-tquhjmw"},"timestamp":1773692306463,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":0,"loc":"shop"},"timestamp":1773692306463,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":0,"loc":"shop"},"timestamp":1773692306462,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:handleAddWeld-entry","message":"handleAddWeld called","data":{"xPercent":35.42631924677031,"yPercent":54.5169777447612,"pageNumber":0},"timestamp":1773692309347,"hypothesisId":"ALL"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":1,"loc":"shop"},"timestamp":1773692309347,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773692309348-9r9wrsf"},"timestamp":1773692309348,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":1,"loc":"shop"},"timestamp":1773692309348,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773692309348-m1fkww1"},"timestamp":1773692309348,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:after-setWeldPoints","message":"after setWeldPoints, newWeld value","data":{"newWeldDefined":false},"timestamp":1773692309347,"hypothesisId":"A-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773692310957-hjd86dq"},"timestamp":1773692310957,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":2,"loc":"shop"},"timestamp":1773692310956,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:handleAddWeld-entry","message":"handleAddWeld called","data":{"xPercent":23.99124151521787,"yPercent":30.42808060172718,"pageNumber":0},"timestamp":1773692310955,"hypothesisId":"ALL"}
+{"sessionId":"241373","location":"page.jsx:after-setWeldPoints","message":"after setWeldPoints, newWeld value","data":{"newWeldDefined":false},"timestamp":1773692310955,"hypothesisId":"A-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773692310956-n2gke2p"},"timestamp":1773692310956,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":2,"loc":"shop"},"timestamp":1773692310956,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:handleAddWeld-entry","message":"handleAddWeld called","data":{"xPercent":42.825487190716004,"yPercent":32.48831522580245,"pageNumber":0},"timestamp":1773692312158,"hypothesisId":"ALL"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":3,"loc":"shop"},"timestamp":1773692312159,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":3,"loc":"shop"},"timestamp":1773692312159,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773692312160-m99z4gj"},"timestamp":1773692312160,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:after-setWeldPoints","message":"after setWeldPoints, newWeld value","data":{"newWeldDefined":false},"timestamp":1773692312159,"hypothesisId":"A-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773692312159-j8hqaqp"},"timestamp":1773692312159,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:handleAddWeld-entry","message":"handleAddWeld called","data":{"xPercent":59.19334355156558,"yPercent":54.20001857182653,"pageNumber":0},"timestamp":1773692313307,"hypothesisId":"ALL"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":4,"loc":"shop"},"timestamp":1773692313308,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773692313308-jznv9b7"},"timestamp":1773692313308,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":4,"loc":"shop"},"timestamp":1773692313308,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773692313309-d1twgf3"},"timestamp":1773692313309,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:after-setWeldPoints","message":"after setWeldPoints, newWeld value","data":{"newWeldDefined":false},"timestamp":1773692313307,"hypothesisId":"A-C"}
+{"sessionId":"241373","location":"page.jsx:handleAddWeld-entry","message":"handleAddWeld called","data":{"xPercent":24.66459118466328,"yPercent":62.945952215263276,"pageNumber":0},"timestamp":1773692795093,"hypothesisId":"ALL"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773692795094-0uv70ur"},"timestamp":1773692795094,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773692795095-66la62n"},"timestamp":1773692795095,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:after-setWeldPoints","message":"after setWeldPoints, newWeld value","data":{"newWeldDefined":true,"newWeldId":"wp-1773692795094-0uv70ur"},"timestamp":1773692795094,"hypothesisId":"A-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":30,"loc":"shop"},"timestamp":1773692795095,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":30,"loc":"shop"},"timestamp":1773692795093,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:handleAddWeld-entry","message":"handleAddWeld called","data":{"xPercent":43.960019662461086,"yPercent":66.9839944328462,"pageNumber":0},"timestamp":1773692796795,"hypothesisId":"ALL"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":31,"loc":"shop"},"timestamp":1773692796796,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773692796796-zpbvz07"},"timestamp":1773692796796,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-updater","message":"updater running","data":{"prevLen":31,"loc":"shop"},"timestamp":1773692796796,"hypothesisId":"A-B-C"}
+{"sessionId":"241373","location":"page.jsx:setWeldPoints-assigned","message":"newWeld assigned inside updater","data":{"newWeldId":"wp-1773692796796-016qpag"},"timestamp":1773692796796,"hypothesisId":"A-B-D"}
+{"sessionId":"241373","location":"page.jsx:after-setWeldPoints","message":"after setWeldPoints, newWeld value","data":{"newWeldDefined":false},"timestamp":1773692796796,"hypothesisId":"A-C"}

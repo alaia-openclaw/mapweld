@@ -60,6 +60,7 @@ function PDFViewer({
   const pageWrapperRef = useRef(null);
   const panStartRef = useRef(null);
   const isPanningRef = useRef(false);
+  const pinchRef = useRef(null);
 
   const scale = controlledScale !== undefined ? controlledScale : internalScale;
   const currentPage = controlledPage !== undefined ? controlledPage : internalPage;
@@ -160,6 +161,45 @@ function PDFViewer({
     []
   );
 
+  const handleTouchStart = useCallback(
+    (e) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        pinchRef.current = {
+          initialDistance: Math.hypot(dx, dy),
+          initialScale: scale,
+        };
+      }
+    },
+    [scale]
+  );
+
+  const handleTouchMove = useCallback(
+    (e) => {
+      if (e.touches.length === 2 && pinchRef.current) {
+        e.preventDefault();
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const currentDistance = Math.hypot(dx, dy);
+        const ratio = currentDistance / pinchRef.current.initialDistance;
+        const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, pinchRef.current.initialScale * ratio));
+        setScale(newScale);
+      }
+    },
+    [setScale]
+  );
+
+  const handleTouchEnd = useCallback(
+    (e) => {
+      if (e.touches.length < 2) {
+        pinchRef.current = null;
+      }
+    },
+    []
+  );
+
   const handleClick = useCallback(
     (e) => {
       if (isPanningRef.current) {
@@ -254,12 +294,15 @@ function PDFViewer({
     <div className="flex flex-col gap-0">
       <div
         ref={containerRef}
-        className={`relative bg-base-100 overflow-auto min-h-[50dvh] touch-pan-x touch-pan-y ${focusMode ? "max-h-[100dvh]" : "max-h-[calc(100dvh-10rem)]"} ${cursorClass}`}
+        className={`relative bg-base-100 overflow-auto min-h-[50dvh] mobile-no-scrollbar ${focusMode ? "max-h-[100dvh]" : "max-h-[calc(100dvh-3.5rem)] md:max-h-[calc(100dvh-10rem)]"} ${cursorClass}`}
         style={{ touchAction: "pan-x pan-y" }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
       >
         <div
           ref={pageWrapperRef}

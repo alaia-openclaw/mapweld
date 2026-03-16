@@ -17,6 +17,7 @@ import NdtKanbanPage from "@/components/NdtKanbanPage";
 import StatusPage from "@/components/StatusPage";
 import PageThumbnailPanel from "@/components/PageThumbnailPanel";
 import OfflineBanner from "@/components/OfflineBanner";
+import BottomSheet from "@/components/BottomSheet";
 import {
   saveProject,
   loadProject,
@@ -103,6 +104,8 @@ export default function WeldTrackerApp() {
   const [pendingLabelId, setPendingLabelId] = useState(null);
   const [showOverlay, setShowOverlay] = useState(true);
   const [showPagePanel, setShowPagePanel] = useState(true);
+  const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
+  const [mobileSheetTab, setMobileSheetTab] = useState("welds");
   const [focusPdf, setFocusPdf] = useState(false);
   const [pdfScale, setPdfScale] = useState(1.2);
   const [pdfPage, setPdfPage] = useState(1);
@@ -196,26 +199,44 @@ export default function WeldTrackerApp() {
 
   const handleAddWeld = useCallback(
     ({ xPercent, yPercent, pageNumber }) => {
+      // #region agent log
+      fetch('http://127.0.0.1:7422/ingest/05cf4936-8dd3-4ab1-89bc-af4409f2819b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'241373'},body:JSON.stringify({sessionId:'241373',location:'page.jsx:handleAddWeld-entry',message:'handleAddWeld called',data:{xPercent,yPercent,pageNumber},timestamp:Date.now(),hypothesisId:'ALL'})}).catch(()=>{});
+      // #endregion
       let newWeld;
       const loc = addDefaults?.weldLocation || "shop";
       setWeldPoints((prev) => {
-        const sameType = prev.filter((w) => (w.weldLocation || "shop") === loc);
-        const maxNum = sameType.reduce((m, w) => Math.max(m, w.weldNumber ?? 0), 0);
-        newWeld = {
-          ...createDefaultWeld(),
-          id: generateId(),
-          weldLocation: loc,
-          spoolId: addDefaults?.spoolId ?? null,
-          xPercent,
-          yPercent,
-          indicatorXPercent: xPercent,
-          indicatorYPercent: yPercent,
-          pageNumber: pageNumber ?? 0,
-          weldNumber: maxNum + 1,
-        };
-        return [...prev, newWeld];
+        // #region agent log
+        fetch('http://127.0.0.1:7422/ingest/05cf4936-8dd3-4ab1-89bc-af4409f2819b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'241373'},body:JSON.stringify({sessionId:'241373',location:'page.jsx:setWeldPoints-updater',message:'updater running',data:{prevLen:prev.length,loc},timestamp:Date.now(),hypothesisId:'A-B-C'})}).catch(()=>{});
+        // #endregion
+        try {
+          const sameType = prev.filter((w) => (w.weldLocation || "shop") === loc);
+          const maxNum = sameType.reduce((m, w) => Math.max(m, w.weldNumber ?? 0), 0);
+          newWeld = {
+            ...createDefaultWeld(),
+            id: generateId(),
+            weldLocation: loc,
+            spoolId: addDefaults?.spoolId ?? null,
+            xPercent,
+            yPercent,
+            indicatorXPercent: xPercent,
+            indicatorYPercent: yPercent,
+            pageNumber: pageNumber ?? 0,
+            weldNumber: maxNum + 1,
+          };
+          // #region agent log
+          fetch('http://127.0.0.1:7422/ingest/05cf4936-8dd3-4ab1-89bc-af4409f2819b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'241373'},body:JSON.stringify({sessionId:'241373',location:'page.jsx:setWeldPoints-assigned',message:'newWeld assigned inside updater',data:{newWeldId:newWeld?.id},timestamp:Date.now(),hypothesisId:'A-B-D'})}).catch(()=>{});
+          // #endregion
+        } catch(e) {
+          // #region agent log
+          fetch('http://127.0.0.1:7422/ingest/05cf4936-8dd3-4ab1-89bc-af4409f2819b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'241373'},body:JSON.stringify({sessionId:'241373',location:'page.jsx:setWeldPoints-catch',message:'EXCEPTION inside updater',data:{error:String(e)},timestamp:Date.now(),hypothesisId:'B-D'})}).catch(()=>{});
+          // #endregion
+        }
+        return newWeld ? [...prev, newWeld] : prev;
       });
-      setPendingLabelId({ type: "weld", id: newWeld.id });
+      // #region agent log
+      fetch('http://127.0.0.1:7422/ingest/05cf4936-8dd3-4ab1-89bc-af4409f2819b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'241373'},body:JSON.stringify({sessionId:'241373',location:'page.jsx:after-setWeldPoints',message:'after setWeldPoints, newWeld value',data:{newWeldDefined:newWeld!==undefined,newWeldId:newWeld?.id},timestamp:Date.now(),hypothesisId:'A-C'})}).catch(()=>{});
+      // #endregion
+      setPendingLabelId({ type: "weld", id: newWeld?.id });
     },
     [addDefaults]
   );
@@ -274,6 +295,10 @@ export default function WeldTrackerApp() {
     setSelectedSpoolMarkerId(marker.id);
     setSelectedWeldId(null);
     setSelectedPartMarkerId(null);
+    if (window.innerWidth < 768) {
+      setMobileSheetTab("spools");
+      setMobileSheetOpen(true);
+    }
   }, []);
 
   const handleMoveSpoolMarker = useCallback((markerId, { xPercent, yPercent }) => {
@@ -348,7 +373,12 @@ export default function WeldTrackerApp() {
     setSelectedPartMarkerId(marker.id);
     setSelectedWeldId(null);
     setSelectedSpoolMarkerId(null);
-    setShowPartPanel(true);
+    if (window.innerWidth < 768) {
+      setMobileSheetTab("parts");
+      setMobileSheetOpen(true);
+    } else {
+      setShowPartPanel(true);
+    }
   }, []);
 
   const handleMovePartMarker = useCallback((markerId, { xPercent, yPercent }) => {
@@ -454,12 +484,22 @@ export default function WeldTrackerApp() {
     setSelectedWeldId(weld.id);
     setSelectedSpoolMarkerId(null);
     setSelectedPartMarkerId(null);
+    if (window.innerWidth < 768) {
+      setFormWeld(weld);
+      setMobileSheetTab("welds");
+      setMobileSheetOpen(true);
+    }
   }, []);
 
   const handleWeldDoubleClick = useCallback((weld) => {
     setFormWeld(weld);
     setSelectedWeldId(weld.id);
-    setShowWeldPanel(true);
+    if (window.innerWidth < 768) {
+      setMobileSheetTab("welds");
+      setMobileSheetOpen(true);
+    } else {
+      setShowWeldPanel(true);
+    }
   }, []);
 
   const handleSaveWeld = useCallback((updatedWeld) => {
@@ -771,7 +811,7 @@ export default function WeldTrackerApp() {
   }, [selectedWeldId, selectedSpoolMarkerId, selectedPartMarkerId, weldPoints, spoolMarkers, partMarkers]);
 
   return (
-    <div className="container mx-auto p-4">
+    <div className="md:container md:mx-auto p-0 md:p-4">
       {!focusPdf && (
         <>
           <OfflineBanner />
@@ -794,7 +834,7 @@ export default function WeldTrackerApp() {
       )}
 
       {focusPdf && pdfBlob ? (
-        <div className="fixed inset-0 z-30 flex flex-row bg-base-100 md:inset-4 md:rounded-lg md:shadow-xl">
+        <div className="fixed inset-0 z-30 flex flex-row bg-base-100">
           <PageThumbnailPanel
             pdfBlob={pdfBlob}
             numPages={numPdfPages}
@@ -847,7 +887,7 @@ export default function WeldTrackerApp() {
               onToggleOverlay={() => setShowOverlay((v) => !v)}
               pendingLabelId={pendingLabelId}
               onPendingLabelMove={handlePendingLabelMove}
-              focusMode
+              focusMode={focusPdf}
             />
           </div>
           <button
@@ -896,15 +936,17 @@ export default function WeldTrackerApp() {
       ) : (
         <>
           {pdfBlob && (
-            <DashboardAnalytics
-              weldPoints={weldPoints}
-              weldStatusByWeldId={weldStatusByWeldId}
-              drawingSettings={drawingSettings}
-              spools={spools}
-            />
+            <div className="hidden md:block">
+              <DashboardAnalytics
+                weldPoints={weldPoints}
+                weldStatusByWeldId={weldStatusByWeldId}
+                drawingSettings={drawingSettings}
+                spools={spools}
+              />
+            </div>
           )}
 
-          <div className="relative flex gap-0 items-stretch rounded-lg overflow-hidden shadow bg-base-100 h-[calc(100dvh-10rem)] min-h-0">
+          <div className="relative flex gap-0 items-stretch md:rounded-lg overflow-hidden md:shadow bg-base-100 h-[calc(100dvh-3.5rem)] md:h-[calc(100dvh-10rem)] min-h-0">
             {pdfBlob ? (
               <>
                 {pdfBlob && (
@@ -917,33 +959,35 @@ export default function WeldTrackerApp() {
                         onModeChange={handleModeChange}
                         className="!p-0 !bg-transparent !border-0 !shadow-none"
                       />
-                      <span className="w-px h-5 bg-base-300/60 shrink-0" aria-hidden />
+                      <span className="w-px h-5 bg-base-300/60 shrink-0 hidden md:block" aria-hidden />
+                      <div className="hidden md:flex items-center gap-0">
+                        <button
+                          type="button"
+                          className="btn btn-xs btn-ghost h-7 min-h-7 w-7 p-0"
+                          onClick={() => setPdfScale((s) => Math.max(0.5, s - 0.25))}
+                          disabled={pdfScale <= 0.5}
+                          aria-label="Zoom out"
+                          title="Zoom out"
+                        >
+                          −
+                        </button>
+                        <span className="text-xs tabular-nums min-w-[2.5rem] text-center text-base-content/70">
+                          {Math.round(pdfScale * 100)}%
+                        </span>
+                        <button
+                          type="button"
+                          className="btn btn-xs btn-ghost h-7 min-h-7 w-7 p-0"
+                          onClick={() => setPdfScale((s) => Math.min(2.5, s + 0.25))}
+                          disabled={pdfScale >= 2.5}
+                          aria-label="Zoom in"
+                          title="Zoom in"
+                        >
+                          +
+                        </button>
+                      </div>
                       <button
                         type="button"
-                        className="btn btn-xs btn-ghost h-7 min-h-7 w-7 p-0"
-                        onClick={() => setPdfScale((s) => Math.max(0.5, s - 0.25))}
-                        disabled={pdfScale <= 0.5}
-                        aria-label="Zoom out"
-                        title="Zoom out"
-                      >
-                        −
-                      </button>
-                      <span className="text-xs tabular-nums min-w-[2.5rem] text-center text-base-content/70">
-                        {Math.round(pdfScale * 100)}%
-                      </span>
-                      <button
-                        type="button"
-                        className="btn btn-xs btn-ghost h-7 min-h-7 w-7 p-0"
-                        onClick={() => setPdfScale((s) => Math.min(2.5, s + 0.25))}
-                        disabled={pdfScale >= 2.5}
-                        aria-label="Zoom in"
-                        title="Zoom in"
-                      >
-                        +
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-xs btn-ghost h-7 min-h-7 gap-1"
+                        className="btn btn-xs btn-ghost h-7 min-h-7 gap-1 hidden md:flex"
                         onClick={() => setShowOverlay((v) => !v)}
                         aria-label={showOverlay ? "Hide markers" : "Show markers"}
                         title={showOverlay ? "Hide markers" : "Show markers"}
@@ -992,17 +1036,19 @@ export default function WeldTrackerApp() {
                     )}
                   </div>
                 )}
-                <PageThumbnailPanel
-                  pdfBlob={pdfBlob}
-                  numPages={numPdfPages}
-                  currentPage={pdfPage}
-                  onPageSelect={setPdfPage}
-                  weldPoints={weldPoints}
-                  spoolMarkers={spoolMarkers}
-                  partMarkers={partMarkers}
-                  isOpen={showPagePanel}
-                  onToggle={() => setShowPagePanel((v) => !v)}
-                />
+                <div className="hidden md:flex">
+                  <PageThumbnailPanel
+                    pdfBlob={pdfBlob}
+                    numPages={numPdfPages}
+                    currentPage={pdfPage}
+                    onPageSelect={setPdfPage}
+                    weldPoints={weldPoints}
+                    spoolMarkers={spoolMarkers}
+                    partMarkers={partMarkers}
+                    isOpen={showPagePanel}
+                    onToggle={() => setShowPagePanel((v) => !v)}
+                  />
+                </div>
                 <div className="flex-1 min-w-0 min-h-0 relative">
                   <PDFViewerDynamic
                     key={pdfViewerKey}
@@ -1046,8 +1092,9 @@ export default function WeldTrackerApp() {
                     onPendingLabelMove={handlePendingLabelMove}
                   />
                 </div>
+                {/* Desktop side panel */}
                 <div
-                  className="flex-shrink-0 flex flex-col h-full min-h-0 overflow-hidden transition-[width] duration-200 ease-out border-l border-base-300"
+                  className="hidden md:flex flex-shrink-0 flex-col h-full min-h-0 overflow-hidden transition-[width] duration-200 ease-out border-l border-base-300"
                   data-print-hide
                   style={{
                     width: !showWeldPanel && !showSpoolPanel && !showPartPanel ? 56 : sidePanelWidth,
@@ -1221,6 +1268,96 @@ export default function WeldTrackerApp() {
               </div>
             )}
           </div>
+        </>
+      )}
+
+      {/* Mobile bottom sheet for welds/spools/parts */}
+      {pdfBlob && !focusPdf && !showStatusPage && !showNdtPanel && (
+        <>
+          {!mobileSheetOpen && (
+            <button
+              type="button"
+              className="md:hidden fixed bottom-5 right-5 z-40 btn btn-circle btn-primary shadow-lg w-14 h-14"
+              onClick={() => setMobileSheetOpen(true)}
+              aria-label="Open welds panel"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+          )}
+          <BottomSheet
+            isOpen={mobileSheetOpen}
+            onClose={() => setMobileSheetOpen(false)}
+            activeTab={mobileSheetTab}
+            onTabChange={setMobileSheetTab}
+          >
+            {mobileSheetTab === "welds" && (
+              <SidePanelWeldForm
+                weldPoints={weldsOnCurrentPage}
+                weldStatusByWeldId={weldStatusByWeldId}
+                weld={formWeld}
+                selectedWeldId={selectedWeldId}
+                isOpen={true}
+                onToggle={() => {}}
+                onSelectWeld={(w) => {
+                  setFormWeld(w);
+                  setSelectedWeldId(w.id);
+                }}
+                onBackToList={handleBackToList}
+                onSave={handleSaveWeld}
+                onDelete={handleDeleteWeld}
+                appMode={appMode}
+                spools={spoolsOnCurrentPage}
+                parts={partsOnCurrentPage}
+                onUpdatePartHeat={handleUpdatePartHeat}
+                personnel={personnel}
+                ndtAutoLabel={formatNdtRequirements(drawingSettings.ndtRequirements)}
+                drawingSettings={drawingSettings}
+                isStacked={false}
+                hideHeader
+              />
+            )}
+            {mobileSheetTab === "spools" && (
+              <SidePanelSpools
+                spools={spoolsOnCurrentPage}
+                isOpen={true}
+                onToggle={() => {}}
+                isStacked={false}
+                hideHeader
+                onSave={(newSpools) => {
+                  setSpools(newSpools);
+                  setSpoolMarkers((prev) =>
+                    prev.filter((m) => newSpools.some((s) => s.id === m.spoolId))
+                  );
+                }}
+                onAssignWeldToSpool={handleAssignWeldToSpool}
+                onAssignPartToSpool={handleAssignPartToSpool}
+                parts={partsOnCurrentPage}
+                spoolMarkers={spoolMarkersOnCurrentPage}
+                appMode={appMode}
+                weldPoints={weldsOnCurrentPage}
+                weldStatusByWeldId={weldStatusByWeldId}
+                getWeldName={getWeldName}
+              />
+            )}
+            {mobileSheetTab === "parts" && (
+              <SidePanelPartForm
+                parts={partsOnCurrentPage}
+                partMarkers={partMarkersOnCurrentPage}
+                spools={spoolsOnCurrentPage}
+                selectedPartMarkerId={selectedPartMarkerId}
+                isOpen={true}
+                onToggle={() => {}}
+                onSelectPartMarker={setSelectedPartMarkerId}
+                onSavePart={handleSavePart}
+                onDeletePart={handleDeletePart}
+                appMode={appMode}
+                isStacked={false}
+                hideHeader
+              />
+            )}
+          </BottomSheet>
         </>
       )}
 

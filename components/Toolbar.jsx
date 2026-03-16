@@ -88,7 +88,7 @@ function Toolbar({
   const projectInputRef = useRef(null);
   const btn = "btn btn-xs h-8 min-h-8 px-2 gap-1.5 md:min-w-0";
 
-  const actions = (
+  const desktopActions = (
     <>
       <label htmlFor="pdf-file-input" className={`${btn} btn-outline cursor-pointer`} title="Load PDF">
         <IconLoadPdf />
@@ -190,30 +190,25 @@ function Toolbar({
   );
 
   return (
-    <div className="flex items-center justify-between gap-2 bg-base-100 shadow-sm rounded-lg mb-3 px-2 py-1.5">
-      <div className="flex items-center min-w-0 gap-2">
-        <span className="text-lg font-bold truncate hidden sm:inline">Weld Dashboard</span>
-        <span className="text-base font-bold sm:hidden">WD</span>
+    <>
+      {/* Desktop toolbar — static */}
+      <div className="hidden md:flex items-center justify-between gap-2 bg-base-100 shadow-sm rounded-lg mb-3 px-2 py-1.5">
+        <div className="flex items-center min-w-0 gap-2">
+          <span className="text-lg font-bold truncate">Weld Dashboard</span>
+        </div>
+        <div className="flex items-center gap-1 flex-wrap justify-end">
+          {desktopActions}
+        </div>
       </div>
-      <div className="hidden md:flex md:items-center md:gap-1 flex-wrap justify-end">
-        {actions}
-      </div>
-      <div className="md:hidden flex items-center gap-0.5">
-        {hasPdf && onToggleFocusPdf && (
-          <button
-            type="button"
-            className={`${btn} btn-ghost`}
-            onClick={onToggleFocusPdf}
-            aria-label="PDF only"
-            title="Show only PDF"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-            </svg>
-          </button>
-        )}
+
+      {/* Mobile — always-visible small menu button, expands to full dropdown */}
+      <div className="md:hidden fixed top-3 right-3 z-50">
         <div className="dropdown dropdown-end">
-          <label tabIndex={0} className={`${btn} btn-ghost`} aria-label="Menu">
+          <label
+            tabIndex={0}
+            className="btn btn-sm btn-circle bg-base-100/80 backdrop-blur-md border border-base-300/50 shadow-lg"
+            aria-label="Menu"
+          >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
@@ -246,8 +241,8 @@ function Toolbar({
               />
             </li>
             <li>
-              <button type="button" onClick={() => projectInputRef.current?.click()}>
-                Load project
+              <button type="button" onClick={onOpenProjects}>
+                Open project
               </button>
             </li>
             <li>
@@ -294,7 +289,7 @@ function Toolbar({
           </ul>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 

@@ -26,6 +26,7 @@ function SidePanelPartForm({
   onDeletePart,
   appMode = "edition",
   isStacked = false,
+  hideHeader = false,
 }) {
   const selectedMarker = partMarkers.find((m) => m.id === selectedPartMarkerId);
   const selectedPart = selectedMarker
@@ -182,10 +183,11 @@ function SidePanelPartForm({
 
   return (
     <div
-      className={`flex-shrink-0 flex flex-col bg-base-200 border-l border-base-300 transition-all duration-300 ease-out min-w-0 ${
-        isOpen ? "w-full min-w-[16rem] min-h-0 flex-1 h-full overflow-hidden" : "w-14 overflow-hidden"
+      className={`flex-shrink-0 flex flex-col bg-base-200 transition-all duration-300 ease-out min-w-0 ${
+        hideHeader ? "w-full flex-1 overflow-hidden" : `border-l border-base-300 ${isOpen ? "w-full min-w-[16rem] min-h-0 flex-1 h-full overflow-hidden" : "w-14 overflow-hidden"}`
       }`}
     >
+      {!hideHeader && (
       <button
         type="button"
         onClick={onToggle}
@@ -215,6 +217,7 @@ function SidePanelPartForm({
           />
         </svg>
       </button>
+      )}
 
       {isOpen && (
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden w-full min-w-0 h-0 basis-0">

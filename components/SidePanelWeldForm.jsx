@@ -37,6 +37,7 @@ function SidePanelWeldForm({
   drawingSettings = { ndtRequirements: [] },
   weldStatusByWeldId,
   isStacked = false,
+  hideHeader = false,
 }) {
   const [weldType, setWeldType] = useState("butt");
   const [weldLocation, setWeldLocation] = useState("shop");
@@ -286,52 +287,53 @@ function SidePanelWeldForm({
 
   return (
     <div
-      className={`flex-shrink-0 flex flex-col bg-base-200 border-l border-base-300 transition-all duration-300 ease-out min-w-0 ${
-        isOpen ? "w-full min-w-[16rem] min-h-0 flex-1 h-full overflow-hidden" : "w-14 overflow-hidden"
+      className={`flex-shrink-0 flex flex-col bg-base-200 transition-all duration-300 ease-out min-w-0 ${
+        hideHeader ? "w-full flex-1 overflow-hidden" : `border-l border-base-300 ${isOpen ? "w-full min-w-[16rem] min-h-0 flex-1 h-full overflow-hidden" : "w-14 overflow-hidden"}`
       }`}
     >
-      {/* Tab / header - when a weld is expanded, click collapses it; when in list, click collapses panel */}
-      <button
-        type="button"
-        onClick={() => (expandedWeldId ? onBackToList?.() : onToggle?.())}
-        className={`flex-shrink-0 flex items-center justify-center gap-2 py-3 px-2 border-b border-base-300 bg-base-100 hover:bg-base-200 transition-colors ${
-          isOpen ? "flex-row" : `flex-col ${isStacked ? "min-h-12" : "min-h-24"}`
-        }`}
-        title={
-          expandedWeldId
-            ? "Collapse expanded weld"
-            : isOpen
-              ? "Collapse weld panel"
-              : "Expand weld panel"
-        }
-        aria-label={
-          expandedWeldId
-            ? "Collapse expanded weld"
-            : isOpen
-              ? "Collapse weld panel"
-              : "Expand weld panel"
-        }
-      >
-        <span
-          className={`font-medium ${isOpen ? "text-base" : "text-xs -rotate-90 whitespace-nowrap"}`}
+      {!hideHeader && (
+        <button
+          type="button"
+          onClick={() => (expandedWeldId ? onBackToList?.() : onToggle?.())}
+          className={`flex-shrink-0 flex items-center justify-center gap-2 py-3 px-2 border-b border-base-300 bg-base-100 hover:bg-base-200 transition-colors ${
+            isOpen ? "flex-row" : `flex-col ${isStacked ? "min-h-12" : "min-h-24"}`
+          }`}
+          title={
+            expandedWeldId
+              ? "Collapse expanded weld"
+              : isOpen
+                ? "Collapse weld panel"
+                : "Expand weld panel"
+          }
+          aria-label={
+            expandedWeldId
+              ? "Collapse expanded weld"
+              : isOpen
+                ? "Collapse weld panel"
+                : "Expand weld panel"
+          }
         >
-          Welds
-        </span>
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className={`h-4 w-4 transition-transform ${isOpen ? "rotate-90" : ""}`}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M9 5l7 7-7 7"
-          />
-        </svg>
-      </button>
+          <span
+            className={`font-medium ${isOpen ? "text-base" : "text-xs -rotate-90 whitespace-nowrap"}`}
+          >
+            Welds
+          </span>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className={`h-4 w-4 transition-transform ${isOpen ? "rotate-90" : ""}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 5l7 7-7 7"
+            />
+          </svg>
+        </button>
+      )}
 
       {/* Panel content - scrollable list with accordion-style expandable weld details */}
       {isOpen && (
