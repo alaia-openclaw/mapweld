@@ -210,17 +210,37 @@ function PDFViewer({
 
   const isPlacingLabel = !!pendingLabelId;
 
-  const handlePageMouseMove = useCallback(
+  const getCoordsFromEvent = useCallback(
     (e) => {
-      if (!isPlacingLabel || !onPendingLabelMove) return;
       const target = pageWrapperRef.current;
-      if (!target) return;
+      if (!target) return null;
       const rect = target.getBoundingClientRect();
-      const x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
-      const y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
-      onPendingLabelMove({ xPercent: x, yPercent: y });
+      return {
+        x: Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)),
+        y: Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100)),
+      };
     },
-    [isPlacingLabel, onPendingLabelMove]
+    []
+  );
+
+  const handleCaptureMouseMove = useCallback(
+    (e) => {
+      if (!onPendingLabelMove) return;
+      const coords = getCoordsFromEvent(e);
+      if (!coords) return;
+      onPendingLabelMove({ xPercent: coords.x, yPercent: coords.y });
+    },
+    [onPendingLabelMove, getCoordsFromEvent]
+  );
+
+  const handleCaptureClick = useCallback(
+    (e) => {
+      e.stopPropagation();
+      const coords = getCoordsFromEvent(e);
+      if (!coords) return;
+      onPageClick?.({ xPercent: coords.x, yPercent: coords.y, pageNumber: currentPage - 1 });
+    },
+    [onPageClick, currentPage, getCoordsFromEvent]
   );
 
   const cursorClass =
@@ -246,7 +266,6 @@ function PDFViewer({
           data-print-target="pdf-with-overlays"
           className="relative inline-block min-w-0"
           onClick={handleClick}
-          onMouseMove={handlePageMouseMove}
         >
           <Document
             file={pdfBlob}
@@ -353,6 +372,15 @@ function PDFViewer({
                 })}
               </div>
             </>
+          )}
+          {isPlacingLabel && (
+            <div
+              className="absolute inset-0 cursor-crosshair"
+              style={{ zIndex: 9999 }}
+              onMouseMove={handleCaptureMouseMove}
+              onClick={handleCaptureClick}
+              aria-hidden
+            />
           )}
         </div>
         {isPlacingLabel && (
