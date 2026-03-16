@@ -616,10 +616,11 @@ export default function WeldTrackerApp() {
     exportWeldsToExcel(weldPoints, {
       pdfFilename,
       spools,
+      parts,
       personnel,
       drawingSettings,
     });
-  }, [weldPoints, pdfFilename, spools, personnel, drawingSettings]);
+  }, [weldPoints, pdfFilename, spools, parts, personnel, drawingSettings]);
 
   const weldStatusByWeldId = useMemo(() => {
     const map = new Map();
