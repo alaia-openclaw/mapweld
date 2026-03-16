@@ -2,23 +2,23 @@
 
 import { useInView, FloatingShapes } from "@/components/LandingAnimated";
 
-const features = [
+const advantages = [
   {
-    title: "Weld Marker",
-    pain: "Inspectors re-enter data that already exists on the drawing. Hours lost to admin, not quality.",
-    desc: "Click-to-place weld markers on PDF isometrics. Assign WPS, welder, status — captured once at the source.",
+    title: "Track as it happens",
+    pain: "Welds get done at 7 AM. The spreadsheet gets updated at 5 PM — maybe. Your data is always a day behind.",
+    desc: "Capture weld data at the source — on the drawing, on the shop floor, the moment it happens. No retyping at a desk later. The register updates itself.",
     accent: "amber",
   },
   {
-    title: "Spool Marker",
-    pain: "NDT percentages live in someone's head. Which welds still need RT? Nobody knows instantly.",
-    desc: "Tag spool IDs, joints, and assemblies. Everything tied to the drawing — progress visible at a glance.",
+    title: "NDT traceability on autopilot",
+    pain: "Which welds need RT? What percentage is done? Nobody knows without digging through a side spreadsheet.",
+    desc: "NDT requirements, percentages, and repair loops are tracked automatically per weld. No manual recalculation. No second system. See what needs inspection at a glance.",
     accent: "sky",
   },
   {
-    title: "Part Marker",
-    pain: "By the time the report is ready, three more welds are done and it's already out of date.",
-    desc: "Mark bolted joints, supports, and components. Link parts to heat numbers, specs, and material certs.",
+    title: "Open and start",
+    pain: "Enterprise platforms need IT, servers, training budgets, and months before a single weld is tracked.",
+    desc: "Runs in a browser, works fully offline, saves to local files. No install, no account, no server, no IT ticket. Hand it to any fitter or inspector and they start immediately.",
     accent: "emerald",
   },
 ];
@@ -50,18 +50,47 @@ const accentMap = {
   },
 };
 
-function PipeIcon({ accent }) {
-  const cls = accentMap[accent]?.text || "text-white";
+function IconRealtimeCapture({ className = "" }) {
   return (
-    <svg viewBox="0 0 64 64" fill="none" className={`w-14 h-14 ${cls}`} aria-hidden>
-      <path d="M8 22 H48" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-      <path d="M8 42 H48" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" opacity="0.4" />
-      <rect x="4" y="18" width="8" height="28" rx="3" stroke="currentColor" strokeWidth="1.5" opacity="0.3" />
-      <rect x="44" y="18" width="8" height="28" rx="3" stroke="currentColor" strokeWidth="1.5" opacity="0.3" />
-      <path d="M26 18 L32 10 L38 18" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+    <svg viewBox="0 0 64 64" fill="none" className={`w-14 h-14 ${className}`} aria-hidden>
+      <circle cx="32" cy="32" r="22" stroke="currentColor" strokeWidth="2" opacity="0.3" />
+      <circle cx="32" cy="32" r="22" stroke="currentColor" strokeWidth="2.5" strokeDasharray="20 120" strokeLinecap="round" />
+      <path d="M32 18 L32 32 L42 38" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="32" cy="32" r="3" fill="currentColor" opacity="0.6" />
+      <path d="M19 10 L15 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity="0.4" />
+      <path d="M45 10 L49 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity="0.4" />
     </svg>
   );
 }
+
+function IconNdtTraceability({ className = "" }) {
+  return (
+    <svg viewBox="0 0 64 64" fill="none" className={`w-14 h-14 ${className}`} aria-hidden>
+      <circle cx="28" cy="28" r="16" stroke="currentColor" strokeWidth="2" opacity="0.3" />
+      <circle cx="28" cy="28" r="16" stroke="currentColor" strokeWidth="2.5" strokeDasharray="14 86" strokeLinecap="round" />
+      <path d="M40 40 L54 54" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+      <path d="M22 28 L26 32 L34 24" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="28" cy="18" r="1.5" fill="currentColor" opacity="0.4" />
+      <circle cx="18" cy="28" r="1.5" fill="currentColor" opacity="0.4" />
+      <circle cx="38" cy="28" r="1.5" fill="currentColor" opacity="0.4" />
+    </svg>
+  );
+}
+
+function IconZeroFriction({ className = "" }) {
+  return (
+    <svg viewBox="0 0 64 64" fill="none" className={`w-14 h-14 ${className}`} aria-hidden>
+      <rect x="14" y="8" width="36" height="48" rx="6" stroke="currentColor" strokeWidth="2" opacity="0.3" />
+      <rect x="14" y="8" width="36" height="48" rx="6" stroke="currentColor" strokeWidth="2.5" strokeDasharray="20 150" strokeLinecap="round" />
+      <circle cx="32" cy="50" r="2" fill="currentColor" opacity="0.4" />
+      <path d="M24 24 L28 28 L36 20" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M24 34 L40 34" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity="0.35" />
+      <path d="M24 39 L36 39" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity="0.25" />
+    </svg>
+  );
+}
+
+const icons = [IconRealtimeCapture, IconNdtTraceability, IconZeroFriction];
 
 export default function PipeSplitSection() {
   const [ref, isVisible] = useInView({ threshold: 0.08 });
@@ -91,28 +120,28 @@ export default function PipeSplitSection() {
           className={`text-center mb-20 space-y-5 ${isVisible ? "animate-fade-up" : "opacity-0"}`}
         >
           <p className="text-amber-400 font-semibold text-sm uppercase tracking-[0.2em]">
-            Your drawing, your database
+            Why MapWeld
           </p>
           <h2 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.1]">
-            Three markers.
+            Solve the real problems.
             <br />
             <span className="bg-gradient-to-r from-amber-400 via-sky-400 to-emerald-400 bg-clip-text text-transparent">
-              Complete traceability.
+              Not just digitize the old ones.
             </span>
           </h2>
           <p className="text-white/50 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed">
-            The isometric is already on the shop floor. Now make it your live
-            database — no retyping, no delay, no drift.
+            Three things that change how your shop floor tracks welds.
           </p>
         </div>
 
-        {/* Feature cards */}
+        {/* Advantage cards */}
         <div className="grid md:grid-cols-3 gap-6 lg:gap-8">
-          {features.map((feat, i) => {
-            const a = accentMap[feat.accent];
+          {advantages.map((adv, i) => {
+            const a = accentMap[adv.accent];
+            const Icon = icons[i];
             return (
               <div
-                key={feat.title}
+                key={adv.title}
                 className={`group relative rounded-3xl border ${a.border} ${a.bg} p-8 md:p-10 space-y-6
                   transition-all duration-500 hover:shadow-2xl ${a.glow} hover:-translate-y-1 hover:scale-[1.02]
                   ${isVisible ? "animate-fade-up" : "opacity-0"}`}
@@ -124,9 +153,9 @@ export default function PipeSplitSection() {
                 {/* Icon + title */}
                 <div className="relative flex items-center gap-4">
                   <div className={`p-2 rounded-2xl ${a.bg} ring-1 ${a.ring}`}>
-                    <PipeIcon accent={feat.accent} />
+                    <Icon className={a.text} />
                   </div>
-                  <h3 className={`text-2xl font-bold ${a.text}`}>{feat.title}</h3>
+                  <h3 className={`text-2xl font-bold ${a.text}`}>{adv.title}</h3>
                 </div>
 
                 {/* Pain point */}
@@ -135,13 +164,13 @@ export default function PipeSplitSection() {
                     Sound familiar?
                   </p>
                   <p className="text-white/65 text-[15px] leading-relaxed italic">
-                    &ldquo;{feat.pain}&rdquo;
+                    &ldquo;{adv.pain}&rdquo;
                   </p>
                 </div>
 
                 {/* Solution */}
                 <p className="relative text-white/80 text-base leading-relaxed">
-                  {feat.desc}
+                  {adv.desc}
                 </p>
 
                 {/* Bottom accent line */}
