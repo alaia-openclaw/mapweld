@@ -318,9 +318,11 @@ function WeldPointMarker({
         tabIndex={0}
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
-        className={`absolute -translate-x-1/2 -translate-y-1/2 flex items-center justify-center border-2 border-solid pointer-events-auto cursor-pointer z-10 ${bulletColourClass}
+        onPointerDown={showHandles ? handleIndicatorHandlePointerDown : undefined}
+        className={`absolute -translate-x-1/2 -translate-y-1/2 flex items-center justify-center border-2 border-solid pointer-events-auto z-10 ${bulletColourClass}
           ${isField ? "rotate-45" : "rounded-full"}
           ${lineColourClass}
+          ${showHandles ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}
           ${isSelected ? (showHandles ? "ring-2 ring-error ring-offset-1" : "ring-2 ring-primary ring-offset-1") : weldStatus === "complete" ? "ring-2 ring-success ring-offset-1" : weldStatus === "incomplete" ? "ring-2 ring-warning ring-offset-1" : weldStatus === "not_started" ? "ring-2 ring-error ring-offset-1" : ""}`}
         style={{
           left: `${ix}%`,
@@ -328,6 +330,7 @@ function WeldPointMarker({
           minWidth: `${scaledMin}px`,
           minHeight: `${scaledMin}px`,
         }}
+        aria-label={showHandles ? "Drag to move label" : undefined}
       >
         <span
           className={`font-medium leading-none select-none text-base-100 flex flex-col items-center
@@ -344,38 +347,6 @@ function WeldPointMarker({
             </span>
           )}
         </span>
-        {showHandles && (
-          <>
-            {[
-              { pos: "top-0 left-1/2 -translate-x-1/2 -translate-y-1/2", label: "top" },
-              { pos: "top-1/2 right-0 translate-x-1/2 -translate-y-1/2", label: "right" },
-              { pos: "bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2", label: "bottom" },
-              { pos: "top-1/2 left-0 -translate-x-1/2 -translate-y-1/2", label: "left" },
-              { pos: "top-0 left-0 -translate-x-1/2 -translate-y-1/2", label: "top-left" },
-              { pos: "top-0 right-0 translate-x-1/2 -translate-y-1/2", label: "top-right" },
-              { pos: "bottom-0 right-0 translate-x-1/2 translate-y-1/2", label: "bottom-right" },
-              { pos: "bottom-0 left-0 -translate-x-1/2 translate-y-1/2", label: "bottom-left" },
-            ].map(({ pos, label }) => (
-              <div
-                key={label}
-                role="button"
-                tabIndex={0}
-                className={`absolute ${pos} w-5 h-5 rounded-full border-2 border-error bg-white cursor-grab active:cursor-grabbing hover:scale-110 transition-transform`}
-                style={{ zIndex: 20 }}
-                onPointerDown={handleIndicatorHandlePointerDown}
-                aria-label={`Drag to move label (${label})`}
-              />
-            ))}
-            <div
-              role="button"
-              tabIndex={0}
-              className="absolute -right-1 -bottom-1 w-5 h-5 rounded-full border-2 border-error bg-white cursor-n-resize"
-              style={{ zIndex: 6 }}
-              onPointerDown={handleResizeHandlePointerDown}
-              aria-label="Drag to resize label"
-            />
-          </>
-        )}
       </div>
 
       <div
