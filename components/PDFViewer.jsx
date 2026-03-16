@@ -49,6 +49,8 @@ function PDFViewer({
   scrollToTarget,
   showOverlay = true,
   onToggleOverlay,
+  pendingLabelId = null,
+  onPendingLabelMove,
   focusMode = false,
 }) {
   const [loadError, setLoadError] = useState(null);
@@ -111,6 +113,7 @@ function PDFViewer({
     (e) => {
       if (e.button !== 0) return;
       if (e.target.closest("button, [role='button']")) return;
+      if (pendingLabelId) return;
       if (markupTool === "add" || markupTool === "addSpool" || markupTool === "addPart") return;
       const el = containerRef?.current;
       if (!el) return;
@@ -122,7 +125,7 @@ function PDFViewer({
       };
       isPanningRef.current = false;
     },
-    [markupTool]
+    [markupTool, pendingLabelId]
   );
 
   const handlePointerMove = useCallback(
@@ -205,11 +208,33 @@ function PDFViewer({
 
   if (!pdfBlob) return null;
 
+  const isPlacingLabel = !!pendingLabelId;
+
+  const handlePageMouseMove = useCallback(
+    (e) => {
+      if (!isPlacingLabel || !onPendingLabelMove) return;
+      const target = pageWrapperRef.current;
+      if (!target) return;
+      const rect = target.getBoundingClientRect();
+      const x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+      const y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
+      onPendingLabelMove({ xPercent: x, yPercent: y });
+    },
+    [isPlacingLabel, onPendingLabelMove]
+  );
+
+  const cursorClass =
+    isPlacingLabel
+      ? "cursor-crosshair"
+      : appMode === "edition" && (markupTool === "add" || markupTool === "addSpool" || markupTool === "addPart")
+        ? "cursor-crosshair"
+        : "cursor-default";
+
   return (
     <div className="flex flex-col gap-0">
       <div
         ref={containerRef}
-        className={`relative bg-base-100 overflow-auto min-h-[50dvh] touch-pan-x touch-pan-y ${focusMode ? "max-h-[100dvh]" : "max-h-[calc(100dvh-10rem)]"} ${appMode === "edition" && (markupTool === "add" || markupTool === "addSpool" || markupTool === "addPart") ? "cursor-crosshair" : "cursor-default"}`}
+        className={`relative bg-base-100 overflow-auto min-h-[50dvh] touch-pan-x touch-pan-y ${focusMode ? "max-h-[100dvh]" : "max-h-[calc(100dvh-10rem)]"} ${cursorClass}`}
         style={{ touchAction: "pan-x pan-y" }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -221,6 +246,7 @@ function PDFViewer({
           data-print-target="pdf-with-overlays"
           className="relative inline-block min-w-0"
           onClick={handleClick}
+          onMouseMove={handlePageMouseMove}
         >
           <Document
             file={pdfBlob}
@@ -246,6 +272,33 @@ function PDFViewer({
               renderAnnotationLayer={false}
             />
           </Document>
+          {isPlacingLabel && (() => {
+            const pending = pendingLabelId;
+            let ix, iy;
+            if (pending.type === "weld") {
+              const w = weldPoints.find((p) => p.id === pending.id);
+              ix = w?.indicatorXPercent; iy = w?.indicatorYPercent;
+            } else if (pending.type === "spool") {
+              const m = spoolMarkers.find((p) => p.id === pending.id);
+              ix = m?.indicatorXPercent; iy = m?.indicatorYPercent;
+            } else if (pending.type === "part") {
+              const m = partMarkers.find((p) => p.id === pending.id);
+              ix = m?.indicatorXPercent; iy = m?.indicatorYPercent;
+            }
+            if (ix == null || iy == null) return null;
+            return (
+              <div
+                className="absolute pointer-events-none z-50"
+                style={{ left: `${ix}%`, top: `${iy}%`, transform: "translate(-50%, -50%)" }}
+                aria-hidden
+              >
+                <span className="flex h-5 w-5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-60" />
+                  <span className="relative inline-flex rounded-full h-5 w-5 border-2 border-primary bg-base-100/50" />
+                </span>
+              </div>
+            );
+          })()}
           {showOverlay && (
             <>
               <WeldOverlay
@@ -302,6 +355,16 @@ function PDFViewer({
             </>
           )}
         </div>
+        {isPlacingLabel && (
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 pointer-events-none z-50">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary text-primary-content text-xs font-medium shadow-lg">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5" />
+              </svg>
+              Click to place label · Esc to cancel
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

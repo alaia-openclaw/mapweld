@@ -100,6 +100,7 @@ export default function WeldTrackerApp() {
     thickness: "",
     materialGrade: "",
   });
+  const [pendingLabelId, setPendingLabelId] = useState(null);
   const [showOverlay, setShowOverlay] = useState(true);
   const [showPagePanel, setShowPagePanel] = useState(true);
   const [focusPdf, setFocusPdf] = useState(false);
@@ -127,6 +128,14 @@ export default function WeldTrackerApp() {
       window.removeEventListener("mousemove", move);
       window.removeEventListener("mouseup", up);
     };
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") setPendingLabelId(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
 
   const loadPdfFile = useCallback((file) => {
@@ -192,7 +201,6 @@ export default function WeldTrackerApp() {
       setWeldPoints((prev) => {
         const sameType = prev.filter((w) => (w.weldLocation || "shop") === loc);
         const maxNum = sameType.reduce((m, w) => Math.max(m, w.weldNumber ?? 0), 0);
-        const labelOffset = 4;
         newWeld = {
           ...createDefaultWeld(),
           id: generateId(),
@@ -200,20 +208,20 @@ export default function WeldTrackerApp() {
           spoolId: addDefaults?.spoolId ?? null,
           xPercent,
           yPercent,
-          indicatorXPercent: Math.min(100, Math.max(0, xPercent + labelOffset)),
-          indicatorYPercent: Math.min(100, Math.max(0, yPercent - labelOffset)),
+          indicatorXPercent: xPercent,
+          indicatorYPercent: yPercent,
           pageNumber: pageNumber ?? 0,
           weldNumber: maxNum + 1,
         };
         return [...prev, newWeld];
       });
+      setPendingLabelId({ type: "weld", id: newWeld.id });
     },
     [addDefaults]
   );
 
   const handleAddSpoolMarker = useCallback(
     ({ xPercent, yPercent, pageNumber }) => {
-      const labelOffset = 4;
       let newSpool;
       setSpools((prev) => {
         const used = prev
@@ -238,19 +246,21 @@ export default function WeldTrackerApp() {
         newSpool = createDefaultSpool({ name: `SP-${nextLetter}` });
         return [...prev, newSpool];
       });
+      const newMarkerId = `spm-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
       const newMarker = {
-        id: `spm-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        id: newMarkerId,
         spoolId: null,
         xPercent,
         yPercent,
-        indicatorXPercent: Math.min(100, Math.max(0, xPercent + labelOffset)),
-        indicatorYPercent: Math.min(100, Math.max(0, yPercent - labelOffset)),
+        indicatorXPercent: xPercent,
+        indicatorYPercent: yPercent,
         pageNumber: pageNumber ?? 0,
       };
       setSpoolMarkers((prev) => [
         ...prev,
         { ...newMarker, spoolId: newSpool.id },
       ]);
+      setPendingLabelId({ type: "spool", id: newMarkerId });
     },
     []
   );
@@ -317,17 +327,19 @@ export default function WeldTrackerApp() {
         catalogPartId: catalogEntry?.catalogPartId ?? null,
         weightKg: catalogEntry?.weightKg ?? null,
       });
+      const newMarkerId = `pm-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
       const newMarker = {
-        id: `pm-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        id: newMarkerId,
         partId: newPart.id,
         xPercent,
         yPercent,
-        indicatorXPercent: Math.min(100, Math.max(0, xPercent + labelOffset)),
-        indicatorYPercent: Math.min(100, Math.max(0, yPercent - labelOffset)),
+        indicatorXPercent: xPercent,
+        indicatorYPercent: yPercent,
         pageNumber: pageNumber ?? 0,
       };
       setParts((prev) => [...prev, newPart]);
       setPartMarkers((prev) => [...prev, newMarker]);
+      setPendingLabelId({ type: "part", id: newMarkerId });
     },
     [parts.length, parts, addDefaults]
   );
@@ -389,8 +401,39 @@ export default function WeldTrackerApp() {
     if (marker?.partId) handleDeletePart(marker.partId);
   }, [partMarkers, handleDeletePart]);
 
+  const handlePendingLabelMove = useCallback(
+    ({ xPercent, yPercent }) => {
+      if (!pendingLabelId) return;
+      const { type, id } = pendingLabelId;
+      if (type === "weld") {
+        setWeldPoints((prev) =>
+          prev.map((w) =>
+            w.id === id ? { ...w, indicatorXPercent: xPercent, indicatorYPercent: yPercent } : w
+          )
+        );
+      } else if (type === "spool") {
+        setSpoolMarkers((prev) =>
+          prev.map((m) =>
+            m.id === id ? { ...m, indicatorXPercent: xPercent, indicatorYPercent: yPercent } : m
+          )
+        );
+      } else if (type === "part") {
+        setPartMarkers((prev) =>
+          prev.map((m) =>
+            m.id === id ? { ...m, indicatorXPercent: xPercent, indicatorYPercent: yPercent } : m
+          )
+        );
+      }
+    },
+    [pendingLabelId]
+  );
+
   const handlePageClick = useCallback(
     ({ xPercent, yPercent, pageNumber }) => {
+      if (pendingLabelId) {
+        setPendingLabelId(null);
+        return;
+      }
       if (appMode === "edition" && markupTool === "addSpool") {
         handleAddSpoolMarker({ xPercent, yPercent, pageNumber });
       } else if (appMode === "edition" && markupTool === "addPart") {
@@ -404,7 +447,7 @@ export default function WeldTrackerApp() {
         setFormWeld(null);
       }
     },
-    [handleAddSpoolMarker, handleAddPartMarker, handleAddWeld, appMode, markupTool]
+    [pendingLabelId, handleAddSpoolMarker, handleAddPartMarker, handleAddWeld, appMode, markupTool]
   );
 
   const handleWeldClick = useCallback((weld) => {
@@ -802,6 +845,8 @@ export default function WeldTrackerApp() {
               scrollToTarget={scrollToTarget}
               showOverlay={showOverlay}
               onToggleOverlay={() => setShowOverlay((v) => !v)}
+              pendingLabelId={pendingLabelId}
+              onPendingLabelMove={handlePendingLabelMove}
               focusMode
             />
           </div>
@@ -997,6 +1042,8 @@ export default function WeldTrackerApp() {
                     scrollToTarget={scrollToTarget}
                     showOverlay={showOverlay}
                     onToggleOverlay={() => setShowOverlay((v) => !v)}
+                    pendingLabelId={pendingLabelId}
+                    onPendingLabelMove={handlePendingLabelMove}
                   />
                 </div>
                 <div
