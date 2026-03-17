@@ -55,23 +55,22 @@ function SidePanelPartForm({
     [catalogCategory]
   );
 
+  const previousSelectedPartIdRef = useRef(null);
   useEffect(() => {
-    if (selectedPart) {
-      if (selectedPart.catalogPartId) {
-        const entry = getCatalogEntry(selectedPart.catalogPartId);
-        if (entry) {
-          setCatalogCategory(entry.catalogCategory);
-          setHierarchyState(getHierarchyStateFromEntry(entry, entry.catalogCategory));
-          setPartType(entry.partTypeLabel ?? "");
-          setNps(entry.nps ?? "");
-          setThickness(entry.thickness ?? "");
-        } else {
-          setCatalogCategory("");
-          setHierarchyState({});
-          setPartType(selectedPart.partType ?? "");
-          setNps(selectedPart.nps ?? "");
-          setThickness(selectedPart.thickness ?? "");
-        }
+    if (!selectedPart) {
+      previousSelectedPartIdRef.current = null;
+      return;
+    }
+    if (previousSelectedPartIdRef.current === selectedPart.id) return;
+    previousSelectedPartIdRef.current = selectedPart.id;
+    if (selectedPart.catalogPartId) {
+      const entry = getCatalogEntry(selectedPart.catalogPartId);
+      if (entry) {
+        setCatalogCategory(entry.catalogCategory);
+        setHierarchyState(getHierarchyStateFromEntry(entry, entry.catalogCategory));
+        setPartType(entry.partTypeLabel ?? "");
+        setNps(entry.nps ?? "");
+        setThickness(entry.thickness ?? "");
       } else {
         setCatalogCategory("");
         setHierarchyState({});
@@ -79,13 +78,19 @@ function SidePanelPartForm({
         setNps(selectedPart.nps ?? "");
         setThickness(selectedPart.thickness ?? "");
       }
-      setMaterialGrade(selectedPart.materialGrade ?? "");
-      setLength(selectedPart.length ?? "");
-      setSpoolId(selectedPart.spoolId ?? "");
-      setHeatNumber(selectedPart.heatNumber ?? "");
-      setVariation(selectedPart.variation ?? "");
+    } else {
+      setCatalogCategory("");
+      setHierarchyState({});
+      setPartType(selectedPart.partType ?? "");
+      setNps(selectedPart.nps ?? "");
+      setThickness(selectedPart.thickness ?? "");
     }
-  }, [selectedPart]);
+    setMaterialGrade(selectedPart.materialGrade ?? "");
+    setLength(selectedPart.length ?? "");
+    setSpoolId(selectedPart.spoolId ?? "");
+    setHeatNumber(selectedPart.heatNumber ?? "");
+    setVariation(selectedPart.variation ?? "");
+  }, [selectedPart?.id]);
 
   useEffect(() => {
     if (!selectedPart) return;
@@ -184,7 +189,7 @@ function SidePanelPartForm({
   return (
     <div
       className={`flex-shrink-0 flex flex-col bg-base-200 transition-all duration-300 ease-out min-w-0 ${
-        hideHeader ? "w-full flex-1 overflow-hidden" : `border-l border-base-300 ${isOpen ? "w-full min-w-[16rem] min-h-0 flex-1 h-full overflow-hidden" : "w-14 overflow-hidden"}`
+        hideHeader ? "w-full flex-1 min-h-0 overflow-hidden" : `border-l border-base-300 ${isOpen ? "w-full min-w-[16rem] min-h-0 flex-1 h-full overflow-hidden" : "w-14 overflow-hidden"}`
       }`}
     >
       {!hideHeader && (
@@ -221,7 +226,7 @@ function SidePanelPartForm({
 
       {isOpen && (
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden w-full min-w-0 h-0 basis-0">
-          <div className="flex-1 min-h-0 min-w-0 overflow-y-scroll overflow-x-auto p-3 space-y-3 pb-12 overscroll-contain [scrollbar-gutter:stable]">
+          <div className={`flex-1 min-h-0 min-w-0 overflow-y-scroll overflow-x-auto p-3 space-y-3 pb-12 overscroll-contain [scrollbar-gutter:stable] ${hideHeader ? "mobile-no-scrollbar" : ""}`}>
             {parts.length === 0 ? (
               <div className="text-center py-6 text-base-content/60 text-sm">
                 <p>No parts yet</p>

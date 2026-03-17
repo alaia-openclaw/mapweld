@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 
 function SidePanelSpools({
@@ -48,7 +48,14 @@ function SidePanelSpools({
     };
   }, [menuPortal, closeMenuPortal]);
 
+  const previousExpandedSpoolIdRef = useRef(null);
   useEffect(() => {
+    if (!expandedSpoolId) {
+      previousExpandedSpoolIdRef.current = null;
+      return;
+    }
+    if (previousExpandedSpoolIdRef.current === expandedSpoolId) return;
+    previousExpandedSpoolIdRef.current = expandedSpoolId;
     const s = spools.find((sp) => sp.id === expandedSpoolId);
     if (s) {
       setEditName(s.name ?? "");
@@ -230,7 +237,7 @@ function SidePanelSpools({
     <>
     <div
       className={`flex-shrink-0 flex flex-col bg-base-200 transition-all duration-300 ease-out min-w-0 ${
-        hideHeader ? "w-full flex-1 overflow-hidden" : `border-l border-base-300 ${isOpen ? "w-full min-w-[16rem] max-w-[28rem] min-h-0 flex-1 h-full overflow-hidden" : "w-14 overflow-hidden"}`
+        hideHeader ? "w-full flex-1 min-h-0 overflow-hidden" : `border-l border-base-300 ${isOpen ? "w-full min-w-[16rem] max-w-[28rem] min-h-0 flex-1 h-full overflow-hidden" : "w-14 overflow-hidden"}`
       }`}
     >
       {!hideHeader && (
@@ -267,7 +274,7 @@ function SidePanelSpools({
 
       {isOpen && (
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden w-full min-w-0 h-0 basis-0">
-          <div className="flex-1 min-h-0 overflow-y-scroll overflow-x-auto p-2 min-w-0 pb-12 overscroll-contain [scrollbar-gutter:stable]">
+          <div className={`flex-1 min-h-0 overflow-y-scroll overflow-x-auto p-2 min-w-0 pb-12 overscroll-contain [scrollbar-gutter:stable] ${hideHeader ? "mobile-no-scrollbar" : ""}`}>
             {spools.length === 0 ? (
               <div className="text-center py-6 text-base-content/60 text-sm">
                 <p>No spools yet</p>

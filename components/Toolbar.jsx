@@ -82,8 +82,6 @@ function Toolbar({
   onOpenProjects,
   onOpenNdt,
   onOpenStatus,
-  focusPdf = false,
-  onToggleFocusPdf,
 }) {
   const projectInputRef = useRef(null);
   const btn = "btn btn-xs h-8 min-h-8 px-2 gap-1.5 md:min-w-0";
@@ -217,13 +215,6 @@ function Toolbar({
             tabIndex={0}
             className="dropdown-content menu p-2 shadow-lg bg-base-100 rounded-box z-50 w-52 mt-2 max-h-[80dvh] overflow-y-auto"
           >
-            {hasPdf && onToggleFocusPdf && (
-              <li>
-                <button type="button" onClick={onToggleFocusPdf}>
-                  PDF only
-                </button>
-              </li>
-            )}
             <li>
               <label htmlFor="pdf-file-input-mobile" className="cursor-pointer">
                 Load PDF

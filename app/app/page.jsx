@@ -111,7 +111,6 @@ export default function WeldTrackerApp() {
   const [showPagePanel, setShowPagePanel] = useState(true);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
   const [mobileSheetTab, setMobileSheetTab] = useState("welds");
-  const [focusPdf, setFocusPdf] = useState(false);
   const [pdfScale, setPdfScale] = useState(1.2);
   const [pdfPage, setPdfPage] = useState(1);
   const [numPdfPages, setNumPdfPages] = useState(null);
@@ -801,95 +800,24 @@ export default function WeldTrackerApp() {
 
   return (
     <div className="md:container md:mx-auto p-0 md:p-4">
-      {!focusPdf && (
-        <>
-          <OfflineBanner />
-          <Toolbar
-        hasPdf={!!pdfBlob}
-        hasWelds={weldPoints.length > 0}
-        onLoadPdf={loadPdfFile}
-        onLoadProject={handleLoadProject}
-        onSaveProject={handleSaveProject}
-        onExportExcel={handleExportExcel}
-        onOpenParameters={() => setShowParameters(true)}
-        onOpenProjects={() => setShowProjects(true)}
-        onOpenNdt={() => setShowNdtPanel(true)}
-        onOpenStatus={() => setShowStatusPage(true)}
-        onPrint={() => setShowPrintModal(true)}
-        focusPdf={focusPdf}
-        onToggleFocusPdf={() => setFocusPdf((v) => !v)}
-      />
-        </>
-      )}
+      <>
+        <OfflineBanner />
+        <Toolbar
+          hasPdf={!!pdfBlob}
+          hasWelds={weldPoints.length > 0}
+          onLoadPdf={loadPdfFile}
+          onLoadProject={handleLoadProject}
+          onSaveProject={handleSaveProject}
+          onExportExcel={handleExportExcel}
+          onOpenParameters={() => setShowParameters(true)}
+          onOpenProjects={() => setShowProjects(true)}
+          onOpenNdt={() => setShowNdtPanel(true)}
+          onOpenStatus={() => setShowStatusPage(true)}
+          onPrint={() => setShowPrintModal(true)}
+        />
+      </>
 
-      {focusPdf && pdfBlob ? (
-        <div className="fixed inset-0 z-30 flex flex-row bg-base-100">
-          <PageThumbnailPanel
-            pdfBlob={pdfBlob}
-            numPages={numPdfPages}
-            currentPage={pdfPage}
-            onPageSelect={setPdfPage}
-            weldPoints={weldPoints}
-            spoolMarkers={spoolMarkers}
-            partMarkers={partMarkers}
-            isOpen={showPagePanel}
-            onToggle={() => setShowPagePanel((v) => !v)}
-          />
-          <div className="flex-1 min-h-0 min-w-0 flex flex-col">
-            <PDFViewerDynamic
-              key={pdfViewerKey}
-              pdfBlob={pdfBlob}
-              scale={pdfScale}
-              currentPage={pdfPage}
-              onScaleChange={setPdfScale}
-              onPageChange={setPdfPage}
-              onNumPages={setNumPdfPages}
-              onPageClick={handlePageClick}
-              containerRef={containerRef}
-              weldPoints={weldPoints}
-              selectedWeldId={selectedWeldId}
-              onWeldClick={handleWeldClick}
-              onWeldDoubleClick={handleWeldDoubleClick}
-              appMode={appMode}
-              markupTool={markupTool}
-              onMoveWeldPoint={handleMoveWeldPoint}
-              onMoveIndicator={handleMoveIndicator}
-              onResizeLabel={handleResizeLabel}
-              onMoveLineBend={handleMoveLineBend}
-              spoolMarkers={spoolMarkers}
-              spools={spools}
-              selectedSpoolMarkerId={selectedSpoolMarkerId}
-              onSpoolMarkerClick={handleSpoolMarkerClick}
-              onMoveSpoolMarker={handleMoveSpoolMarker}
-              onMoveSpoolIndicator={handleMoveSpoolIndicator}
-              onDeleteSpoolMarker={handleDeleteSpoolMarker}
-              weldStatusByWeldId={weldStatusByWeldId}
-              partMarkers={partMarkers}
-              parts={parts}
-              selectedPartMarkerId={selectedPartMarkerId}
-              onPartMarkerClick={handlePartMarkerClick}
-              onMovePartMarker={handleMovePartMarker}
-              onMovePartIndicator={handleMovePartIndicator}
-              onDeletePartMarker={handleDeletePartMarker}
-              scrollToTarget={scrollToTarget}
-              showOverlay={showOverlay}
-              onToggleOverlay={() => setShowOverlay((v) => !v)}
-              pendingLabelId={pendingLabelId}
-              onPendingLabelMove={handlePendingLabelMove}
-              focusMode={focusPdf}
-            />
-          </div>
-          <button
-            type="button"
-            className="btn btn-circle btn-primary shadow-lg fixed bottom-5 right-5 z-50 w-14 h-14 text-xl"
-            onClick={() => setFocusPdf(false)}
-            aria-label="Show menu"
-            title="Show menu"
-          >
-            ≡
-          </button>
-        </div>
-      ) : showStatusPage ? (
+      {showStatusPage ? (
         <div className="flex-1 min-h-0 flex flex-col rounded-lg overflow-hidden shadow bg-base-100">
           <StatusPage
             weldPoints={weldPoints}
@@ -1025,7 +953,7 @@ export default function WeldTrackerApp() {
                     )}
                   </div>
                 )}
-                <div className="hidden md:flex">
+                <div className="flex">
                   <PageThumbnailPanel
                     pdfBlob={pdfBlob}
                     numPages={numPdfPages}
@@ -1261,7 +1189,7 @@ export default function WeldTrackerApp() {
       )}
 
       {/* Mobile bottom sheet for welds/spools/parts */}
-      {pdfBlob && !focusPdf && !showStatusPage && !showNdtPanel && (
+      {pdfBlob && !showStatusPage && !showNdtPanel && (
         <>
           {!mobileSheetOpen && (
             <button

@@ -44,7 +44,7 @@ function PageThumbnailPanel({
     <div className="flex h-full flex-shrink-0" data-print-hide>
       <div
         className={`flex flex-col h-full bg-base-200/60 border-r border-base-300 transition-[width] duration-200 ease-out overflow-hidden ${
-          isOpen ? "w-44" : "w-0"
+          isOpen ? "w-32 md:w-44" : "w-0"
         }`}
       >
         <div className="flex items-center justify-between px-3 py-2 border-b border-base-300/60 bg-base-200/80 shrink-0">
@@ -81,7 +81,7 @@ function PageThumbnailPanel({
                   <div className="bg-white w-full">
                     <Page
                       pageNumber={pageNum}
-                      width={152}
+                      width={136}
                       renderTextLayer={false}
                       renderAnnotationLayer={false}
                       loading={

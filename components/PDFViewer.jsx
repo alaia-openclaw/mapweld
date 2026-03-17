@@ -58,10 +58,12 @@ function PDFViewer({
   const [internalPage, setInternalPage] = useState(1);
   const [internalNumPages, setInternalNumPages] = useState(null);
   const [placingIndicatorPos, setPlacingIndicatorPos] = useState(null);
+  const [pinchScaleRatio, setPinchScaleRatio] = useState(null);
   const pageWrapperRef = useRef(null);
   const panStartRef = useRef(null);
   const isPanningRef = useRef(false);
   const pinchRef = useRef(null);
+  const lastPlacementTapRef = useRef(0);
 
   const scale = controlledScale !== undefined ? controlledScale : internalScale;
   const currentPage = controlledPage !== undefined ? controlledPage : internalPage;
@@ -114,6 +116,7 @@ function PDFViewer({
   const handlePointerDown = useCallback(
     (e) => {
       if (e.button !== 0) return;
+      if (pinchRef.current) return;
       if (e.target.closest("button, [role='button']")) return;
       if (pendingLabelId) return;
       if (markupTool === "add" || markupTool === "addSpool" || markupTool === "addPart") return;
@@ -132,6 +135,7 @@ function PDFViewer({
 
   const handlePointerMove = useCallback(
     (e) => {
+      if (pinchRef.current) return;
       const start = panStartRef.current;
       const el = containerRef?.current;
       if (!start || !el) return;
@@ -162,16 +166,20 @@ function PDFViewer({
     []
   );
 
+  const pinchRafRef = useRef(null);
+  const pinchRatioRef = useRef(1);
+
   const handleTouchStart = useCallback(
     (e) => {
       if (e.touches.length === 2) {
-        e.preventDefault();
+        if (e.cancelable) e.preventDefault();
         const dx = e.touches[0].clientX - e.touches[1].clientX;
         const dy = e.touches[0].clientY - e.touches[1].clientY;
         pinchRef.current = {
           initialDistance: Math.hypot(dx, dy),
           initialScale: scale,
         };
+        setPinchScaleRatio(1);
       }
     },
     [scale]
@@ -180,25 +188,46 @@ function PDFViewer({
   const handleTouchMove = useCallback(
     (e) => {
       if (e.touches.length === 2 && pinchRef.current) {
-        e.preventDefault();
+        if (e.cancelable) e.preventDefault();
         const dx = e.touches[0].clientX - e.touches[1].clientX;
         const dy = e.touches[0].clientY - e.touches[1].clientY;
         const currentDistance = Math.hypot(dx, dy);
         const ratio = currentDistance / pinchRef.current.initialDistance;
-        const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, pinchRef.current.initialScale * ratio));
-        setScale(newScale);
+        const clampedRatio = Math.max(
+          MIN_SCALE / pinchRef.current.initialScale,
+          Math.min(MAX_SCALE / pinchRef.current.initialScale, ratio)
+        );
+        pinchRatioRef.current = clampedRatio;
+        if (pinchRafRef.current) cancelAnimationFrame(pinchRafRef.current);
+        pinchRafRef.current = requestAnimationFrame(() => {
+          pinchRafRef.current = null;
+          setPinchScaleRatio(clampedRatio);
+        });
       }
     },
-    [setScale]
+    []
   );
 
   const handleTouchEnd = useCallback(
     (e) => {
       if (e.touches.length < 2) {
+        if (pinchRafRef.current) {
+          cancelAnimationFrame(pinchRafRef.current);
+          pinchRafRef.current = null;
+        }
+        if (pinchRef.current) {
+          const ratio = pinchRatioRef.current;
+          const finalScale = Math.max(
+            MIN_SCALE,
+            Math.min(MAX_SCALE, pinchRef.current.initialScale * ratio)
+          );
+          setScale(finalScale);
+        }
+        setPinchScaleRatio(null);
         pinchRef.current = null;
       }
     },
-    []
+    [setScale]
   );
 
   const handleClick = useCallback(
@@ -207,6 +236,9 @@ function PDFViewer({
         isPanningRef.current = false;
         return;
       }
+      const now = Date.now();
+      if (now - lastPlacementTapRef.current < 400) return;
+      lastPlacementTapRef.current = now;
       const target = pageWrapperRef.current;
       if (!target) return;
       const rect = target.getBoundingClientRect();
@@ -338,25 +370,36 @@ function PDFViewer({
     [onPendingLabelMove, getCoordsFromEvent]
   );
 
-  const handleCaptureClick = useCallback(
-    (e) => {
-      e.stopPropagation();
-      const coords = getCoordsFromEvent(e);
+  const invokePageClick = useCallback(
+    (coords) => {
       if (!coords) return;
       onPageClick?.({ xPercent: coords.x, yPercent: coords.y, pageNumber: currentPage - 1 });
     },
-    [onPageClick, currentPage, getCoordsFromEvent]
+    [onPageClick, currentPage]
+  );
+
+  const handleCaptureClick = useCallback(
+    (e) => {
+      e.stopPropagation();
+      const now = Date.now();
+      if (now - lastPlacementTapRef.current < 400) return;
+      lastPlacementTapRef.current = now;
+      const coords = getCoordsFromEvent(e);
+      invokePageClick(coords);
+    },
+    [getCoordsFromEvent, invokePageClick]
   );
 
   const handleCaptureTouchEnd = useCallback(
     (e) => {
       e.preventDefault();
       e.stopPropagation();
+      const now = Date.now();
+      lastPlacementTapRef.current = now;
       const coords = getCoordsFromChangedTouch(e);
-      if (!coords) return;
-      onPageClick?.({ xPercent: coords.x, yPercent: coords.y, pageNumber: currentPage - 1 });
+      invokePageClick(coords);
     },
-    [onPageClick, currentPage, getCoordsFromChangedTouch]
+    [getCoordsFromChangedTouch, invokePageClick]
   );
 
   const cursorClass =
@@ -383,7 +426,16 @@ function PDFViewer({
         <div
           ref={pageWrapperRef}
           data-print-target="pdf-with-overlays"
-          className="relative inline-block min-w-0"
+          className="relative inline-block min-w-0 origin-center"
+          style={
+            pinchScaleRatio != null
+              ? {
+                  transform: `scale(${pinchScaleRatio})`,
+                  transformOrigin: "50% 50%",
+                  willChange: "transform",
+                }
+              : undefined
+          }
           onClick={handleClick}
         >
           <Document

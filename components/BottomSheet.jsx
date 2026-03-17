@@ -10,9 +10,23 @@ function BottomSheet({ isOpen, onClose, activeTab, onTabChange, children }) {
   const sheetRef = useRef(null);
   const dragRef = useRef(null);
   const [snapHeight, setSnapHeight] = useState(SNAP_HALF);
+  const [isDragging, setIsDragging] = useState(false);
+  const rafRef = useRef(null);
+  const dragHandleRef = useRef(null);
 
   useEffect(() => {
     if (isOpen) setSnapHeight(SNAP_HALF);
+  }, [isOpen]);
+
+  useEffect(() => {
+    const el = dragHandleRef.current;
+    if (!el) return;
+    const onMove = (e) => {
+      if (!dragRef.current) return;
+      if (e.cancelable) e.preventDefault();
+    };
+    el.addEventListener("touchmove", onMove, { passive: false });
+    return () => el.removeEventListener("touchmove", onMove);
   }, [isOpen]);
 
   const handleTouchStart = useCallback((e) => {
@@ -22,20 +36,31 @@ function BottomSheet({ isOpen, onClose, activeTab, onTabChange, children }) {
       startSnap: snapHeight,
       moved: false,
     };
+    setIsDragging(true);
   }, [snapHeight]);
 
   const handleTouchMove = useCallback((e) => {
     if (!dragRef.current) return;
+    if (e.cancelable) e.preventDefault();
     const touch = e.touches[0];
     const dy = dragRef.current.startY - touch.clientY;
     const vh = window.innerHeight;
     const deltaFrac = dy / vh;
     const newSnap = Math.max(0.1, Math.min(SNAP_FULL, dragRef.current.startSnap + deltaFrac));
     dragRef.current.moved = true;
-    setSnapHeight(newSnap);
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      setSnapHeight(newSnap);
+    });
   }, []);
 
   const handleTouchEnd = useCallback(() => {
+    setIsDragging(false);
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
     if (!dragRef.current) return;
     const wasMoved = dragRef.current.moved;
     dragRef.current = null;
@@ -62,15 +87,21 @@ function BottomSheet({ isOpen, onClose, activeTab, onTabChange, children }) {
   return (
     <div
       ref={sheetRef}
-      className="md:hidden fixed inset-x-0 bottom-0 z-40 flex flex-col bg-base-100 rounded-t-2xl shadow-2xl border-t border-base-300 transition-[height] duration-200 ease-out"
-      style={{ height: `${snapHeight * 100}dvh` }}
+      className="md:hidden fixed inset-x-0 bottom-0 z-40 flex flex-col bg-base-100 rounded-t-2xl shadow-2xl border-t border-base-300"
+      style={{
+        height: `${snapHeight * 100}dvh`,
+        overscrollBehavior: "contain",
+        transition: isDragging ? "none" : "height 0.25s cubic-bezier(0.32, 0.72, 0, 1)",
+      }}
     >
-      {/* Drag handle */}
+      {/* Drag handle - touch-action:none + passive:false to prevent pull-to-refresh */}
       <div
-        className="flex-shrink-0 flex justify-center pt-2 pb-1 cursor-grab active:cursor-grabbing"
+        ref={dragHandleRef}
+        className="flex-shrink-0 flex justify-center pt-2 pb-1 cursor-grab active:cursor-grabbing touch-manipulation"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
+        style={{ touchAction: "none", WebkitUserSelect: "none", userSelect: "none" }}
       >
         <div className="w-10 h-1 rounded-full bg-base-content/20" />
       </div>
@@ -103,8 +134,11 @@ function BottomSheet({ isOpen, onClose, activeTab, onTabChange, children }) {
         </button>
       </div>
 
-      {/* Content area */}
-      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain mobile-no-scrollbar">
+      {/* Content area - touch-action: manipulation so inputs work; overscroll-contain to prevent pull-to-refresh */}
+      <div
+        className="flex-1 min-h-0 flex flex-col overflow-hidden overscroll-contain"
+        style={{ touchAction: "manipulation" }}
+      >
         {children}
       </div>
     </div>

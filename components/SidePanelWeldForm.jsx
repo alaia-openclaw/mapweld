@@ -59,6 +59,7 @@ function SidePanelWeldForm({
   const [ndtResultManualOverride, setNdtResultManualOverride] = useState({});
   const [ndtResultOverrideUnlocked, setNdtResultOverrideUnlocked] = useState(false);
   const [openSections, setOpenSections] = useState({ general: true, fitup: false, welding: false, inspection: false });
+  const addWeldingRecordLastRef = useRef(0);
 
   const selectedPart1 = parts.find((p) => p.id === partId1) || null;
   const selectedPart2 = parts.find((p) => p.id === partId2) || null;
@@ -81,40 +82,43 @@ function SidePanelWeldForm({
 
   const previousWeldIdRef = useRef(null);
   useEffect(() => {
-    if (weld) {
-      const isNewWeld = previousWeldIdRef.current !== weld.id;
-      previousWeldIdRef.current = weld.id;
-      setWeldType(weld.weldType || "butt");
-      setWeldLocation(weld.weldLocation || "shop");
-      setWps(weld.wps || "");
-      setFitterName(weld.fitterName || "");
-      setDateFitUp(weld.dateFitUp || "");
-      setHeatNumber1(weld.heatNumber1 || "");
-      setHeatNumber2(weld.heatNumber2 || "");
-      setPartId1(weld.partId1 || "");
-      setPartId2(weld.partId2 || "");
-      setWelderName(weld.welderName || "");
-      setNdtRequired(weld.ndtRequired || NDT_REQUIRED_OPTIONS.AUTO);
-      setVisualInspection(weld.visualInspection || false);
-      setSpoolId(weld.spoolId || "");
-      const records = Array.isArray(weld.weldingRecords) && weld.weldingRecords.length > 0
-        ? weld.weldingRecords.map((r) => ({
-            id: r.id || `wr-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-            welderIds: Array.isArray(r.welderIds) ? r.welderIds : [],
-            welderName: r.welderName ?? "",
-            weldingProcesses: Array.isArray(r.weldingProcesses) ? r.weldingProcesses : [],
-            electrodeNumbers: Array.isArray(r.electrodeNumbers) && r.electrodeNumbers.length > 0 ? r.electrodeNumbers : [""],
-            date: r.date ?? "",
-          }))
-        : [];
-      setWeldingRecords(records.length > 0 ? records : []);
-      setNdtOverrides(weld.ndtOverrides || {});
-      setNdtResults(weld.ndtResults || {});
-      setNdtResultOutcome(weld.ndtResultOutcome || {});
-      setNdtResultManualOverride(weld.ndtResultManualOverride || {});
-      if (isNewWeld) setNdtResultOverrideUnlocked(false);
+    if (!weld) {
+      previousWeldIdRef.current = null;
+      return;
     }
-  }, [weld]);
+    const isNewWeld = previousWeldIdRef.current !== weld.id;
+    previousWeldIdRef.current = weld.id;
+    if (!isNewWeld) return;
+    setWeldType(weld.weldType || "butt");
+    setWeldLocation(weld.weldLocation || "shop");
+    setWps(weld.wps || "");
+    setFitterName(weld.fitterName || "");
+    setDateFitUp(weld.dateFitUp || "");
+    setHeatNumber1(weld.heatNumber1 || "");
+    setHeatNumber2(weld.heatNumber2 || "");
+    setPartId1(weld.partId1 || "");
+    setPartId2(weld.partId2 || "");
+    setWelderName(weld.welderName || "");
+    setNdtRequired(weld.ndtRequired || NDT_REQUIRED_OPTIONS.AUTO);
+    setVisualInspection(weld.visualInspection || false);
+    setSpoolId(weld.spoolId || "");
+    const records = Array.isArray(weld.weldingRecords) && weld.weldingRecords.length > 0
+      ? weld.weldingRecords.map((r) => ({
+          id: r.id || `wr-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+          welderIds: Array.isArray(r.welderIds) ? r.welderIds : [],
+          welderName: r.welderName ?? "",
+          weldingProcesses: Array.isArray(r.weldingProcesses) ? r.weldingProcesses : [],
+          electrodeNumbers: Array.isArray(r.electrodeNumbers) && r.electrodeNumbers.length > 0 ? r.electrodeNumbers : [""],
+          date: r.date ?? "",
+        }))
+      : [];
+    setWeldingRecords(records.length > 0 ? records : []);
+    setNdtOverrides(weld.ndtOverrides || {});
+    setNdtResults(weld.ndtResults || {});
+    setNdtResultOutcome(weld.ndtResultOutcome || {});
+    setNdtResultManualOverride(weld.ndtResultManualOverride || {});
+    setNdtResultOverrideUnlocked(false);
+  }, [weld?.id]);
 
   const autoSaveTimeoutRef = useRef(null);
   useEffect(() => {
@@ -176,6 +180,9 @@ function SidePanelWeldForm({
   ]);
 
   function handleAddWeldingRecord(initialData = {}) {
+    const now = Date.now();
+    if (now - addWeldingRecordLastRef.current < 400) return;
+    addWeldingRecordLastRef.current = now;
     setWeldingRecords((prev) => [
       ...prev,
       {
@@ -288,7 +295,7 @@ function SidePanelWeldForm({
   return (
     <div
       className={`flex-shrink-0 flex flex-col bg-base-200 transition-all duration-300 ease-out min-w-0 ${
-        hideHeader ? "w-full flex-1 overflow-hidden" : `border-l border-base-300 ${isOpen ? "w-full min-w-[16rem] min-h-0 flex-1 h-full overflow-hidden" : "w-14 overflow-hidden"}`
+        hideHeader ? "w-full flex-1 min-h-0 overflow-hidden" : `border-l border-base-300 ${isOpen ? "w-full min-w-[16rem] min-h-0 flex-1 h-full overflow-hidden" : "w-14 overflow-hidden"}`
       }`}
     >
       {!hideHeader && (
@@ -338,7 +345,7 @@ function SidePanelWeldForm({
       {/* Panel content - scrollable list with accordion-style expandable weld details */}
       {isOpen && (
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden w-full min-w-0 h-0 basis-0">
-          <div className="flex-1 min-h-0 w-full min-w-0 overflow-y-scroll overflow-x-auto p-2 pb-12 overscroll-contain [scrollbar-gutter:stable]">
+          <div className={`flex-1 min-h-0 w-full min-w-0 overflow-y-scroll overflow-x-auto p-2 pb-12 overscroll-contain [scrollbar-gutter:stable] ${hideHeader ? "mobile-no-scrollbar" : ""}`}>
             {weldPoints.length === 0 ? (
               <div className="text-center py-8 text-base-content/60 text-sm">
                 <p>No welds yet</p>
@@ -723,13 +730,25 @@ function SidePanelWeldForm({
                               <div className="space-y-3">
                                 <div className="flex justify-between items-center">
                                   <span className="label-text font-medium">Welding records</span>
-                                  <button
-                                    type="button"
-                                    className="btn btn-ghost btn-sm gap-1"
-                                    onClick={handleAddWeldingRecord}
+                                  <div
+                                    role="button"
+                                    tabIndex={0}
+                                    className="btn btn-ghost btn-sm gap-1 touch-manipulation select-none min-h-[2.5rem] px-4 -mr-1 active:bg-base-300"
+                                    onPointerDown={(e) => {
+                                      if (e.button !== 0 && e.pointerType === "mouse") return;
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      handleAddWeldingRecord();
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter" || e.key === " ") {
+                                        e.preventDefault();
+                                        handleAddWeldingRecord();
+                                      }
+                                    }}
                                   >
                                     + Add
-                                  </button>
+                                  </div>
                                 </div>
                                 {weldingRecords.length === 0 ? (
                                   <div className="p-2 bg-base-200 rounded-lg">
@@ -830,8 +849,18 @@ function SidePanelWeldForm({
                                             ))}
                                             <button
                                               type="button"
-                                              className="btn btn-ghost btn-xs gap-0"
-                                              onClick={() => handleAddRecordElectrode(idx)}
+                                              className="btn btn-ghost btn-xs gap-0 touch-manipulation min-h-[2rem]"
+                                              onClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                handleAddRecordElectrode(idx);
+                                              }}
+                                              onPointerDown={(e) => {
+                                                if (e.pointerType === "touch") {
+                                                  e.preventDefault();
+                                                  handleAddRecordElectrode(idx);
+                                                }
+                                              }}
                                             >
                                               + Add
                                             </button>
