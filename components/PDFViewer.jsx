@@ -57,6 +57,7 @@ function PDFViewer({
   const [internalScale, setInternalScale] = useState(1.2);
   const [internalPage, setInternalPage] = useState(1);
   const [internalNumPages, setInternalNumPages] = useState(null);
+  const [placingIndicatorPos, setPlacingIndicatorPos] = useState(null);
   const pageWrapperRef = useRef(null);
   const panStartRef = useRef(null);
   const isPanningRef = useRef(false);
@@ -250,24 +251,88 @@ function PDFViewer({
 
   const isPlacingLabel = !!pendingLabelId;
 
+  useEffect(() => {
+    if (!isPlacingLabel) {
+      setPlacingIndicatorPos(null);
+      return;
+    }
+    const pending = pendingLabelId;
+    if (!pending) return;
+    let ix, iy;
+    if (pending.type === "weld") {
+      const w = weldPoints.find((p) => p.id === pending.id);
+      ix = w?.indicatorXPercent; iy = w?.indicatorYPercent;
+    } else if (pending.type === "spool") {
+      const m = spoolMarkers.find((p) => p.id === pending.id);
+      ix = m?.indicatorXPercent; iy = m?.indicatorYPercent;
+    } else if (pending.type === "part") {
+      const m = partMarkers.find((p) => p.id === pending.id);
+      ix = m?.indicatorXPercent; iy = m?.indicatorYPercent;
+    }
+    if (ix != null && iy != null) {
+      setPlacingIndicatorPos((prev) => prev ?? { x: ix, y: iy });
+    }
+  }, [isPlacingLabel, pendingLabelId, weldPoints, spoolMarkers, partMarkers]);
+
+  useEffect(() => {
+    if (!isPlacingLabel || !onPendingLabelMove) return;
+    const handler = (e) => {
+      const target = pageWrapperRef?.current;
+      if (!target) return;
+      const rect = target.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0]?.clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0]?.clientY : e.clientY;
+      if (clientX == null || clientY == null) return;
+      const x = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
+      const y = Math.max(0, Math.min(100, ((clientY - rect.top) / rect.height) * 100));
+      setPlacingIndicatorPos({ x, y });
+      onPendingLabelMove({ xPercent: x, yPercent: y });
+      if (e.touches && e.cancelable) e.preventDefault();
+    };
+    const opts = { passive: false, capture: true };
+    document.addEventListener("mousemove", handler, opts);
+    document.addEventListener("touchmove", handler, opts);
+    return () => {
+      document.removeEventListener("mousemove", handler, opts);
+      document.removeEventListener("touchmove", handler, opts);
+    };
+  }, [isPlacingLabel, onPendingLabelMove]);
+
   const getCoordsFromEvent = useCallback(
     (e) => {
       const target = pageWrapperRef.current;
       if (!target) return null;
       const rect = target.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
       return {
-        x: Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)),
-        y: Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100)),
+        x: Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100)),
+        y: Math.max(0, Math.min(100, ((clientY - rect.top) / rect.height) * 100)),
       };
     },
     []
   );
 
-  const handleCaptureMouseMove = useCallback(
+  const getCoordsFromChangedTouch = useCallback(
+    (e) => {
+      const target = pageWrapperRef.current;
+      if (!target || !e.changedTouches?.[0]) return null;
+      const rect = target.getBoundingClientRect();
+      const { clientX, clientY } = e.changedTouches[0];
+      return {
+        x: Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100)),
+        y: Math.max(0, Math.min(100, ((clientY - rect.top) / rect.height) * 100)),
+      };
+    },
+    []
+  );
+
+  const handleCaptureMove = useCallback(
     (e) => {
       if (!onPendingLabelMove) return;
       const coords = getCoordsFromEvent(e);
       if (!coords) return;
+      e.preventDefault();
       onPendingLabelMove({ xPercent: coords.x, yPercent: coords.y });
     },
     [onPendingLabelMove, getCoordsFromEvent]
@@ -281,6 +346,17 @@ function PDFViewer({
       onPageClick?.({ xPercent: coords.x, yPercent: coords.y, pageNumber: currentPage - 1 });
     },
     [onPageClick, currentPage, getCoordsFromEvent]
+  );
+
+  const handleCaptureTouchEnd = useCallback(
+    (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const coords = getCoordsFromChangedTouch(e);
+      if (!coords) return;
+      onPageClick?.({ xPercent: coords.x, yPercent: coords.y, pageNumber: currentPage - 1 });
+    },
+    [onPageClick, currentPage, getCoordsFromChangedTouch]
   );
 
   const cursorClass =
@@ -337,7 +413,10 @@ function PDFViewer({
           {isPlacingLabel && (() => {
             const pending = pendingLabelId;
             let ix, iy;
-            if (pending.type === "weld") {
+            if (placingIndicatorPos) {
+              ix = placingIndicatorPos.x;
+              iy = placingIndicatorPos.y;
+            } else if (pending.type === "weld") {
               const w = weldPoints.find((p) => p.id === pending.id);
               ix = w?.indicatorXPercent; iy = w?.indicatorYPercent;
             } else if (pending.type === "spool") {
@@ -419,8 +498,10 @@ function PDFViewer({
           {isPlacingLabel && (
             <div
               className="absolute inset-0 cursor-crosshair"
-              style={{ zIndex: 9999 }}
-              onMouseMove={handleCaptureMouseMove}
+              style={{ zIndex: 9999, touchAction: "none" }}
+              onMouseMove={handleCaptureMove}
+              onTouchMove={handleCaptureMove}
+              onTouchEnd={handleCaptureTouchEnd}
               onClick={handleCaptureClick}
               aria-hidden
             />

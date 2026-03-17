@@ -101,7 +101,12 @@ export default function WeldTrackerApp() {
     thickness: "",
     materialGrade: "",
   });
-  const [pendingLabelId, setPendingLabelId] = useState(null);
+  const [pendingLabelId, setPendingLabelIdState] = useState(null);
+  const pendingLabelRef = useRef(null);
+  const setPendingLabelId = useCallback((value) => {
+    pendingLabelRef.current = value;
+    setPendingLabelIdState(value);
+  }, []);
   const [showOverlay, setShowOverlay] = useState(true);
   const [showPagePanel, setShowPagePanel] = useState(true);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
@@ -199,46 +204,28 @@ export default function WeldTrackerApp() {
 
   const handleAddWeld = useCallback(
     ({ xPercent, yPercent, pageNumber }) => {
-      // #region agent log
-      fetch('http://127.0.0.1:7422/ingest/05cf4936-8dd3-4ab1-89bc-af4409f2819b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'241373'},body:JSON.stringify({sessionId:'241373',location:'page.jsx:handleAddWeld-entry',message:'handleAddWeld called',data:{xPercent,yPercent,pageNumber},timestamp:Date.now(),hypothesisId:'ALL'})}).catch(()=>{});
-      // #endregion
       let newWeld;
       const loc = addDefaults?.weldLocation || "shop";
       setWeldPoints((prev) => {
-        // #region agent log
-        fetch('http://127.0.0.1:7422/ingest/05cf4936-8dd3-4ab1-89bc-af4409f2819b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'241373'},body:JSON.stringify({sessionId:'241373',location:'page.jsx:setWeldPoints-updater',message:'updater running',data:{prevLen:prev.length,loc},timestamp:Date.now(),hypothesisId:'A-B-C'})}).catch(()=>{});
-        // #endregion
-        try {
-          const sameType = prev.filter((w) => (w.weldLocation || "shop") === loc);
-          const maxNum = sameType.reduce((m, w) => Math.max(m, w.weldNumber ?? 0), 0);
-          newWeld = {
-            ...createDefaultWeld(),
-            id: generateId(),
-            weldLocation: loc,
-            spoolId: addDefaults?.spoolId ?? null,
-            xPercent,
-            yPercent,
-            indicatorXPercent: xPercent,
-            indicatorYPercent: yPercent,
-            pageNumber: pageNumber ?? 0,
-            weldNumber: maxNum + 1,
-          };
-          // #region agent log
-          fetch('http://127.0.0.1:7422/ingest/05cf4936-8dd3-4ab1-89bc-af4409f2819b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'241373'},body:JSON.stringify({sessionId:'241373',location:'page.jsx:setWeldPoints-assigned',message:'newWeld assigned inside updater',data:{newWeldId:newWeld?.id},timestamp:Date.now(),hypothesisId:'A-B-D'})}).catch(()=>{});
-          // #endregion
-        } catch(e) {
-          // #region agent log
-          fetch('http://127.0.0.1:7422/ingest/05cf4936-8dd3-4ab1-89bc-af4409f2819b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'241373'},body:JSON.stringify({sessionId:'241373',location:'page.jsx:setWeldPoints-catch',message:'EXCEPTION inside updater',data:{error:String(e)},timestamp:Date.now(),hypothesisId:'B-D'})}).catch(()=>{});
-          // #endregion
-        }
-        return newWeld ? [...prev, newWeld] : prev;
+        const sameType = prev.filter((w) => (w.weldLocation || "shop") === loc);
+        const maxNum = sameType.reduce((m, w) => Math.max(m, w.weldNumber ?? 0), 0);
+        newWeld = {
+          ...createDefaultWeld(),
+          id: generateId(),
+          weldLocation: loc,
+          spoolId: addDefaults?.spoolId ?? null,
+          xPercent,
+          yPercent,
+          indicatorXPercent: xPercent,
+          indicatorYPercent: yPercent,
+          pageNumber: pageNumber ?? 0,
+          weldNumber: maxNum + 1,
+        };
+        return [...prev, newWeld];
       });
-      // #region agent log
-      fetch('http://127.0.0.1:7422/ingest/05cf4936-8dd3-4ab1-89bc-af4409f2819b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'241373'},body:JSON.stringify({sessionId:'241373',location:'page.jsx:after-setWeldPoints',message:'after setWeldPoints, newWeld value',data:{newWeldDefined:newWeld!==undefined,newWeldId:newWeld?.id},timestamp:Date.now(),hypothesisId:'A-C'})}).catch(()=>{});
-      // #endregion
       setPendingLabelId({ type: "weld", id: newWeld?.id });
     },
-    [addDefaults]
+    [addDefaults, setPendingLabelId]
   );
 
   const handleAddSpoolMarker = useCallback(
@@ -433,8 +420,9 @@ export default function WeldTrackerApp() {
 
   const handlePendingLabelMove = useCallback(
     ({ xPercent, yPercent }) => {
-      if (!pendingLabelId) return;
-      const { type, id } = pendingLabelId;
+      const pending = pendingLabelRef.current;
+      if (!pending) return;
+      const { type, id } = pending;
       if (type === "weld") {
         setWeldPoints((prev) =>
           prev.map((w) =>
@@ -455,12 +443,13 @@ export default function WeldTrackerApp() {
         );
       }
     },
-    [pendingLabelId]
+    []
   );
 
   const handlePageClick = useCallback(
     ({ xPercent, yPercent, pageNumber }) => {
-      if (pendingLabelId) {
+      if (pendingLabelRef.current) {
+        handlePendingLabelMove({ xPercent, yPercent });
         setPendingLabelId(null);
         return;
       }
@@ -477,7 +466,7 @@ export default function WeldTrackerApp() {
         setFormWeld(null);
       }
     },
-    [pendingLabelId, handleAddSpoolMarker, handleAddPartMarker, handleAddWeld, appMode, markupTool]
+    [handleAddSpoolMarker, handleAddPartMarker, handleAddWeld, handlePendingLabelMove, appMode, markupTool, setPendingLabelId]
   );
 
   const handleWeldClick = useCallback((weld) => {
