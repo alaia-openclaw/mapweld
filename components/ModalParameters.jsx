@@ -7,11 +7,21 @@ function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+const ITP_CATEGORIES = [
+  { id: "general", label: "General" },
+  { id: "fitup", label: "Fit-up" },
+  { id: "cuttings", label: "Cuttings" },
+  { id: "welding", label: "Welding" },
+  { id: "final_inspection", label: "Final inspection" },
+];
+
 function ModalParameters({
   isOpen,
   onClose,
   settings = { ndtRequirements: [], weldingSpec: "" },
   personnel = { fitters: [], welders: [], wqrs: [] },
+  projectSettings = { steps: [] },
+  projectMeta = { projectName: "", client: "", spec: "", revision: "", date: "" },
   onSave,
 }) {
   const [activeTab, setActiveTab] = useState("default");
@@ -19,6 +29,17 @@ function ModalParameters({
   // Default NDT state
   const [ndtRequirements, setNdtRequirements] = useState([]);
   const [weldingSpec, setWeldingSpec] = useState("");
+
+  // ITP state
+  const [itpSteps, setItpSteps] = useState([]);
+  const [itpOpenCategory, setItpOpenCategory] = useState("general");
+
+  // Project meta state
+  const [metaProjectName, setMetaProjectName] = useState("");
+  const [metaClient, setMetaClient] = useState("");
+  const [metaSpec, setMetaSpec] = useState("");
+  const [metaRevision, setMetaRevision] = useState("");
+  const [metaDate, setMetaDate] = useState("");
 
   // Personnel state
   const [fitterName, setFitterName] = useState("");
@@ -35,7 +56,15 @@ function ModalParameters({
       setNdtRequirements(settings.ndtRequirements || []);
       setWeldingSpec(settings.weldingSpec || "");
     }
-  }, [settings, isOpen]);
+    if (isOpen) {
+      setItpSteps(projectSettings?.steps || []);
+      setMetaProjectName(projectMeta?.projectName || "");
+      setMetaClient(projectMeta?.client || "");
+      setMetaSpec(projectMeta?.spec || "");
+      setMetaRevision(projectMeta?.revision || "");
+      setMetaDate(projectMeta?.date || "");
+    }
+  }, [settings, isOpen, projectSettings, projectMeta]);
 
   function addNdtRow(method, pct = 100) {
     setNdtRequirements((prev) => {
@@ -160,18 +189,22 @@ function ModalParameters({
       onSave?.({
         drawingSettings: { ndtRequirements, weldingSpec },
         personnel,
+        projectSettings: { steps: itpSteps },
+        projectMeta: { projectName: metaProjectName, client: metaClient, spec: metaSpec, revision: metaRevision, date: metaDate },
       });
     }, 500);
     return () => {
       if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
     };
-  }, [isOpen, ndtRequirements, weldingSpec, personnel, onSave]);
+  }, [isOpen, ndtRequirements, weldingSpec, personnel, itpSteps, metaProjectName, metaClient, metaSpec, metaRevision, metaDate, onSave]);
 
   if (!isOpen) return null;
 
   const tabs = [
     { key: "default", label: "Default NDT" },
     { key: "personnel", label: "Personnel" },
+    { key: "itp", label: "ITP" },
+    { key: "project", label: "Project" },
   ];
 
   return (
@@ -431,6 +464,138 @@ function ModalParameters({
               <button type="button" className="btn btn-ghost" onClick={onClose}>
                 Close
               </button>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "itp" && (
+          <div className="mt-4 space-y-3">
+            <p className="text-sm text-base-content/70">
+              Define fabrication and inspection steps for this project. Steps are grouped by category.
+            </p>
+            <div className="space-y-2">
+              {ITP_CATEGORIES.map((cat) => {
+                const isOpenCat = itpOpenCategory === cat.id;
+                const catSteps = itpSteps.filter((s) => s.category === cat.id);
+                return (
+                  <div key={cat.id} className="bg-base-200 rounded-lg overflow-hidden">
+                    <button
+                      type="button"
+                      className="w-full text-left text-sm font-medium px-3 py-2 flex items-center justify-between hover:bg-base-300/50 transition-colors"
+                      onClick={() => setItpOpenCategory(isOpenCat ? null : cat.id)}
+                    >
+                      <span>{cat.label} ({catSteps.length})</span>
+                      <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 transition-transform ${isOpenCat ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    {isOpenCat && (
+                      <div className="px-3 pb-3 space-y-2">
+                        {catSteps.length === 0 && (
+                          <p className="text-xs text-base-content/50 py-1">No steps in this category.</p>
+                        )}
+                        {catSteps.map((step) => (
+                          <div key={step.id} className="bg-base-100 rounded-lg p-2 space-y-1.5 border border-base-300/60">
+                            <input
+                              type="text"
+                              className="input input-sm input-bordered w-full"
+                              value={step.label}
+                              onChange={(e) => {
+                                setItpSteps((prev) => prev.map((s) => s.id === step.id ? { ...s, label: e.target.value } : s));
+                              }}
+                              placeholder="Step description"
+                            />
+                            <div className="flex flex-wrap gap-3 text-xs">
+                              <label className="flex items-center gap-1 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  className="checkbox checkbox-xs checkbox-primary"
+                                  checked={step.required}
+                                  onChange={(e) => setItpSteps((prev) => prev.map((s) => s.id === step.id ? { ...s, required: e.target.checked } : s))}
+                                />
+                                Required
+                              </label>
+                              <label className="flex items-center gap-1 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  className="checkbox checkbox-xs"
+                                  checked={step.clientSignOff}
+                                  onChange={(e) => setItpSteps((prev) => prev.map((s) => s.id === step.id ? { ...s, clientSignOff: e.target.checked } : s))}
+                                />
+                                Client sign-off
+                              </label>
+                              <label className="flex items-center gap-1 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  className="checkbox checkbox-xs"
+                                  checked={step.requestInspection}
+                                  onChange={(e) => setItpSteps((prev) => prev.map((s) => s.id === step.id ? { ...s, requestInspection: e.target.checked } : s))}
+                                />
+                                Request inspection
+                              </label>
+                              <button
+                                type="button"
+                                className="btn btn-ghost btn-xs text-error ml-auto"
+                                onClick={() => setItpSteps((prev) => prev.filter((s) => s.id !== step.id))}
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-xs gap-0.5"
+                          onClick={() => {
+                            setItpSteps((prev) => [
+                              ...prev,
+                              { id: generateId(), category: cat.id, label: "", required: true, clientSignOff: false, requestInspection: false },
+                            ]);
+                          }}
+                        >
+                          + Add step
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="modal-action mt-4">
+              <button type="button" className="btn btn-ghost" onClick={onClose}>Close</button>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "project" && (
+          <div className="mt-4 space-y-4">
+            <p className="text-sm text-base-content/70">
+              Project information used for documentation and export.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="form-control">
+                <label className="label"><span className="label-text">Project name</span></label>
+                <input type="text" className="input input-bordered" value={metaProjectName} onChange={(e) => setMetaProjectName(e.target.value)} placeholder="e.g. Platform A Piping" />
+              </div>
+              <div className="form-control">
+                <label className="label"><span className="label-text">Client</span></label>
+                <input type="text" className="input input-bordered" value={metaClient} onChange={(e) => setMetaClient(e.target.value)} placeholder="e.g. Acme Corp" />
+              </div>
+              <div className="form-control">
+                <label className="label"><span className="label-text">Spec / Standard</span></label>
+                <input type="text" className="input input-bordered" value={metaSpec} onChange={(e) => setMetaSpec(e.target.value)} placeholder="e.g. ASME B31.3" />
+              </div>
+              <div className="form-control">
+                <label className="label"><span className="label-text">Revision</span></label>
+                <input type="text" className="input input-bordered" value={metaRevision} onChange={(e) => setMetaRevision(e.target.value)} placeholder="e.g. Rev A" />
+              </div>
+              <div className="form-control">
+                <label className="label"><span className="label-text">Date</span></label>
+                <input type="date" className="input input-bordered" value={metaDate} onChange={(e) => setMetaDate(e.target.value)} />
+              </div>
+            </div>
+            <div className="modal-action mt-4">
+              <button type="button" className="btn btn-ghost" onClick={onClose}>Close</button>
             </div>
           </div>
         )}

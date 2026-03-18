@@ -16,6 +16,7 @@ function SidePanelSpools({
   weldPoints = [],
   weldStatusByWeldId,
   getWeldName,
+  lines = [],
   isStacked = false,
   hideHeader = false,
 }) {
@@ -27,6 +28,7 @@ function SidePanelSpools({
   const [editWeight, setEditWeight] = useState("");
   const [editPressureValue, setEditPressureValue] = useState("");
   const [editPressureUnit, setEditPressureUnit] = useState("bar");
+  const [editLineId, setEditLineId] = useState("");
   /** Portal menu so list isn’t clipped by panel overflow ({ kind, spoolId, rect } | null) */
   const [menuPortal, setMenuPortal] = useState(null);
 
@@ -65,6 +67,7 @@ function SidePanelSpools({
       setEditWeight(String(s.weight ?? ""));
       setEditPressureValue(String(s.pressureTestValue ?? ""));
       setEditPressureUnit(s.pressureTestUnit ?? "bar");
+      setEditLineId(s.lineId ?? "");
     }
   }, [expandedSpoolId, spools]);
 
@@ -82,6 +85,7 @@ function SidePanelSpools({
             weight: editWeight.trim() || "",
             pressureTestValue: editPressureValue.trim() || "",
             pressureTestUnit: editPressureUnit,
+            lineId: editLineId || null,
           }
         : sp
     );
@@ -407,6 +411,31 @@ function SidePanelSpools({
                               </select>
                             </div>
                           </div>
+                          {lines.length > 0 && (
+                            <div className="form-control">
+                              <label className="label py-0 min-h-0">
+                                <span className="label-text text-xs">Line</span>
+                              </label>
+                              <select
+                                className="select select-bordered select-sm w-full"
+                                value={editLineId}
+                                onChange={(e) => {
+                                  setEditLineId(e.target.value);
+                                  const updated = spools.map((sp) =>
+                                    sp.id === s.id ? { ...sp, lineId: e.target.value || null } : sp
+                                  );
+                                  onSave?.(updated);
+                                }}
+                              >
+                                <option value="">— No line —</option>
+                                {lines.map((line) => (
+                                  <option key={line.id} value={line.id}>
+                                    {line.name || line.id}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
                           <div className="space-y-1">
                             <div className="flex items-center justify-between gap-1">
                               <span className="label-text text-xs font-medium">

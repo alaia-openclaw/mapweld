@@ -96,10 +96,13 @@ function Toolbar({
         id="pdf-file-input"
         type="file"
         accept=".pdf,application/pdf"
+        multiple
         className="hidden"
         onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) onLoadPdf?.(file);
+          const files = e.target.files;
+          if (files) {
+            for (let i = 0; i < files.length; i++) onLoadPdf?.(files[i]);
+          }
           e.target.value = "";
         }}
       />
@@ -223,10 +226,13 @@ function Toolbar({
                 id="pdf-file-input-mobile"
                 type="file"
                 accept=".pdf,application/pdf"
+                multiple
                 className="hidden"
                 onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) onLoadPdf?.(file);
+                  const files = e.target.files;
+                  if (files) {
+                    for (let i = 0; i < files.length; i++) onLoadPdf?.(files[i]);
+                  }
                   e.target.value = "";
                 }}
               />
