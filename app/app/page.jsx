@@ -143,7 +143,7 @@ export default function WeldTrackerApp() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [setPendingLabelId]);
 
   const loadPdfFile = useCallback((file) => {
     if (!file) return;
@@ -269,7 +269,7 @@ export default function WeldTrackerApp() {
       ]);
       setPendingLabelId({ type: "spool", id: newMarkerId });
     },
-    []
+    [setPendingLabelId]
   );
 
   const handleDeleteSpoolMarker = useCallback((markerId) => {
@@ -352,7 +352,7 @@ export default function WeldTrackerApp() {
       setPartMarkers((prev) => [...prev, newMarker]);
       setPendingLabelId({ type: "part", id: newMarkerId });
     },
-    [parts.length, parts, addDefaults]
+    [parts, addDefaults, setPendingLabelId]
   );
 
   const handlePartMarkerClick = useCallback((marker) => {

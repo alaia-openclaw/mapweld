@@ -118,7 +118,7 @@ function SidePanelWeldForm({
     setNdtResultOutcome(weld.ndtResultOutcome || {});
     setNdtResultManualOverride(weld.ndtResultManualOverride || {});
     setNdtResultOverrideUnlocked(false);
-  }, [weld?.id]);
+  }, [weld]);
 
   const autoSaveTimeoutRef = useRef(null);
   useEffect(() => {

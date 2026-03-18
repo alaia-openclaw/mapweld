@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useMemo, useState, useEffect } from "react";
 import { matchFlangeRowSearch, matchFlangeRowFilters } from "@/lib/catalog-structure";
 
@@ -113,9 +114,12 @@ function CardFlangeDrawing({ standard, activeSubtype, selectedRow }) {
       <div className="flex-1 flex flex-col gap-2 bg-base-200 rounded-md overflow-hidden border border-base-300/70">
         <div className="flex-1 flex items-center justify-center bg-base-100">
           {src ? (
-            <img
+            <Image
               src={src}
               alt={standard.label}
+              width={900}
+              height={900}
+              unoptimized
               className="max-h-full max-w-full object-contain pointer-events-none select-none"
             />
           ) : (
@@ -243,7 +247,10 @@ function PanelCatalogFlanges({ standards, initialStandardId, search = "", filter
     return initialStandard?.classes?.[0]?.pressureClass ?? "";
   });
 
-  const classes = activeStandard?.classes ?? [];
+  const classes = useMemo(
+    () => activeStandard?.classes ?? [],
+    [activeStandard]
+  );
 
   const [activeSubtypeId, setActiveSubtypeId] = useState(
     () => activeStandard?.subtypes?.[0]?.id ?? ""

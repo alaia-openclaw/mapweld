@@ -28,7 +28,7 @@ export default function CatalogView({
       return `flange-${flangesStandards[0].id}`;
     if (fittingsEntries.length > 0) return "fittings-buttwelding-elbow";
     return getFirstSelectableCategoryId(tree);
-  }, [tree, pipeEntries.length, flangesStandards.length, flangesStandards[0]?.id, fittingsEntries.length]);
+  }, [tree, pipeEntries, flangesStandards, fittingsEntries]);
 
   const [selectedId, setSelectedId] = useState(defaultSelected);
   const [search, setSearch] = useState("");

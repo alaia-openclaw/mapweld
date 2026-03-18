@@ -80,7 +80,7 @@ function PDFViewer({
       setInternalPage(1);
       setInternalNumPages(null);
     }
-  }, [pdfBlob]);
+  }, [pdfBlob, controlledPage]);
 
   useEffect(() => {
     if (!scrollToTarget || scrollToTarget.pageNumber == null) return;
@@ -102,7 +102,7 @@ function PDFViewer({
     };
     const t = setTimeout(runScroll, 80);
     return () => clearTimeout(t);
-  }, [scrollToTarget, currentPage, containerRef]);
+  }, [scrollToTarget, currentPage, containerRef, setCurrentPage]);
 
   const handleLoadSuccess = useCallback(
     ({ numPages: n }) => {
@@ -130,7 +130,7 @@ function PDFViewer({
       };
       isPanningRef.current = false;
     },
-    [markupTool, pendingLabelId]
+    [markupTool, pendingLabelId, containerRef]
   );
 
   const handlePointerMove = useCallback(
@@ -153,7 +153,7 @@ function PDFViewer({
         el.scrollTop = start.scrollTop - dy;
       }
     },
-    []
+    [containerRef]
   );
 
   const handlePointerUp = useCallback(
@@ -267,7 +267,7 @@ function PDFViewer({
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [containerRef, pdfBlob]);
+  }, [containerRef, pdfBlob, setScale]);
 
   const weldPointsOnPage = weldPoints.filter(
     (w) => (w.pageNumber ?? 0) === currentPage - 1
@@ -278,8 +278,6 @@ function PDFViewer({
   const partMarkersOnPage = partMarkers.filter(
     (m) => (m.pageNumber ?? 0) === currentPage - 1
   );
-
-  if (!pdfBlob) return null;
 
   const isPlacingLabel = !!pendingLabelId;
 
@@ -401,6 +399,8 @@ function PDFViewer({
     },
     [getCoordsFromChangedTouch, invokePageClick]
   );
+
+  if (!pdfBlob) return null;
 
   const cursorClass =
     isPlacingLabel

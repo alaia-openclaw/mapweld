@@ -83,7 +83,7 @@ function FormNdtReport({
       const req = ndtRequests.find((r) => r.id === requestId);
       if (req && req.method !== method) setRequestId("");
     }
-  }, [method]);
+  }, [method, ndtRequests, requestId]);
 
   useEffect(() => {
     if (!requestId || rows.length > 0) return;
