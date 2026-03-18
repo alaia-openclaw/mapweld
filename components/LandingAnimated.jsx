@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 
-export function useInView(options = {}) {
+const defaultInViewOptions = {};
+
+export function useInView(options = defaultInViewOptions) {
   const ref = useRef(null);
   const [isVisible, setIsVisible] = useState(false);
 
@@ -20,7 +22,7 @@ export function useInView(options = {}) {
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [options]);
 
   return [ref, isVisible];
 }

@@ -90,7 +90,7 @@ function SidePanelPartForm({
     setSpoolId(selectedPart.spoolId ?? "");
     setHeatNumber(selectedPart.heatNumber ?? "");
     setVariation(selectedPart.variation ?? "");
-  }, [selectedPart?.id]);
+  }, [selectedPart]);
 
   useEffect(() => {
     if (!selectedPart) return;
