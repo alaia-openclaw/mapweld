@@ -1,0 +1,4 @@
+{
+  "baseImage": "ghcr.io/cursor-images/node-20:latest",
+  "install": "npm ci"
+}
