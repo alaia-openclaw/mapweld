@@ -134,9 +134,9 @@ function BottomSheet({ isOpen, onClose, activeTab, onTabChange, children }) {
         </button>
       </div>
 
-      {/* Content area - touch-action: manipulation so inputs work; overscroll-contain to prevent pull-to-refresh */}
+      {/* Content area - touch-action: manipulation so inputs work; overscroll-contain to prevent pull-to-refresh; min-w-0 to allow flex children to shrink */}
       <div
-        className="flex-1 min-h-0 flex flex-col overflow-hidden overscroll-contain"
+        className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden overscroll-contain"
         style={{ touchAction: "manipulation" }}
       >
         {children}

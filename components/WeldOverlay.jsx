@@ -16,6 +16,8 @@ function WeldOverlay({
   weldStatusByWeldId,
   spools = [],
   scale = 1,
+  pendingWeldId = null,
+  placingIndicatorOverride = null,
 }) {
   return (
     <div className="absolute inset-0 pointer-events-none">
@@ -36,6 +38,7 @@ function WeldOverlay({
           pageWrapperRef={pageWrapperRef}
           weldStatus={weldStatusByWeldId?.get(weld.id)}
           scale={scale}
+          indicatorPositionOverride={pendingWeldId === weld.id && placingIndicatorOverride ? placingIndicatorOverride : null}
         />
       ))}
     </div>

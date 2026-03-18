@@ -25,6 +25,7 @@ function SpoolMarker({
   onMoveSpoolIndicator,
   pageWrapperRef,
   scale = 1,
+  indicatorPositionOverride = null,
 }) {
   const draggingRef = useRef(null);
   const badgeMin = Math.round(18 * scale);
@@ -33,8 +34,8 @@ function SpoolMarker({
 
   const wx = marker.xPercent ?? 0;
   const wy = marker.yPercent ?? 0;
-  const ix = marker.indicatorXPercent ?? Math.min(100, Math.max(0, wx + 4));
-  const iy = marker.indicatorYPercent ?? Math.min(100, Math.max(0, wy - 4));
+  const ix = indicatorPositionOverride ? indicatorPositionOverride.xPercent : (marker.indicatorXPercent ?? Math.min(100, Math.max(0, wx + 4)));
+  const iy = indicatorPositionOverride ? indicatorPositionOverride.yPercent : (marker.indicatorYPercent ?? Math.min(100, Math.max(0, wy - 4)));
 
   const allX = [wx, ix];
   const allY = [wy, iy];
@@ -178,9 +179,10 @@ function SpoolMarker({
 
       <div
         role="button"
-        tabIndex={0}
+        tabIndex={indicatorPositionOverride ? -1 : 0}
         onClick={handleClick}
-        className={`absolute -translate-x-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-auto cursor-pointer z-10
+        className={`absolute -translate-x-1/2 -translate-y-1/2 flex items-center gap-1 z-10
+          ${indicatorPositionOverride ? "pointer-events-none" : "pointer-events-auto cursor-pointer"}
           ${isSelected ? (showHandles ? "ring-2 ring-error ring-offset-1 rounded-full" : "ring-2 ring-primary ring-offset-1 rounded-full") : ""}`}
         style={{
           left: `${ix}%`,
@@ -200,7 +202,7 @@ function SpoolMarker({
         {showHandles && (
           <div
             role="button"
-            tabIndex={0}
+            tabIndex={indicatorPositionOverride ? -1 : 0}
             className="absolute -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-2 border-error bg-white cursor-grab active:cursor-grabbing hover:scale-110 transition-transform"
             style={{ left: "50%", top: "50%", zIndex: 20 }}
             onPointerDown={handleIndicatorPointerDown}
@@ -222,7 +224,7 @@ function SpoolMarker({
         {showHandles && (
           <div
             role="button"
-            tabIndex={0}
+            tabIndex={indicatorPositionOverride ? -1 : 0}
             className="absolute -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-2 border-error bg-white cursor-grab active:cursor-grabbing hover:scale-110 transition-transform pointer-events-auto"
             style={{ left: "50%", top: "50%", zIndex: 20 }}
             onPointerDown={handlePointPointerDown}

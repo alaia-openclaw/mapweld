@@ -42,6 +42,7 @@ function WeldPointMarker({
   pageWrapperRef,
   weldStatus,
   scale = 1,
+  indicatorPositionOverride = null,
 }) {
   const draggingRef = useRef(null);
   const resizeStartRef = useRef({ fontSize: 12, clientY: 0 });
@@ -68,8 +69,8 @@ function WeldPointMarker({
 
   const wx = weld.xPercent ?? 0;
   const wy = weld.yPercent ?? 0;
-  const ix = weld.indicatorXPercent ?? wx;
-  const iy = weld.indicatorYPercent ?? wy;
+  const ix = indicatorPositionOverride ? indicatorPositionOverride.xPercent : (weld.indicatorXPercent ?? wx);
+  const iy = indicatorPositionOverride ? indicatorPositionOverride.yPercent : (weld.indicatorYPercent ?? wy);
   const bx = weld.lineBendXPercent;
   const by = weld.lineBendYPercent;
   const hasBend = bx != null && by != null;
@@ -315,11 +316,12 @@ function WeldPointMarker({
 
       <div
         role="button"
-        tabIndex={0}
+        tabIndex={indicatorPositionOverride ? -1 : 0}
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
         onPointerDown={showHandles ? handleIndicatorHandlePointerDown : undefined}
-        className={`absolute -translate-x-1/2 -translate-y-1/2 flex items-center justify-center border-2 border-solid pointer-events-auto z-10 ${bulletColourClass}
+        className={`absolute -translate-x-1/2 -translate-y-1/2 flex items-center justify-center border-2 border-solid z-10 ${bulletColourClass}
+          ${indicatorPositionOverride ? "pointer-events-none" : "pointer-events-auto"}
           ${isField ? "rotate-45" : "rounded-full"}
           ${lineColourClass}
           ${showHandles ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}
@@ -391,7 +393,7 @@ function WeldPointMarker({
         {showHandles && (
           <div
             role="button"
-            tabIndex={0}
+            tabIndex={indicatorPositionOverride ? -1 : 0}
             className="absolute -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-2 border-error bg-white cursor-grab active:cursor-grabbing hover:scale-110 transition-transform pointer-events-auto"
             style={{ left: "50%", top: "50%", zIndex: 20 }}
             onPointerDown={handleWeldHandlePointerDown}
@@ -403,7 +405,7 @@ function WeldPointMarker({
       {showHandles && (
         <div
           role="button"
-          tabIndex={0}
+          tabIndex={indicatorPositionOverride ? -1 : 0}
           className="absolute -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-2 border-error bg-white cursor-grab active:cursor-grabbing hover:scale-110 transition-transform pointer-events-auto"
           style={{ left: `${bendX}%`, top: `${bendY}%`, zIndex: 20 }}
           onPointerDown={handleLineBendPointerDown}

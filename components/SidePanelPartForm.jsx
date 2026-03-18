@@ -43,7 +43,6 @@ function SidePanelPartForm({
   const [spoolId, setSpoolId] = useState("");
   const [heatNumber, setHeatNumber] = useState("");
   const [variation, setVariation] = useState("");
-  const [showReconcile, setShowReconcile] = useState(false);
   const autoSaveTimeoutRef = useRef(null);
 
   const categories = getCategories();
@@ -188,8 +187,8 @@ function SidePanelPartForm({
 
   return (
     <div
-      className={`flex-shrink-0 flex flex-col bg-base-200 transition-all duration-300 ease-out min-w-0 ${
-        hideHeader ? "w-full flex-1 min-h-0 overflow-hidden" : `border-l border-base-300 ${isOpen ? "w-full min-w-[16rem] min-h-0 flex-1 h-full overflow-hidden" : "w-14 overflow-hidden"}`
+      className={`flex flex-col bg-base-200 transition-all duration-300 ease-out min-w-0 ${
+        hideHeader ? "w-full flex-1 min-h-0 overflow-hidden flex-shrink" : `border-l border-base-300 ${isOpen ? "w-full min-w-[10rem] min-h-0 flex-1 h-full overflow-hidden flex-shrink" : "w-14 overflow-hidden flex-shrink-0"}`
       }`}
     >
       {!hideHeader && (
@@ -226,53 +225,11 @@ function SidePanelPartForm({
 
       {isOpen && (
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden w-full min-w-0 h-0 basis-0">
-          <div className={`flex-1 min-h-0 min-w-0 overflow-y-scroll overflow-x-auto p-3 space-y-3 pb-12 overscroll-contain [scrollbar-gutter:stable] ${hideHeader ? "mobile-no-scrollbar" : ""}`}>
+          <div className={`flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-auto p-3 space-y-3 pb-12 overscroll-contain [scrollbar-gutter:stable] break-words ${hideHeader ? "mobile-no-scrollbar" : ""}`}>
             {parts.length === 0 ? (
-              <div className="text-center py-6 text-base-content/60 text-sm">
+              <div className="text-center py-6 text-base-content/60 text-sm break-words min-w-0">
                 <p>No parts yet</p>
                 <p className="mt-1">Add with the Add Part tool on the drawing</p>
-              </div>
-            ) : showReconcile ? (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between gap-2 flex-shrink-0">
-                  <span className="font-medium text-sm">Heat reconciliation</span>
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm"
-                    onClick={() => setShowReconcile(false)}
-                  >
-                    Parts list
-                  </button>
-                </div>
-                <p className="text-xs text-base-content/60">
-                  Assign heat numbers to parts. Same heat can be used for multiple parts (e.g. same pipe cut to length).
-                </p>
-                <div className="space-y-2">
-                  {parts
-                    .slice()
-                    .sort((a, b) => (a.displayNumber ?? 0) - (b.displayNumber ?? 0))
-                    .map((p) => (
-                      <div
-                        key={p.id}
-                        className="flex items-center gap-2 p-2 rounded-lg bg-base-100 border border-base-300"
-                      >
-                        <span className="font-medium w-14 shrink-0">Part {p.displayNumber}</span>
-                        <span className="text-xs text-base-content/60 truncate flex-1 min-w-0">
-                          {[p.partType, p.nps, p.thickness, p.spoolId ? getSpoolName(p.spoolId) : null].filter(Boolean).join(" · ") || "—"}
-                        </span>
-                        <input
-                          type="text"
-                          className="input input-bordered input-sm w-28 shrink-0"
-                          placeholder="Heat"
-                          value={p.heatNumber ?? ""}
-                          onChange={(e) => {
-                            const v = e.target.value.trim();
-                            onSavePart?.({ ...p, heatNumber: v });
-                          }}
-                        />
-                      </div>
-                    ))}
-                </div>
               </div>
             ) : selectedPart ? (
               <>
@@ -460,18 +417,8 @@ function SidePanelPartForm({
                 </div>
               </>
             ) : (
-                <div className="space-y-2">
-                  <button
-                    type="button"
-                    className="btn btn-outline btn-sm w-full gap-1"
-                    onClick={() => {
-                      setShowReconcile(true);
-                      onSelectPartMarker?.(null);
-                    }}
-                  >
-                    Heat reconciliation
-                  </button>
-                  <ul className="space-y-2">
+                <div className="space-y-2 min-w-0">
+                  <ul className="space-y-2 min-w-0">
                     {parts
                       .slice()
                       .sort((a, b) => (a.displayNumber ?? 0) - (b.displayNumber ?? 0))
@@ -479,14 +426,14 @@ function SidePanelPartForm({
                         const marker = partMarkers.find((m) => m.partId === p.id);
                         const spoolName = p.spoolId ? getSpoolName(p.spoolId) : null;
                         return (
-                          <li key={p.id}>
+                          <li key={p.id} className="min-w-0">
                             <button
                               type="button"
-                              className="w-full text-left p-2 rounded-lg bg-base-100 border border-base-300 hover:bg-base-200 flex items-center justify-between gap-2"
+                              className="w-full min-w-0 text-left p-2 rounded-lg bg-base-100 border border-base-300 hover:bg-base-200 flex items-center justify-between gap-2"
                               onClick={() => marker && onSelectPartMarker?.(marker.id)}
                             >
-                              <span className="font-medium">Part {p.displayNumber}</span>
-                              <span className="text-xs text-base-content/60 truncate max-w-[100px]">
+                              <span className="font-medium shrink-0">Part {p.displayNumber}</span>
+                              <span className="text-xs text-base-content/60 truncate min-w-0 flex-1">
                                 {spoolName || (p.heatNumber ? `Heat: ${p.heatNumber}` : "") || "—"}
                               </span>
                             </button>

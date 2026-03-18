@@ -1,7 +1,7 @@
 "use client";
 
 import { Document, Page, pdfjs } from "react-pdf";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import WeldOverlay from "./WeldOverlay";
 import SpoolMarker from "./SpoolMarker";
 import PartMarker from "./PartMarker";
@@ -83,6 +83,7 @@ function PDFViewer({
   }, [pdfBlob, controlledPage]);
 
   useEffect(() => {
+    if (pendingLabelId) return;
     if (!scrollToTarget || scrollToTarget.pageNumber == null) return;
     const targetPage = scrollToTarget.pageNumber + 1;
     if (currentPage !== targetPage) {
@@ -102,7 +103,7 @@ function PDFViewer({
     };
     const t = setTimeout(runScroll, 80);
     return () => clearTimeout(t);
-  }, [scrollToTarget, currentPage, containerRef, setCurrentPage]);
+  }, [pendingLabelId, scrollToTarget, currentPage, containerRef, setCurrentPage]);
 
   const handleLoadSuccess = useCallback(
     ({ numPages: n }) => {
@@ -281,7 +282,7 @@ function PDFViewer({
 
   const isPlacingLabel = !!pendingLabelId;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isPlacingLabel) {
       setPlacingIndicatorPos(null);
       return;
@@ -304,7 +305,7 @@ function PDFViewer({
     }
   }, [isPlacingLabel, pendingLabelId, weldPoints, spoolMarkers, partMarkers]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isPlacingLabel || !onPendingLabelMove) return;
     const handler = (e) => {
       const target = pageWrapperRef?.current;
@@ -362,8 +363,9 @@ function PDFViewer({
       if (!onPendingLabelMove) return;
       const coords = getCoordsFromEvent(e);
       if (!coords) return;
-      e.preventDefault();
+      setPlacingIndicatorPos({ x: coords.x, y: coords.y });
       onPendingLabelMove({ xPercent: coords.x, yPercent: coords.y });
+      e.preventDefault();
     },
     [onPendingLabelMove, getCoordsFromEvent]
   );
@@ -379,9 +381,7 @@ function PDFViewer({
   const handleCaptureClick = useCallback(
     (e) => {
       e.stopPropagation();
-      const now = Date.now();
-      if (now - lastPlacementTapRef.current < 400) return;
-      lastPlacementTapRef.current = now;
+      e.preventDefault();
       const coords = getCoordsFromEvent(e);
       invokePageClick(coords);
     },
@@ -509,6 +509,8 @@ function PDFViewer({
                 weldStatusByWeldId={weldStatusByWeldId}
                 spools={spools}
                 scale={scale}
+                pendingWeldId={pendingLabelId?.type === "weld" ? pendingLabelId.id : null}
+                placingIndicatorOverride={placingIndicatorPos ? { xPercent: placingIndicatorPos.x, yPercent: placingIndicatorPos.y } : null}
               />
               <div className="absolute inset-0 pointer-events-none">
                 {spoolMarkersOnPage.map((m) => (
@@ -524,6 +526,7 @@ function PDFViewer({
                     pageWrapperRef={pageWrapperRef}
                     onDelete={onDeleteSpoolMarker}
                     scale={scale}
+                    indicatorPositionOverride={pendingLabelId?.type === "spool" && pendingLabelId?.id === m.id && placingIndicatorPos ? { xPercent: placingIndicatorPos.x, yPercent: placingIndicatorPos.y } : null}
                   />
                 ))}
                 {partMarkersOnPage.map((m) => {
@@ -541,6 +544,7 @@ function PDFViewer({
                       pageWrapperRef={pageWrapperRef}
                       onDelete={onDeletePartMarker}
                       scale={scale}
+                      indicatorPositionOverride={pendingLabelId?.type === "part" && pendingLabelId?.id === m.id && placingIndicatorPos ? { xPercent: placingIndicatorPos.x, yPercent: placingIndicatorPos.y } : null}
                     />
                   );
                 })}

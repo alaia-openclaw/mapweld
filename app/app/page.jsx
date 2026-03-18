@@ -36,6 +36,7 @@ import { getWeldName, getWeldOverallStatus, computeNdtSelection } from "@/lib/we
 import { formatNdtRequirements, NDT_REPORT_STATUS } from "@/lib/constants";
 import { exportWeldsToExcel } from "@/lib/excel-export";
 import { applyReportToWelds } from "@/lib/ndt-utils";
+import { saveDraftToSession, loadDraftFromSession } from "@/lib/session-draft";
 
 const PDFViewerDynamic = dynamic(() => import("@/components/PDFViewer"), {
   ssr: false,
@@ -144,6 +145,16 @@ export default function WeldTrackerApp() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [setPendingLabelId]);
+
+  useEffect(() => {
+    const onBeforeUnload = (e) => {
+      if (pdfBlob) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [pdfBlob]);
 
   const loadPdfFile = useCallback((file) => {
     if (!file) return;
@@ -561,6 +572,7 @@ export default function WeldTrackerApp() {
     setShowWeldPanel(false);
   }, []);
 
+  const draftSaveTimeoutRef = useRef(null);
   const handleOpenProjectFromStorage = useCallback((data) => {
     const pdfBase64 = data.pdfBase64;
     if (!pdfBase64) return;
@@ -637,6 +649,81 @@ export default function WeldTrackerApp() {
     ndtRequests,
     ndtReports,
     addDefaults,
+    pdfToBase64,
+  ]);
+
+  useEffect(() => {
+    const draft = loadDraftFromSession();
+    if (!draft?.pdfBase64) return;
+    const binary = atob(draft.pdfBase64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const blob = new Blob([bytes], { type: "application/pdf" });
+    const url = URL.createObjectURL(blob);
+    setPdfBlob(url);
+    setPdfFilename(draft.pdfFilename || "drawing.pdf");
+    const loadedReports = Array.isArray(draft.ndtReports) ? draft.ndtReports : [];
+    setWeldPoints(applyCompletedReportsToWelds(draft.weldPoints || [], loadedReports));
+    setSpools(draft.spools || []);
+    setSpoolMarkers(draft.spoolMarkers || []);
+    setParts(draft.parts || []);
+    setPartMarkers(draft.partMarkers || []);
+    setPersonnel(draft.personnel || { fitters: [], welders: [], wqrs: [] });
+    setDrawingSettings(
+      migrateDrawingSettings(draft.drawingSettings) || {
+        ndtRequirements: [],
+        weldingSpec: "",
+      }
+    );
+    setNdtRequests(Array.isArray(draft.ndtRequests) ? draft.ndtRequests : []);
+    setNdtReports(loadedReports);
+    setAddDefaults(draft.addDefaults && typeof draft.addDefaults === "object"
+      ? { spoolId: null, weldLocation: "shop", catalogCategory: "", hierarchyState: {}, partType: "", nps: "", thickness: "", materialGrade: "", ...draft.addDefaults }
+      : { spoolId: null, weldLocation: "shop", catalogCategory: "", hierarchyState: {}, partType: "", nps: "", thickness: "", materialGrade: "" });
+    setProjectId(draft.id || generateProjectId());
+  }, []);
+
+  useEffect(() => {
+    if (!pdfBlob) return;
+    if (draftSaveTimeoutRef.current) clearTimeout(draftSaveTimeoutRef.current);
+    draftSaveTimeoutRef.current = setTimeout(() => {
+      draftSaveTimeoutRef.current = null;
+      pdfToBase64(pdfBlob).then((pdfBase64) => {
+        saveDraftToSession({
+          version: PROJECT_FILE_VERSION,
+          id: projectId || generateProjectId(),
+          pdfFilename,
+          pdfBase64,
+          weldPoints,
+          spools,
+          spoolMarkers,
+          parts,
+          partMarkers,
+          personnel,
+          drawingSettings,
+          addDefaults,
+          ndtRequests,
+          ndtReports,
+        });
+      });
+    }, 500);
+    return () => {
+      if (draftSaveTimeoutRef.current) clearTimeout(draftSaveTimeoutRef.current);
+    };
+  }, [
+    pdfBlob,
+    projectId,
+    pdfFilename,
+    weldPoints,
+    spools,
+    spoolMarkers,
+    parts,
+    partMarkers,
+    personnel,
+    drawingSettings,
+    addDefaults,
+    ndtRequests,
+    ndtReports,
     pdfToBase64,
   ]);
 
@@ -1009,6 +1096,33 @@ export default function WeldTrackerApp() {
                     onPendingLabelMove={handlePendingLabelMove}
                   />
                 </div>
+                {/* Resize handle - visible splitter between content and side panel */}
+                {(!showWeldPanel && !showSpoolPanel && !showPartPanel) ? null : (
+                  <div
+                    className="hidden md:flex w-3 flex-shrink-0 cursor-col-resize flex-col items-center justify-center bg-base-300 hover:bg-primary/40 active:bg-primary/60 transition-colors select-none border-l border-base-300"
+                    onMouseDown={(e) => {
+                      if (e.button !== 0) return;
+                      e.preventDefault();
+                      try { e.currentTarget.setPointerCapture?.(e.pointerId); } catch (_) {}
+                      sidePanelResizeRef.current = {
+                        startX: e.clientX,
+                        startWidth: sidePanelWidth,
+                      };
+                    }}
+                    onPointerUp={(e) => {
+                      try { e.currentTarget.releasePointerCapture?.(e.pointerId); } catch (_) {}
+                    }}
+                    role="separator"
+                    aria-label="Resize side panel"
+                    title="Drag to resize side panel"
+                  >
+                    <div className="flex flex-col gap-1 py-2">
+                      <span className="w-0.5 h-1 rounded-full bg-base-content/30" />
+                      <span className="w-0.5 h-1 rounded-full bg-base-content/30" />
+                      <span className="w-0.5 h-1 rounded-full bg-base-content/30" />
+                    </div>
+                  </div>
+                )}
                 {/* Desktop side panel */}
                 <div
                   className="hidden md:flex flex-shrink-0 flex-col h-full min-h-0 overflow-hidden transition-[width] duration-200 ease-out border-l border-base-300"
@@ -1018,21 +1132,6 @@ export default function WeldTrackerApp() {
                     minWidth: !showWeldPanel && !showSpoolPanel && !showPartPanel ? 56 : undefined,
                   }}
                 >
-                  {(!showWeldPanel && !showSpoolPanel && !showPartPanel) ? null : (
-                    <div
-                      className="w-1 flex-shrink-0 cursor-col-resize hover:bg-primary/20 bg-base-300/50 flex items-stretch"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        sidePanelResizeRef.current = {
-                          startX: e.clientX,
-                          startWidth: sidePanelWidth,
-                        };
-                      }}
-                      role="separator"
-                      aria-label="Resize side panel"
-                      title="Drag to resize"
-                    />
-                  )}
                   <div
                     className={`flex flex-1 min-w-0 min-h-0 h-full overflow-hidden transition-all duration-300 ease-out ${
                       !showWeldPanel && !showSpoolPanel && !showPartPanel ? "flex-col" : "flex-row items-stretch"
