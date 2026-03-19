@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import {
   NDT_METHODS,
   NDT_METHOD_LABELS,
@@ -8,6 +8,7 @@ import {
   NDT_REQUEST_STATUS_LABELS,
   NDT_REPORT_STATUS,
   NDT_RESULT_OUTCOME_LABELS,
+  sortNdtMethods,
 } from "@/lib/constants";
 import {
   applyReportToWelds,
@@ -69,6 +70,23 @@ function NdtKanbanPage({
   const [editingReportId, setEditingReportId] = useState(null);
   const [reportFromRequestId, setReportFromRequestId] = useState(null);
   const [viewingRequestId, setViewingRequestId] = useState(null);
+
+  const methodOptions = useMemo(
+    () =>
+      sortNdtMethods([
+        ...NDT_METHODS,
+        ...(drawingSettings?.ndtRequirements || []).map((item) => item?.method),
+        ...(ndtRequests || []).map((request) => request?.method),
+        ...(ndtReports || []).map((report) => report?.method),
+      ]),
+    [drawingSettings, ndtRequests, ndtReports]
+  );
+
+  useEffect(() => {
+    if (!methodOptions.includes(activeTab)) {
+      setActiveTab(methodOptions[0] || NDT_METHODS[0]);
+    }
+  }, [activeTab, methodOptions]);
 
   const method = activeTab;
 
@@ -413,7 +431,7 @@ function NdtKanbanPage({
       </div>
 
       <div className="flex border-b border-base-300 px-4">
-        {NDT_METHODS.map((m) => (
+        {methodOptions.map((m) => (
           <button
             key={m}
             type="button"
@@ -707,6 +725,8 @@ function NdtKanbanPage({
               weldPoints={weldPoints}
               ndtRequests={ndtRequests}
               request={requestToEdit || { method, weldIds: [], status: NDT_REQUEST_STATUS.DRAFT }}
+              methodOptions={[method]}
+              hideMethodSelect
               onSubmit={handleRequestSubmit}
               onCancel={() => {
                 setRequestFormOpen(false);
@@ -728,6 +748,8 @@ function NdtKanbanPage({
               weldPoints={weldPoints}
               ndtRequests={ndtRequests}
               drawingSettings={drawingSettings}
+              methodOptions={[method]}
+              hideMethodSelect
               requestId={reportFromRequest?.id ?? reportToEdit?.requestId ?? null}
               initialRequest={reportFromRequest}
               report={reportToEdit}

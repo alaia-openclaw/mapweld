@@ -8,6 +8,7 @@ import {
   NDT_REQUEST_STATUS_LABELS,
   NDT_REPORT_STATUS,
   NDT_REPORT_STATUS_LABELS,
+  sortNdtMethods,
 } from "@/lib/constants";
 import {
   applyReportToWelds,
@@ -48,6 +49,17 @@ function PanelNdtManagement({
   const requestToEdit = editingRequestId
     ? ndtRequests.find((r) => r.id === editingRequestId)
     : null;
+
+  const methodOptions = useMemo(
+    () =>
+      sortNdtMethods([
+        ...NDT_METHODS,
+        ...(drawingSettings?.ndtRequirements || []).map((item) => item?.method),
+        ...(ndtRequests || []).map((request) => request?.method),
+        ...(ndtReports || []).map((report) => report?.method),
+      ]),
+    [drawingSettings, ndtRequests, ndtReports]
+  );
 
   function handleCreateReport(linkedRequest = null) {
     setEditingReportId(null);
@@ -156,7 +168,7 @@ function PanelNdtManagement({
   function handleAutoGenerateNdtRequests() {
     const newRequests = [];
     const existingPlusNew = () => [...ndtRequests, ...newRequests];
-    NDT_METHODS.forEach((method) => {
+    methodOptions.forEach((method) => {
       const weldIds = weldPoints
         .filter((w) => {
           const ndtSel = computeNdtSelection(w, drawingSettings, weldPoints);
@@ -193,19 +205,19 @@ function PanelNdtManagement({
 
   const recapOptions = useMemo(() => {
     const opts = [];
-    NDT_METHODS.forEach((m) => {
+    methodOptions.forEach((m) => {
       opts.push({ value: `ready-${m}`, label: `Ready for ${m}` });
     });
     opts.push({ value: "not-ready", label: "Not ready" });
-    NDT_METHODS.forEach((m) => {
+    methodOptions.forEach((m) => {
       opts.push({ value: `accepted-${m}`, label: `Already accepted (${m})` });
     });
-    NDT_METHODS.forEach((m) => {
+    methodOptions.forEach((m) => {
       opts.push({ value: `planned-${m}`, label: `Planned (${m})` });
     });
     opts.push({ value: "repair", label: "Repair needed" });
     return opts;
-  }, []);
+  }, [methodOptions]);
 
   const [recapFilter, setRecapFilter] = useState("");
 
@@ -441,6 +453,7 @@ function PanelNdtManagement({
               weldPoints={weldPoints}
               ndtRequests={ndtRequests}
               drawingSettings={drawingSettings}
+              methodOptions={methodOptions}
               requestId={reportFromRequest?.id ?? null}
               initialRequest={reportFromRequest}
               report={reportToEdit}
@@ -459,6 +472,7 @@ function PanelNdtManagement({
             <FormNdtRequest
               weldPoints={weldPoints}
               ndtRequests={ndtRequests}
+              methodOptions={methodOptions}
               request={requestToEdit}
               onSubmit={handleRequestSubmit}
               onCancel={handleCloseRequestForm}

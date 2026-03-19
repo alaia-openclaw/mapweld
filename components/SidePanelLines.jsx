@@ -5,7 +5,10 @@ import { useState, useEffect, useRef, useMemo } from "react";
 function SidePanelLines({
   systems = [],
   lines = [],
+  allLines = [],
   onSaveLines,
+  onCreateLineOnCurrentPage,
+  onLinkLineToCurrentPage,
   spools = [],
   onSaveSpools,
   appMode = "edition",
@@ -17,6 +20,8 @@ function SidePanelLines({
 }) {
   const [expandedLineId, setExpandedLineId] = useState(null);
   const [spoolMenuLineId, setSpoolMenuLineId] = useState(null);
+  const [quickSystemId, setQuickSystemId] = useState("");
+  const [existingLineIdToLink, setExistingLineIdToLink] = useState("");
 
   const [editLineName, setEditLineName] = useState("");
   const [editFluidType, setEditFluidType] = useState("");
@@ -43,6 +48,11 @@ function SidePanelLines({
   }, [expandedLineId, lines]);
 
   function handleAddLine(systemId) {
+    if (typeof onCreateLineOnCurrentPage === "function") {
+      const createdId = onCreateLineOnCurrentPage(systemId || null);
+      if (createdId) setExpandedLineId(createdId);
+      return;
+    }
     const id = `line-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     const sysLines = lines.filter((l) => l.systemId === systemId);
     const num = sysLines.length + 1;
@@ -75,6 +85,14 @@ function SidePanelLines({
     if (!confirm("Delete this line?")) return;
     onSaveLines?.(lines.filter((l) => l.id !== id));
     if (expandedLineId === id) setExpandedLineId(null);
+  }
+
+  function handleUpdateLineSystem(id, systemId) {
+    onSaveLines?.(
+      lines.map((line) =>
+        line.id === id ? { ...line, systemId: systemId || null } : line
+      )
+    );
   }
 
   function spoolsOnLine(lineId) {
@@ -115,6 +133,11 @@ function SidePanelLines({
     return all;
   }, [systems, lines]);
 
+  const availableExistingLines = useMemo(() => {
+    const visibleIds = new Set((lines || []).map((line) => line.id));
+    return (allLines || []).filter((line) => !visibleIds.has(line.id));
+  }, [allLines, lines]);
+
   return (
     <div
       className={`flex-shrink-0 flex flex-col bg-base-200 transition-all duration-300 ease-out min-w-0 ${
@@ -150,6 +173,68 @@ function SidePanelLines({
       {isOpen && (
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden w-full min-w-0 h-0 basis-0">
           <div className={`flex-1 min-h-0 overflow-y-scroll overflow-x-auto p-2 min-w-0 pb-12 overscroll-contain [scrollbar-gutter:stable] ${hideHeader ? "mobile-no-scrollbar" : ""}`}>
+            {appMode === "edition" && (
+              <div className="bg-base-100 border border-base-300 rounded-lg p-2 space-y-2 mb-2">
+                <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] gap-2 items-end">
+                  <div className="form-control">
+                    <label className="label py-0 min-h-0">
+                      <span className="label-text text-xs">System for new line</span>
+                    </label>
+                    <select
+                      className="select select-bordered select-xs w-full"
+                      value={quickSystemId}
+                      onChange={(e) => setQuickSystemId(e.target.value)}
+                    >
+                      <option value="">No system</option>
+                      {systems.map((system) => (
+                        <option key={system.id} value={system.id}>
+                          {system.name || "Unnamed system"}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-xs"
+                    onClick={() => handleAddLine(quickSystemId || null)}
+                  >
+                    + Add new line
+                  </button>
+                </div>
+                {availableExistingLines.length > 0 && (
+                  <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] gap-2 items-end">
+                    <div className="form-control">
+                      <label className="label py-0 min-h-0">
+                        <span className="label-text text-xs">Link existing line to this page</span>
+                      </label>
+                      <select
+                        className="select select-bordered select-xs w-full"
+                        value={existingLineIdToLink}
+                        onChange={(e) => setExistingLineIdToLink(e.target.value)}
+                      >
+                        <option value="">Choose line…</option>
+                        {availableExistingLines.map((line) => (
+                          <option key={line.id} value={line.id}>
+                            {line.name || line.id}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-xs"
+                      disabled={!existingLineIdToLink}
+                      onClick={() => {
+                        onLinkLineToCurrentPage?.(existingLineIdToLink);
+                        setExistingLineIdToLink("");
+                      }}
+                    >
+                      Link existing
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
             {lines.length === 0 ? (
               <div className="text-center py-6 text-base-content/60 text-sm">
                 <p>No lines on this page</p>
@@ -255,6 +340,21 @@ function SidePanelLines({
         <div className="form-control">
           <label className="label py-0 min-h-0"><span className="label-text text-xs">Material</span></label>
           <input type="text" className="input input-xs input-bordered w-full min-w-0" value={editMaterial} onChange={(e) => setEditMaterial(e.target.value)} onBlur={() => handleUpdateLine(line.id)} placeholder="e.g. CS, SS316" />
+        </div>
+        <div className="form-control">
+          <label className="label py-0 min-h-0"><span className="label-text text-xs">System</span></label>
+          <select
+            className="select select-bordered select-xs w-full"
+            value={line.systemId || ""}
+            onChange={(e) => handleUpdateLineSystem(line.id, e.target.value)}
+          >
+            <option value="">No system</option>
+            {systems.map((system) => (
+              <option key={system.id} value={system.id}>
+                {system.name || "Unnamed system"}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="space-y-1">
           <div className="flex items-center justify-between gap-1">

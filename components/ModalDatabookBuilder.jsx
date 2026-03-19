@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import {
   DATABOOK_SECTIONS,
   createDefaultDatabookConfig,
   normalizeDatabookConfig,
   buildDatabookValidationWithContext,
+  getDatabookLinkedRequirements,
 } from "@/lib/databook-sections";
 
 const DOCUMENT_CATEGORIES = [
@@ -72,6 +73,7 @@ function ModalDatabookBuilder({
   personnel = { welders: [], wqrs: [] },
   wpsLibrary = [],
   materialCertificates = [],
+  onSaveMaterialCertificates,
   ndtReports = [],
   onSaveDocuments,
   onSaveDatabookConfig,
@@ -79,12 +81,15 @@ function ModalDatabookBuilder({
   const [activeTab, setActiveTab] = useState("sections");
   const [localDocuments, setLocalDocuments] = useState([]);
   const [localConfig, setLocalConfig] = useState(createDefaultDatabookConfig());
+  const [localMaterialCertificates, setLocalMaterialCertificates] = useState([]);
   const [uploadCategory, setUploadCategory] = useState("other");
   const [uploadTitle, setUploadTitle] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [sectionUploadTarget, setSectionUploadTarget] = useState(null);
   const [sectionFilter, setSectionFilter] = useState("all");
   const [vaultCategoryFilter, setVaultCategoryFilter] = useState("all");
+  const mtcUploadInputRef = useRef(null);
+  const mtcUploadHeatRef = useRef("");
 
   useEffect(() => {
     if (!isOpen) return;
@@ -97,13 +102,14 @@ function ModalDatabookBuilder({
     });
     setLocalDocuments([...mergedById.values()]);
     setLocalConfig(normalizeDatabookConfig(databookConfig));
+    setLocalMaterialCertificates(Array.isArray(materialCertificates) ? materialCertificates : []);
     setUploadCategory("other");
     setUploadTitle("");
     setActiveTab("sections");
     setSectionUploadTarget(null);
     setSectionFilter("all");
     setVaultCategoryFilter("all");
-  }, [isOpen, documents, databookConfig, ndtReports]);
+  }, [isOpen, documents, databookConfig, ndtReports, materialCertificates]);
 
   const validation = useMemo(
     () =>
@@ -114,10 +120,22 @@ function ModalDatabookBuilder({
         parts,
         personnel,
         wpsLibrary,
-        materialCertificates,
+        materialCertificates: localMaterialCertificates,
         ndtReports,
       }),
-    [localDocuments, localConfig, weldPoints, parts, personnel, wpsLibrary, materialCertificates, ndtReports]
+    [localDocuments, localConfig, weldPoints, parts, personnel, wpsLibrary, localMaterialCertificates, ndtReports]
+  );
+
+  const linkedRequirements = useMemo(
+    () =>
+      getDatabookLinkedRequirements({
+        weldPoints,
+        parts,
+        personnel,
+        wpsLibrary,
+        materialCertificates: localMaterialCertificates,
+      }),
+    [weldPoints, parts, personnel, wpsLibrary, localMaterialCertificates]
   );
 
   const documentsByCategory = useMemo(() => {
@@ -150,6 +168,11 @@ function ModalDatabookBuilder({
     if (vaultCategoryFilter === "all") return sorted;
     return sorted.filter((doc) => doc.category === vaultCategoryFilter);
   }, [localDocuments, vaultCategoryFilter]);
+
+  useEffect(() => {
+    if (vaultCategoryFilter === "all") return;
+    if (uploadCategory !== vaultCategoryFilter) setUploadCategory(vaultCategoryFilter);
+  }, [vaultCategoryFilter, uploadCategory]);
 
   const setSectionIncluded = useCallback((sectionId, included) => {
     setLocalConfig((prev) => {
@@ -293,8 +316,46 @@ function ModalDatabookBuilder({
 
   function handleSave() {
     onSaveDocuments?.(localDocuments.filter((doc) => !doc?.isReadOnlyFromNdt));
+    onSaveMaterialCertificates?.(localMaterialCertificates);
     onSaveDatabookConfig?.(localConfig);
     onClose?.();
+  }
+
+  function updateMtcHeatDocument(heatNumber, documentId) {
+    const heat = (heatNumber || "").trim();
+    if (!heat) return;
+    setLocalMaterialCertificates((prev) => {
+      const list = Array.isArray(prev) ? [...prev] : [];
+      const idx = list.findIndex((item) => (item?.heatNumber || "").trim() === heat);
+      const nextEntry = {
+        id: idx >= 0 ? list[idx].id : generateId("mtc"),
+        heatNumber: heat,
+        documentId: documentId || null,
+        linkedPartIds: idx >= 0 ? list[idx].linkedPartIds || [] : [],
+      };
+      if (idx >= 0) list[idx] = nextEntry;
+      else list.push(nextEntry);
+      return list;
+    });
+  }
+
+  async function handleMtcHeatUpload(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    const heat = (mtcUploadHeatRef.current || "").trim();
+    if (!file || !heat) return;
+    const uploaded = {
+      id: generateId("doc"),
+      title: `${heat} MTC`,
+      category: "mtc",
+      fileName: file.name,
+      mimeType: file.type || "application/pdf",
+      base64: await fileToBase64(file),
+      createdAt: new Date().toISOString(),
+    };
+    setLocalDocuments((prev) => [...prev, uploaded]);
+    updateMtcHeatDocument(heat, uploaded.id);
+    mtcUploadHeatRef.current = "";
   }
 
   if (!isOpen) return null;
@@ -367,6 +428,10 @@ function ModalDatabookBuilder({
                   : [];
                 const selectedDocId = localConfig.sectionDocumentIds?.[section.id] || "";
                 const orderIndex = localConfig.sectionOrder.indexOf(sectionId);
+                const mtcDocuments = documentsByCategory.get("mtc") || [];
+                const requiredHeatNumbers = section.id === "material-certificates"
+                  ? linkedRequirements.usedHeatNumbers
+                  : [];
 
                 return (
                   <div key={section.id} className="border border-base-300 rounded-lg p-3 bg-base-100">
@@ -443,6 +508,57 @@ function ModalDatabookBuilder({
                       </div>
                     )}
 
+                    {section.id === "material-certificates" && (
+                      <div className="mt-2 pl-6 space-y-2">
+                        <label className="label py-0">
+                          <span className="label-text text-xs">MTC by heat number</span>
+                        </label>
+                        {requiredHeatNumbers.length === 0 ? (
+                          <p className="text-xs text-base-content/60">
+                            No heat numbers are currently referenced in parts/weld records.
+                          </p>
+                        ) : (
+                          <ul className="space-y-1">
+                            {requiredHeatNumbers.map((heat) => {
+                              const linkedEntry = (localMaterialCertificates || []).find(
+                                (item) => (item?.heatNumber || "").trim() === heat
+                              );
+                              const linkedDocId = linkedEntry?.documentId || "";
+                              return (
+                                <li key={heat} className="grid grid-cols-1 md:grid-cols-[9rem_minmax(0,1fr)_auto] gap-1 items-center">
+                                  <span className="text-xs font-medium truncate" title={heat}>{heat}</span>
+                                  <select
+                                    className="select select-bordered select-xs w-full"
+                                    value={linkedDocId}
+                                    onChange={(e) => updateMtcHeatDocument(heat, e.target.value)}
+                                  >
+                                    <option value="">No MTC linked</option>
+                                    {mtcDocuments.map((doc) => (
+                                      <option key={doc.id} value={doc.id}>
+                                        {doc.title || doc.fileName}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  {!linkedDocId && (
+                                    <button
+                                      type="button"
+                                      className="btn btn-ghost btn-xs"
+                                      onClick={() => {
+                                        mtcUploadHeatRef.current = heat;
+                                        mtcUploadInputRef.current?.click();
+                                      }}
+                                    >
+                                      Load
+                                    </button>
+                                  )}
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+
                     <p className="text-xs text-base-content/60 mt-2 pl-6">
                       {sectionState?.message}
                     </p>
@@ -496,17 +612,27 @@ function ModalDatabookBuilder({
                       onChange={(e) => setUploadTitle(e.target.value)}
                       placeholder="Optional title override"
                     />
-                    <select
-                      className="select select-bordered select-sm"
-                      value={uploadCategory}
-                      onChange={(e) => setUploadCategory(e.target.value)}
-                    >
-                      {DOCUMENT_CATEGORIES.map((category) => (
-                        <option key={category.id} value={category.id}>
-                          {category.label}
-                        </option>
-                      ))}
-                    </select>
+                    {vaultCategoryFilter === "all" ? (
+                      <select
+                        className="select select-bordered select-sm"
+                        value={uploadCategory}
+                        onChange={(e) => setUploadCategory(e.target.value)}
+                      >
+                        {DOCUMENT_CATEGORIES.map((category) => (
+                          <option key={category.id} value={category.id}>
+                            {category.label}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        className="input input-bordered input-sm"
+                        value={getCategoryLabel(vaultCategoryFilter)}
+                        disabled
+                        readOnly
+                      />
+                    )}
                     <input
                       type="file"
                       accept=".pdf,application/pdf"
@@ -597,6 +723,14 @@ function ModalDatabookBuilder({
             </div>
           )}
         </div>
+
+        <input
+          ref={mtcUploadInputRef}
+          type="file"
+          accept=".pdf,application/pdf"
+          className="hidden"
+          onChange={handleMtcHeatUpload}
+        />
 
         <div className="modal-action mt-4">
           <button type="button" className="btn btn-ghost" onClick={onClose}>

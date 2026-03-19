@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { NDT_METHODS, NDT_METHOD_LABELS, NDT_REQUEST_STATUS, NDT_REQUEST_STATUS_LABELS } from "@/lib/constants";
+import { NDT_METHODS, NDT_METHOD_LABELS, NDT_REQUEST_STATUS, NDT_REQUEST_STATUS_LABELS, sortNdtMethods } from "@/lib/constants";
 import {
   getWeldName,
   isWeldReadyForNdt,
@@ -18,13 +18,19 @@ function FormNdtRequest({
   weldPoints = [],
   ndtRequests = [],
   request: initialRequest,
+  methodOptions = [],
+  hideMethodSelect = false,
   onSubmit,
   onCancel,
   getWeldName: getWeldNameProp,
 }) {
   const getWeldNameLocal = getWeldNameProp || ((w) => getWeldName(w, weldPoints));
+  const availableMethods = useMemo(
+    () => sortNdtMethods([...(methodOptions || []), ...NDT_METHODS, initialRequest?.method]),
+    [methodOptions, initialRequest?.method]
+  );
 
-  const [method, setMethod] = useState(initialRequest?.method ?? NDT_METHODS[0]);
+  const [method, setMethod] = useState(initialRequest?.method ?? availableMethods[0] ?? NDT_METHODS[0]);
   const [weldIds, setWeldIds] = useState(() => new Set(initialRequest?.weldIds ?? []));
   const [status, setStatus] = useState(initialRequest?.status ?? NDT_REQUEST_STATUS.DRAFT);
   const [notes, setNotes] = useState(initialRequest?.notes ?? "");
@@ -100,23 +106,34 @@ function FormNdtRequest({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="form-control">
-        <label className="label">
-          <span className="label-text">NDT type</span>
-        </label>
-        <select
-          className="select select-bordered w-full"
-          value={method}
-          onChange={(e) => setMethod(e.target.value)}
-          disabled={!!initialRequest}
-        >
-          {NDT_METHODS.map((m) => (
-            <option key={m} value={m}>
-              {NDT_METHOD_LABELS[m] || m}
-            </option>
-          ))}
-        </select>
-      </div>
+      {!hideMethodSelect && availableMethods.length > 1 ? (
+        <div className="form-control">
+          <label className="label">
+            <span className="label-text">NDT type</span>
+          </label>
+          <select
+            className="select select-bordered w-full"
+            value={method}
+            onChange={(e) => setMethod(e.target.value)}
+            disabled={!!initialRequest}
+          >
+            {availableMethods.map((m) => (
+              <option key={m} value={m}>
+                {NDT_METHOD_LABELS[m] || m}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : (
+        <div className="form-control">
+          <label className="label">
+            <span className="label-text">NDT type</span>
+          </label>
+          <p className="text-sm font-medium text-base-content/80 py-1">
+            {NDT_METHOD_LABELS[method] || method}
+          </p>
+        </div>
+      )}
 
       <div className="form-control">
         <label className="label">

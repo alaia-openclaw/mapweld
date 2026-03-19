@@ -1270,9 +1270,23 @@ export default function WeldTrackerApp() {
     [spoolsOnCurrentPage]
   );
 
+  const lineIdsOnActiveDrawing = useMemo(() => {
+    const activeDrawing = drawings.find((drawing) => drawing.id === activeDrawingId);
+    return Array.isArray(activeDrawing?.lineIds) ? activeDrawing.lineIds.filter(Boolean) : [];
+  }, [drawings, activeDrawingId]);
+
   const linesOnCurrentPage = useMemo(
-    () => lines.filter((line) => lineIdsOnCurrentPage.includes(line.id)),
-    [lines, lineIdsOnCurrentPage]
+    () => {
+      const byId = new Map();
+      lines
+        .filter((line) => lineIdsOnCurrentPage.includes(line.id))
+        .forEach((line) => byId.set(line.id, line));
+      lines
+        .filter((line) => lineIdsOnActiveDrawing.includes(line.id))
+        .forEach((line) => byId.set(line.id, line));
+      return [...byId.values()];
+    },
+    [lines, lineIdsOnCurrentPage, lineIdsOnActiveDrawing]
   );
 
   const partsOnCurrentPage = useMemo(
@@ -1329,6 +1343,66 @@ export default function WeldTrackerApp() {
       }))
     );
   }, [linesOnCurrentPage]);
+
+  const handleUpdateDrawing = useCallback((dwgId, updates) => {
+    setDrawings((prev) => prev.map((drawing) => (drawing.id === dwgId ? { ...drawing, ...updates } : drawing)));
+  }, []);
+
+  const handleLinkLineToCurrentDrawing = useCallback((lineId) => {
+    if (!activeDrawingId || !lineId) return;
+    setDrawings((prev) =>
+      prev.map((drawing) => {
+        if (drawing.id !== activeDrawingId) return drawing;
+        const nextLineIds = Array.isArray(drawing.lineIds) ? drawing.lineIds : [];
+        if (nextLineIds.includes(lineId)) return drawing;
+        return { ...drawing, lineIds: [...nextLineIds, lineId] };
+      })
+    );
+    setLines((prev) =>
+      prev.map((line) =>
+        line.id === lineId
+          ? {
+              ...line,
+              drawingIds: Array.isArray(line.drawingIds)
+                ? line.drawingIds.includes(activeDrawingId)
+                  ? line.drawingIds
+                  : [...line.drawingIds, activeDrawingId]
+                : [activeDrawingId],
+            }
+          : line
+      )
+    );
+  }, [activeDrawingId]);
+
+  const handleCreateLineOnCurrentDrawing = useCallback((systemId = null) => {
+    if (!activeDrawingId) return null;
+    const id = `line-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    setLines((prev) => {
+      const scopedCount = prev.filter((line) => (line.systemId || null) === (systemId || null)).length;
+      return [
+        ...prev,
+        {
+          id,
+          systemId: systemId || null,
+          name: `Line ${scopedCount + 1}`,
+          fluidType: "",
+          pressure: "",
+          diameterRange: "",
+          thickness: "",
+          material: "",
+          drawingIds: [activeDrawingId],
+        },
+      ];
+    });
+    setDrawings((prev) =>
+      prev.map((drawing) => {
+        if (drawing.id !== activeDrawingId) return drawing;
+        const existing = Array.isArray(drawing.lineIds) ? drawing.lineIds : [];
+        return existing.includes(id) ? drawing : { ...drawing, lineIds: [...existing, id] };
+      })
+    );
+    return id;
+  }, [activeDrawingId]);
 
   const scrollToTarget = useMemo(() => {
     if (selectedWeldId) {
@@ -1657,15 +1731,14 @@ export default function WeldTrackerApp() {
                     }}
                     onSwitchDrawing={handleSwitchDrawing}
                     onAddDrawing={loadPdfFile}
-                    onUpdateDrawing={(dwgId, updates) => {
-                      setDrawings((prev) => prev.map((d) => (d.id === dwgId ? { ...d, ...updates } : d)));
-                    }}
+                    onUpdateDrawing={handleUpdateDrawing}
                     onDeleteDrawing={handleDeleteDrawing}
                     isStacked={!showDrawingPanel && !showLinePanel && !showWeldPanel && !showSpoolPanel && !showPartPanel}
                   />
                   <SidePanelLines
                     systems={systems}
                     lines={linesOnCurrentPage}
+                    allLines={lines}
                     spools={spoolsOnCurrentPage}
                     isOpen={showLinePanel}
                     onToggle={() => {
@@ -1676,6 +1749,8 @@ export default function WeldTrackerApp() {
                       setShowLinePanel((v) => !v);
                     }}
                     onSaveLines={handleSaveVisibleLines}
+                    onCreateLineOnCurrentPage={handleCreateLineOnCurrentDrawing}
+                    onLinkLineToCurrentPage={handleLinkLineToCurrentDrawing}
                     onSaveSpools={handleSaveVisibleSpools}
                     appMode={appMode}
                     systemsManagedExternally
@@ -1868,9 +1943,7 @@ export default function WeldTrackerApp() {
                 onToggle={() => {}}
                 onSwitchDrawing={handleSwitchDrawing}
                 onAddDrawing={loadPdfFile}
-                onUpdateDrawing={(dwgId, updates) => {
-                  setDrawings((prev) => prev.map((d) => (d.id === dwgId ? { ...d, ...updates } : d)));
-                }}
+                onUpdateDrawing={handleUpdateDrawing}
                 onDeleteDrawing={handleDeleteDrawing}
                 isStacked={false}
                 hideHeader
@@ -1880,10 +1953,13 @@ export default function WeldTrackerApp() {
               <SidePanelLines
                 systems={systems}
                 lines={linesOnCurrentPage}
+                allLines={lines}
                 spools={spoolsOnCurrentPage}
                 isOpen={true}
                 onToggle={() => {}}
                 onSaveLines={handleSaveVisibleLines}
+                onCreateLineOnCurrentPage={handleCreateLineOnCurrentDrawing}
+                onLinkLineToCurrentPage={handleLinkLineToCurrentDrawing}
                 onSaveSpools={handleSaveVisibleSpools}
                 appMode={appMode}
                 systemsManagedExternally
@@ -2003,6 +2079,7 @@ export default function WeldTrackerApp() {
         materialCertificates={materialCertificates}
         ndtReports={ndtReports}
         onSaveDocuments={setDocuments}
+        onSaveMaterialCertificates={setMaterialCertificates}
         onSaveDatabookConfig={setDatabookConfig}
       />
 
