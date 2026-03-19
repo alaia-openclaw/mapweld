@@ -71,16 +71,24 @@ function NdtKanbanPage({
   const [reportFromRequestId, setReportFromRequestId] = useState(null);
   const [viewingRequestId, setViewingRequestId] = useState(null);
 
-  const methodOptions = useMemo(
-    () =>
-      sortNdtMethods([
-        ...NDT_METHODS,
-        ...(drawingSettings?.ndtRequirements || []).map((item) => item?.method),
-        ...(ndtRequests || []).map((request) => request?.method),
-        ...(ndtReports || []).map((report) => report?.method),
-      ]),
-    [drawingSettings, ndtRequests, ndtReports]
-  );
+  const methodOptions = useMemo(() => {
+    const fromDrawing = (drawingSettings?.ndtRequirements || []).map((item) => item?.method);
+    const fromWelds = [];
+    (weldPoints || []).forEach((w) => {
+      fromWelds.push(
+        ...Object.keys(w.ndtOverrides || {}),
+        ...Object.keys(w.ndtResults || {}),
+        ...Object.keys(w.ndtResultOutcome || {}),
+      );
+    });
+    return sortNdtMethods([
+      ...NDT_METHODS,
+      ...fromDrawing,
+      ...fromWelds,
+      ...(ndtRequests || []).map((request) => request?.method),
+      ...(ndtReports || []).map((report) => report?.method),
+    ]);
+  }, [drawingSettings, ndtRequests, ndtReports, weldPoints]);
 
   useEffect(() => {
     if (!methodOptions.includes(activeTab)) {
@@ -430,12 +438,12 @@ function NdtKanbanPage({
         </button>
       </div>
 
-      <div className="flex border-b border-base-300 px-4">
+      <div className="flex flex-nowrap overflow-x-auto border-b border-base-300 px-2 sm:px-4 gap-0">
         {methodOptions.map((m) => (
           <button
             key={m}
             type="button"
-            className={`px-4 py-2 font-medium text-sm border-b-2 -mb-px transition-colors ${
+            className={`shrink-0 px-3 sm:px-4 py-2 font-medium text-sm border-b-2 -mb-px transition-colors whitespace-nowrap ${
               activeTab === m ? "border-primary text-primary" : "border-transparent text-base-content/70 hover:text-base-content"
             }`}
             onClick={() => setActiveTab(m)}

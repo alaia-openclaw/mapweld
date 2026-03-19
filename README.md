@@ -1,6 +1,17 @@
 # Weld Dashboard MVP
 
-A minimal weld tracking app: load a PDF drawing, add weld points by clicking on it, capture weld info (welder, date, parts), and export to Excel. No database – all state is in memory; save to a `.weldproject` file to continue later.
+A minimal weld tracking app: load a PDF drawing, add weld points by clicking on it, capture weld info (welder, date, parts), and export to Excel. **No server database** — state stays in the browser and in `.weldproject` files.
+
+## Data & persistence
+
+| Mechanism | Purpose |
+|-----------|---------|
+| **`.weldproject` file** | Full project export/import (PDFs + welds + metadata). Use **Save project** regularly. |
+| **IndexedDB** | When a project has an id, saves are mirrored locally so **Projects** can reopen recent work. |
+| **sessionStorage** | Auto-draft while you work (survives refresh in the same tab; cleared when the tab closes). |
+| **Memory** | Active session until you close the tab or clear site data. |
+
+If the browser blocks storage or hits quota, the app shows a warning; your downloaded `.weldproject` is still the source of truth.
 
 ## Quick Start
 

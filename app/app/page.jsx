@@ -107,8 +107,13 @@ export default function WeldTrackerApp() {
   const [selectedWeldId, setSelectedWeldId] = useState(null);
   const [selectedSpoolMarkerId, setSelectedSpoolMarkerId] = useState(null);
   const [formWeld, setFormWeld] = useState(null);
-  const [showWeldPanel, setShowWeldPanel] = useState(false);
-  const [showSpoolPanel, setShowSpoolPanel] = useState(false);
+  const [activeSidePanel, setActiveSidePanel] = useState(
+    /** @type {null | 'drawings' | 'lines' | 'spools' | 'welds' | 'parts'} */ (null)
+  );
+  const [storageAlerts, setStorageAlerts] = useState({
+    indexeddb: null,
+    sessionDraft: null,
+  });
   const [showParameters, setShowParameters] = useState(false);
   const [showDatabookBuilder, setShowDatabookBuilder] = useState(false);
   const [showProjects, setShowProjects] = useState(false);
@@ -122,11 +127,7 @@ export default function WeldTrackerApp() {
   const [partMarkers, setPartMarkers] = useState([]);
   const [selectedLineMarkerId, setSelectedLineMarkerId] = useState(null);
   const [selectedPartMarkerId, setSelectedPartMarkerId] = useState(null);
-  const [showPartPanel, setShowPartPanel] = useState(false);
-  const [showDrawingPanel, setShowDrawingPanel] = useState(false);
-  const [showLinePanel, setShowLinePanel] = useState(false);
-  const anySidePanelOpen =
-    showDrawingPanel || showLinePanel || showWeldPanel || showSpoolPanel || showPartPanel;
+  const anySidePanelOpen = activeSidePanel != null;
   const [personnel, setPersonnel] = useState({ fitters: [], welders: [], wqrs: [] });
   const [ndtRequests, setNdtRequests] = useState([]);
   const [ndtReports, setNdtReports] = useState([]);
@@ -398,7 +399,7 @@ export default function WeldTrackerApp() {
       setMobileSheetTab("spools");
       setMobileSheetOpen(true);
     } else {
-      setShowSpoolPanel(true);
+      setActiveSidePanel("spools");
     }
   }, []);
 
@@ -574,7 +575,7 @@ export default function WeldTrackerApp() {
       setMobileSheetTab("parts");
       setMobileSheetOpen(true);
     } else {
-      setShowPartPanel(true);
+      setActiveSidePanel("parts");
     }
   }, []);
 
@@ -606,7 +607,7 @@ export default function WeldTrackerApp() {
       setMobileSheetTab("lines");
       setMobileSheetOpen(true);
     } else {
-      setShowLinePanel(true);
+      setActiveSidePanel("lines");
     }
   }, []);
 
@@ -742,7 +743,7 @@ export default function WeldTrackerApp() {
       setMobileSheetTab("welds");
       setMobileSheetOpen(true);
     } else {
-      setShowWeldPanel(true);
+      setActiveSidePanel("welds");
     }
   }, []);
 
@@ -757,7 +758,7 @@ export default function WeldTrackerApp() {
     setFormWeld(null);
     setSelectedWeldId(null);
     setSelectedLineMarkerId(null);
-    setShowWeldPanel(false);
+    setActiveSidePanel((p) => (p === "welds" ? null : p));
   }, []);
 
   const handleBackToList = useCallback(() => {
@@ -817,10 +818,11 @@ export default function WeldTrackerApp() {
     setFormWeld(null);
     setSelectedWeldId(null);
     setSelectedLineMarkerId(null);
-    setShowWeldPanel(false);
+    setActiveSidePanel((p) => (p === "welds" ? null : p));
   }, []);
 
   const draftSaveTimeoutRef = useRef(null);
+  const persistSessionDraftRef = useRef(async () => ({ ok: true, skipped: true }));
 
   const normalizeLoadedData = useCallback((rawData, { fallbackDrawingId = null, drawingIds = [] } = {}) => {
     const data = rawData && typeof rawData === "object" ? rawData : {};
@@ -1210,8 +1212,13 @@ export default function WeldTrackerApp() {
     if (projectId) {
       try {
         await saveToIndexedDB(projectId, payload);
+        setStorageAlerts((s) => (s.indexeddb ? { ...s, indexeddb: null } : s));
       } catch {
-        // Ignore (e.g. private window)
+        setStorageAlerts((s) => ({
+          ...s,
+          indexeddb:
+            "Could not save to browser storage (private window, blocked storage, or quota). Your .weldproject file still downloaded — keep that copy safe.",
+        }));
       }
     }
     saveProject(payload);
@@ -1244,6 +1251,109 @@ export default function WeldTrackerApp() {
     pdfToBase64,
   ]);
 
+  const persistSessionDraftToStorage = useCallback(
+    async ({ updateAlerts = true } = {}) => {
+      if (!pdfBlob) return { ok: true, skipped: true };
+      try {
+        const serializedDrawings = await Promise.all(
+          drawings.map(async (d) => {
+            const source = d.blobUrl || (d.id === activeDrawingId ? pdfBlob : null);
+            const b64 = source ? await pdfToBase64(source) : d.pdfBase64 || "";
+            return { id: d.id, filename: d.filename, pdfBase64: b64, revision: d.revision || "", lineIds: d.lineIds || [] };
+          })
+        );
+        if (serializedDrawings.length === 0) {
+          const b64 = await pdfToBase64(pdfBlob);
+          serializedDrawings.push({
+            id: activeDrawingId || "dwg-draft",
+            filename: pdfFilename,
+            pdfBase64: b64,
+            revision: "",
+            lineIds: [],
+          });
+        }
+        const draftResult = saveDraftToSession({
+          version: PROJECT_FILE_VERSION,
+          id: projectId || generateProjectId(),
+          drawings: serializedDrawings,
+          weldPoints,
+          spools,
+          spoolMarkers,
+          lineMarkers,
+          parts,
+          partMarkers,
+          personnel,
+          drawingSettings,
+          addDefaults,
+          ndtRequests,
+          ndtReports,
+          systems,
+          lines,
+          projectSettings,
+          projectMeta,
+          documents,
+          databookConfig,
+          wpsLibrary,
+          electrodeLibrary,
+          materialCertificates,
+        });
+        if (updateAlerts) {
+          if (draftResult.ok && !draftResult.skipped) {
+            setStorageAlerts((s) => (s.sessionDraft ? { ...s, sessionDraft: null } : s));
+          }
+          if (!draftResult.ok) {
+            const msg =
+              draftResult.reason === "quota"
+                ? "Could not auto-save your session: browser storage is full. Save a .weldproject file regularly so you don't lose work."
+                : draftResult.reason === "blocked"
+                  ? "Could not write to session storage. Save a .weldproject file to keep your work."
+                  : `Session auto-save failed: ${draftResult.message || "unknown error"}`;
+            setStorageAlerts((s) => ({ ...s, sessionDraft: msg }));
+          }
+        }
+        return draftResult;
+      } catch (err) {
+        if (updateAlerts) {
+          setStorageAlerts((s) => ({
+            ...s,
+            sessionDraft: `Session auto-save failed: ${err?.message || "unknown error"}`,
+          }));
+        }
+        return { ok: false };
+      }
+    },
+    [
+      pdfBlob,
+      projectId,
+      pdfFilename,
+      drawings,
+      activeDrawingId,
+      weldPoints,
+      spools,
+      spoolMarkers,
+      lineMarkers,
+      parts,
+      partMarkers,
+      personnel,
+      drawingSettings,
+      addDefaults,
+      ndtRequests,
+      ndtReports,
+      systems,
+      lines,
+      projectSettings,
+      projectMeta,
+      documents,
+      databookConfig,
+      wpsLibrary,
+      electrodeLibrary,
+      materialCertificates,
+      pdfToBase64,
+    ]
+  );
+
+  persistSessionDraftRef.current = persistSessionDraftToStorage;
+
   useEffect(() => {
     const draft = loadDraftFromSession();
     const hasDraftDrawings = Array.isArray(draft?.drawings) && draft.drawings.length > 0;
@@ -1254,76 +1364,22 @@ export default function WeldTrackerApp() {
   useEffect(() => {
     if (!pdfBlob) return;
     if (draftSaveTimeoutRef.current) clearTimeout(draftSaveTimeoutRef.current);
-    draftSaveTimeoutRef.current = setTimeout(async () => {
+    draftSaveTimeoutRef.current = setTimeout(() => {
       draftSaveTimeoutRef.current = null;
-      const serializedDrawings = await Promise.all(
-        drawings.map(async (d) => {
-          const source = d.blobUrl || (d.id === activeDrawingId ? pdfBlob : null);
-          const b64 = source ? await pdfToBase64(source) : d.pdfBase64 || "";
-          return { id: d.id, filename: d.filename, pdfBase64: b64, revision: d.revision || "", lineIds: d.lineIds || [] };
-        })
-      );
-      if (serializedDrawings.length === 0) {
-        const b64 = await pdfToBase64(pdfBlob);
-        serializedDrawings.push({ id: activeDrawingId || "dwg-draft", filename: pdfFilename, pdfBase64: b64, revision: "", lineIds: [] });
-      }
-      saveDraftToSession({
-        version: PROJECT_FILE_VERSION,
-        id: projectId || generateProjectId(),
-        drawings: serializedDrawings,
-        weldPoints,
-        spools,
-        spoolMarkers,
-        lineMarkers,
-        parts,
-        partMarkers,
-        personnel,
-        drawingSettings,
-        addDefaults,
-        ndtRequests,
-        ndtReports,
-        systems,
-        lines,
-        projectSettings,
-        projectMeta,
-        documents,
-        databookConfig,
-        wpsLibrary,
-        electrodeLibrary,
-        materialCertificates,
-      });
+      void persistSessionDraftToStorage({ updateAlerts: true });
     }, 500);
     return () => {
       if (draftSaveTimeoutRef.current) clearTimeout(draftSaveTimeoutRef.current);
     };
-  }, [
-    pdfBlob,
-    projectId,
-    pdfFilename,
-    drawings,
-    activeDrawingId,
-    weldPoints,
-    spools,
-    spoolMarkers,
-    lineMarkers,
-    parts,
-    partMarkers,
-    personnel,
-    drawingSettings,
-    addDefaults,
-    ndtRequests,
-    ndtReports,
-    systems,
-    lines,
-    projectSettings,
-    projectMeta,
-    documents,
-    databookConfig,
-    wpsLibrary,
-    electrodeLibrary,
-    materialCertificates,
-    pdfToBase64,
-  ]);
+  }, [pdfBlob, persistSessionDraftToStorage]);
+
+  useEffect(() => {
+    const flush = () => {
+      void persistSessionDraftRef.current({ updateAlerts: false });
+    };
+    window.addEventListener("pagehide", flush);
+    return () => window.removeEventListener("pagehide", flush);
+  }, []);
 
   const handleLoadProject = useCallback(async (file) => {
     try {
@@ -1669,6 +1725,38 @@ export default function WeldTrackerApp() {
     <div className="md:container md:mx-auto p-0 md:p-4">
       <>
         <OfflineBanner />
+        {(storageAlerts.indexeddb || storageAlerts.sessionDraft) && (
+          <div className="space-y-2 mb-2" role="status">
+            {storageAlerts.indexeddb ? (
+              <div className="alert alert-warning shadow-sm py-2 px-3 text-sm flex flex-row flex-wrap items-center gap-2">
+                <span className="flex-1 min-w-0">{storageAlerts.indexeddb}</span>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-xs shrink-0"
+                  onClick={() =>
+                    setStorageAlerts((s) => (s.indexeddb ? { ...s, indexeddb: null } : s))
+                  }
+                >
+                  Dismiss
+                </button>
+              </div>
+            ) : null}
+            {storageAlerts.sessionDraft ? (
+              <div className="alert alert-warning shadow-sm py-2 px-3 text-sm flex flex-row flex-wrap items-center gap-2">
+                <span className="flex-1 min-w-0">{storageAlerts.sessionDraft}</span>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-xs shrink-0"
+                  onClick={() =>
+                    setStorageAlerts((s) => (s.sessionDraft ? { ...s, sessionDraft: null } : s))
+                  }
+                >
+                  Dismiss
+                </button>
+              </div>
+            ) : null}
+          </div>
+        )}
         <Toolbar
           hasPdf={!!pdfBlob}
           hasWelds={weldPoints.length > 0}
@@ -1682,6 +1770,7 @@ export default function WeldTrackerApp() {
           onOpenNdt={() => setShowNdtPanel(true)}
           onOpenStatus={() => setShowStatusPage(true)}
           onPrint={() => setShowPrintModal(true)}
+          onPersistSessionDraft={persistSessionDraftToStorage}
         />
       </>
 
@@ -1699,7 +1788,7 @@ export default function WeldTrackerApp() {
               setSelectedPartMarkerId(null);
               setSelectedLineMarkerId(null);
               setFormWeld(weldPoints.find((w) => w.id === weldId) ?? null);
-              setShowWeldPanel(true);
+              setActiveSidePanel("welds");
               setShowStatusPage(false);
             }}
             onClose={() => setShowStatusPage(false)}
@@ -1980,67 +2069,47 @@ export default function WeldTrackerApp() {
                       <SidePanelTabButton
                         label="Dwg"
                         title="Drawings"
-                        active={showDrawingPanel}
-                        onClick={() => {
-                          setShowLinePanel(false);
-                          setShowWeldPanel(false);
-                          setShowSpoolPanel(false);
-                          setShowPartPanel(false);
-                          setShowDrawingPanel((v) => !v);
-                        }}
+                        active={activeSidePanel === "drawings"}
+                        onClick={() =>
+                          setActiveSidePanel((p) => (p === "drawings" ? null : "drawings"))
+                        }
                       />
                       <SidePanelTabButton
                         label="Line"
                         title="Lines"
-                        active={showLinePanel}
-                        onClick={() => {
-                          setShowDrawingPanel(false);
-                          setShowWeldPanel(false);
-                          setShowSpoolPanel(false);
-                          setShowPartPanel(false);
-                          setShowLinePanel((v) => !v);
-                        }}
+                        active={activeSidePanel === "lines"}
+                        onClick={() =>
+                          setActiveSidePanel((p) => (p === "lines" ? null : "lines"))
+                        }
                       />
                       <SidePanelTabButton
                         label="Spool"
                         title="Spools"
-                        active={showSpoolPanel}
-                        onClick={() => {
-                          setShowDrawingPanel(false);
-                          setShowLinePanel(false);
-                          setShowWeldPanel(false);
-                          setShowPartPanel(false);
-                          setShowSpoolPanel((v) => !v);
-                        }}
+                        active={activeSidePanel === "spools"}
+                        onClick={() =>
+                          setActiveSidePanel((p) => (p === "spools" ? null : "spools"))
+                        }
                       />
                       <SidePanelTabButton
                         label="Weld"
                         title="Welds"
-                        active={showWeldPanel}
-                        onClick={() => {
-                          setShowDrawingPanel(false);
-                          setShowLinePanel(false);
-                          setShowSpoolPanel(false);
-                          setShowPartPanel(false);
-                          setShowWeldPanel((v) => !v);
-                        }}
+                        active={activeSidePanel === "welds"}
+                        onClick={() =>
+                          setActiveSidePanel((p) => (p === "welds" ? null : "welds"))
+                        }
                       />
                       <SidePanelTabButton
                         label="Part"
                         title="Parts"
-                        active={showPartPanel}
-                        onClick={() => {
-                          setShowDrawingPanel(false);
-                          setShowLinePanel(false);
-                          setShowWeldPanel(false);
-                          setShowSpoolPanel(false);
-                          setShowPartPanel((v) => !v);
-                        }}
+                        active={activeSidePanel === "parts"}
+                        onClick={() =>
+                          setActiveSidePanel((p) => (p === "parts" ? null : "parts"))
+                        }
                       />
                     </nav>
                     {anySidePanelOpen ? (
                       <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden bg-base-200">
-                        {showDrawingPanel ? (
+                        {activeSidePanel === "drawings" ? (
                           <SidePanelDrawings
                             hideHeader
                             drawings={drawings}
@@ -2054,7 +2123,7 @@ export default function WeldTrackerApp() {
                             onDeleteDrawing={handleDeleteDrawing}
                           />
                         ) : null}
-                        {showLinePanel ? (
+                        {activeSidePanel === "lines" ? (
                           <SidePanelLines
                             hideHeader
                             systems={systems}
@@ -2072,7 +2141,7 @@ export default function WeldTrackerApp() {
                             systemsManagedExternally
                           />
                         ) : null}
-                        {showSpoolPanel ? (
+                        {activeSidePanel === "spools" ? (
                           <SidePanelSpools
                             hideHeader
                             spools={spoolsOnCurrentPage}
@@ -2090,7 +2159,7 @@ export default function WeldTrackerApp() {
                             lines={linesOnCurrentPage}
                           />
                         ) : null}
-                        {showWeldPanel ? (
+                        {activeSidePanel === "welds" ? (
                           <SidePanelWeldForm
                             hideHeader
                             weldPoints={weldsOnCurrentPage}
@@ -2108,7 +2177,7 @@ export default function WeldTrackerApp() {
                             onDelete={handleDeleteWeld}
                             appMode={appMode}
                             spools={spoolsOnCurrentPage}
-                            parts={partsOnCurrentPage}
+                            parts={parts}
                             onUpdatePartHeat={handleUpdatePartHeat}
                             personnel={personnel}
                             wpsLibrary={wpsLibrary}
@@ -2117,7 +2186,7 @@ export default function WeldTrackerApp() {
                             drawingSettings={drawingSettings}
                           />
                         ) : null}
-                        {showPartPanel ? (
+                        {activeSidePanel === "parts" ? (
                           <SidePanelPartForm
                             hideHeader
                             parts={partsOnCurrentPage}
@@ -2310,7 +2379,7 @@ export default function WeldTrackerApp() {
                 onDelete={handleDeleteWeld}
                 appMode={appMode}
                 spools={spoolsOnCurrentPage}
-                parts={partsOnCurrentPage}
+                parts={parts}
                 onUpdatePartHeat={handleUpdatePartHeat}
                 personnel={personnel}
                 wpsLibrary={wpsLibrary}

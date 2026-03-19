@@ -18,6 +18,32 @@ import {
 } from "@/lib/constants";
 import { getWeldName, getWeldOverallStatus, getWeldSectionCompletion, computeNdtSelection, getNdtSelectionWarnings } from "@/lib/weld-utils";
 
+function electrodeRefKey(s) {
+  return (s || "").trim().toLowerCase();
+}
+
+/** Same batch / ref only once per record when loading or saving (first occurrence wins). */
+function dedupeElectrodeNumbersInRecord(arr) {
+  const raw = Array.isArray(arr) && arr.length > 0 ? arr : [""];
+  const seen = new Set();
+  const out = [];
+  for (const x of raw) {
+    const k = electrodeRefKey(x);
+    if (k) {
+      if (seen.has(k)) continue;
+      seen.add(k);
+    }
+    out.push(typeof x === "string" ? x : "");
+  }
+  return out.length > 0 ? out : [""];
+}
+
+function normalizeElectrodeNumbersForSave(arr) {
+  const deduped = dedupeElectrodeNumbersInRecord(arr || [""]);
+  const nonEmpty = deduped.filter((s) => s?.trim?.() !== "");
+  return nonEmpty.length > 0 ? nonEmpty : [""];
+}
+
 function SidePanelWeldForm({
   weldPoints = [],
   weld,
@@ -30,6 +56,7 @@ function SidePanelWeldForm({
   onDelete,
   appMode = "edition",
   spools = [],
+  /** All project parts (not only current page) so Part 1/2 can link joints across sheets/markers. */
   parts = [],
   onUpdatePartHeat,
   personnel = { fitters: [], welders: [] },
@@ -93,6 +120,27 @@ function SidePanelWeldForm({
         .sort((a, b) => a.localeCompare(b)),
     [electrodeLibrary]
   );
+
+  /** Library codes already chosen on other slots in this record (same slot can keep its current value). */
+  function getUsedElectrodeKeysElsewhere(record, slotIndex) {
+    const used = new Set();
+    const nums = record.electrodeNumbers || [""];
+    nums.forEach((v, j) => {
+      if (j === slotIndex) return;
+      const k = electrodeRefKey(v);
+      if (k) used.add(k);
+    });
+    return used;
+  }
+
+  function getElectrodeLibraryChoicesForSlot(record, slotIndex) {
+    const usedElsewhere = getUsedElectrodeKeysElsewhere(record, slotIndex);
+    const currentKey = electrodeRefKey((record.electrodeNumbers || [""])[slotIndex]);
+    return electrodeOptions.filter(
+      (code) => !usedElsewhere.has(electrodeRefKey(code)) || electrodeRefKey(code) === currentKey
+    );
+  }
+
   const welderPresetEntries = useMemo(() => {
     const entries = [];
     const welders = personnel?.welders || [];
@@ -173,7 +221,7 @@ function SidePanelWeldForm({
           wqrIds: Array.isArray(r.wqrIds) ? r.wqrIds : [],
           welderName: r.welderName ?? "",
           weldingProcesses: Array.isArray(r.weldingProcesses) ? r.weldingProcesses : [],
-          electrodeNumbers: Array.isArray(r.electrodeNumbers) && r.electrodeNumbers.length > 0 ? r.electrodeNumbers : [""],
+          electrodeNumbers: dedupeElectrodeNumbersInRecord(r.electrodeNumbers),
           date: r.date ?? "",
         }))
       : [];
@@ -192,9 +240,7 @@ function SidePanelWeldForm({
     autoSaveTimeoutRef.current = setTimeout(() => {
       const recordsToSave = weldingRecords.map((r) => ({
         ...r,
-        electrodeNumbers: (r.electrodeNumbers || [""]).filter((s) => s?.trim?.() !== "").length > 0
-          ? (r.electrodeNumbers || [""]).filter((s) => s?.trim?.() !== "")
-          : [""],
+        electrodeNumbers: normalizeElectrodeNumbersForSave(r.electrodeNumbers),
       }));
       onSave?.({
         ...weld,
@@ -277,10 +323,17 @@ function SidePanelWeldForm({
 
   function handleRecordElectrodeChange(recordIndex, electrodeIndex, value) {
     setWeldingRecords((prev) => {
-      const next = [...prev];
-      const arr = [...(next[recordIndex].electrodeNumbers || [""])];
+      const rec = prev[recordIndex];
+      if (!rec) return prev;
+      const arr = [...(rec.electrodeNumbers || [""])];
+      const newKey = electrodeRefKey(value);
+      if (newKey) {
+        const clash = arr.some((v, j) => j !== electrodeIndex && electrodeRefKey(v) === newKey);
+        if (clash) return prev;
+      }
       arr[electrodeIndex] = value;
-      next[recordIndex] = { ...next[recordIndex], electrodeNumbers: arr };
+      const next = [...prev];
+      next[recordIndex] = { ...rec, electrodeNumbers: arr };
       return next;
     });
   }
@@ -362,9 +415,7 @@ function SidePanelWeldForm({
     if (!weld) return;
     const recordsToSave = weldingRecords.map((r) => ({
       ...r,
-      electrodeNumbers: (r.electrodeNumbers || [""]).filter((s) => s?.trim?.() !== "").length > 0
-        ? (r.electrodeNumbers || [""]).filter((s) => s?.trim?.() !== "")
-        : [""],
+      electrodeNumbers: normalizeElectrodeNumbersForSave(r.electrodeNumbers),
     }));
     onSave?.({
       ...weld,
@@ -968,7 +1019,7 @@ function SidePanelWeldForm({
                                                       onChange={(e) => handleRecordElectrodeSelect(idx, i, e.target.value)}
                                                     >
                                                       <option value="__custom__">Custom electrode</option>
-                                                      {electrodeOptions.map((code) => (
+                                                      {getElectrodeLibraryChoicesForSlot(rec, i).map((code) => (
                                                         <option key={code} value={code}>{code}</option>
                                                       ))}
                                                     </select>

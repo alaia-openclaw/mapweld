@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
+import { warnIfDev } from "@/lib/dev-log";
 
 const LINE_BADGE_COLOUR = "border-info bg-info";
 
@@ -84,13 +85,17 @@ function LineMarker({
       e.stopPropagation();
       try {
         e.currentTarget.setPointerCapture(e.pointerId);
-      } catch (_) {}
+      } catch (err) {
+        warnIfDev("LineMarker", err);
+      }
       draggingRef.current = mode;
       const onUp = () => {
         draggingRef.current = null;
         try {
           e.target.releasePointerCapture(e.pointerId);
-        } catch (_) {}
+        } catch (err) {
+          warnIfDev("LineMarker", err);
+        }
         createDragOnUp();
         window.removeEventListener("pointermove", handlePointerMove);
         window.removeEventListener("pointerup", onUp);

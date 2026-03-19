@@ -3,6 +3,7 @@
 import { useCallback, useRef, useEffect } from "react";
 import { WELD_TYPES, WELD_LOCATION } from "@/lib/constants";
 import { getWeldName } from "@/lib/weld-utils";
+import { warnIfDev } from "@/lib/dev-log";
 
 const BULLET_COLOURS = {
   [WELD_LOCATION.SHOP]: "border-success bg-success",
@@ -153,13 +154,17 @@ function WeldPointMarker({
       if (!canDrag || !onMoveWeldPoint) return;
       try {
         e.target.setPointerCapture(e.pointerId);
-      } catch (_) {}
+      } catch (err) {
+        warnIfDev("WeldPointMarker", err);
+      }
       draggingRef.current = "weld";
       const onUp = () => {
         draggingRef.current = null;
         try {
           e.target.releasePointerCapture(e.pointerId);
-        } catch (_) {}
+        } catch (err) {
+          warnIfDev("WeldPointMarker", err);
+        }
         createDragOnUp();
         window.removeEventListener("pointermove", handlePointerMove);
         window.removeEventListener("pointerup", onUp);
@@ -179,13 +184,17 @@ function WeldPointMarker({
       if (!canDrag || !onMoveIndicator) return;
       try {
         e.target.setPointerCapture(e.pointerId);
-      } catch (_) {}
+      } catch (err) {
+        warnIfDev("WeldPointMarker", err);
+      }
       draggingRef.current = "indicator";
       const onUp = () => {
         draggingRef.current = null;
         try {
           e.target.releasePointerCapture(e.pointerId);
-        } catch (_) {}
+        } catch (err) {
+          warnIfDev("WeldPointMarker", err);
+        }
         createDragOnUp();
         window.removeEventListener("pointermove", handlePointerMove);
         window.removeEventListener("pointerup", onUp);
@@ -205,13 +214,17 @@ function WeldPointMarker({
       if (!canDrag || !onMoveLineBend) return;
       try {
         e.target.setPointerCapture(e.pointerId);
-      } catch (_) {}
+      } catch (err) {
+        warnIfDev("WeldPointMarker", err);
+      }
       draggingRef.current = "lineBend";
       const onUp = () => {
         draggingRef.current = null;
         try {
           e.target.releasePointerCapture(e.pointerId);
-        } catch (_) {}
+        } catch (err) {
+          warnIfDev("WeldPointMarker", err);
+        }
         createDragOnUp();
         window.removeEventListener("pointermove", handlePointerMove);
         window.removeEventListener("pointerup", onUp);
@@ -231,7 +244,9 @@ function WeldPointMarker({
       if (!canDrag || !onResizeLabel) return;
       try {
         e.target.setPointerCapture(e.pointerId);
-      } catch (_) {}
+      } catch (err) {
+        warnIfDev("WeldPointMarker", err);
+      }
       resizeStartRef.current = {
         fontSize: weld.labelFontSize ?? 12,
         clientY: e.clientY,
@@ -241,7 +256,9 @@ function WeldPointMarker({
         draggingRef.current = null;
         try {
           e.target.releasePointerCapture(e.pointerId);
-        } catch (_) {}
+        } catch (err) {
+          warnIfDev("WeldPointMarker", err);
+        }
         createDragOnUp();
         window.removeEventListener("pointermove", handlePointerMove);
         window.removeEventListener("pointerup", onUp);

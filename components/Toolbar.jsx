@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRef } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useRef } from "react";
 
 const iconClass = "h-4 w-4 shrink-0";
 
@@ -91,9 +92,22 @@ function Toolbar({
   onOpenProjects,
   onOpenNdt,
   onOpenStatus,
+  /** Persist workspace to sessionStorage before SPA navigation (e.g. Catalog) so /app restores on return. */
+  onPersistSessionDraft,
 }) {
+  const router = useRouter();
   const projectInputRef = useRef(null);
   const btn = "btn btn-xs h-8 min-h-8 px-2 gap-1.5 md:min-w-0";
+
+  const handleNavigateToCatalog = useCallback(
+    async (e) => {
+      if (!onPersistSessionDraft) return;
+      e.preventDefault();
+      await onPersistSessionDraft({ updateAlerts: false });
+      router.push("/catalog");
+    },
+    [onPersistSessionDraft, router]
+  );
 
   const desktopActions = (
     <>
@@ -178,13 +192,24 @@ function Toolbar({
           <span className="hidden xl:inline">Databook</span>
         </button>
       )}
-      <Link
-        href="/catalog"
-        className={`${btn} btn-ghost hidden lg:inline-flex items-center`}
-        title="View full part catalog"
-      >
-        Catalog
-      </Link>
+      {onPersistSessionDraft ? (
+        <button
+          type="button"
+          className={`${btn} btn-ghost hidden lg:inline-flex items-center`}
+          title="View full part catalog"
+          onClick={handleNavigateToCatalog}
+        >
+          Catalog
+        </button>
+      ) : (
+        <Link
+          href="/catalog"
+          className={`${btn} btn-ghost hidden lg:inline-flex items-center`}
+          title="View full part catalog"
+        >
+          Catalog
+        </Link>
+      )}
       {hasPdf && onOpenNdt && (
         <button type="button" className={`${btn} btn-outline border-base-300`} onClick={onOpenNdt} title="NDT">
           <IconClipboard />
@@ -296,7 +321,13 @@ function Toolbar({
               </li>
             )}
             <li>
-              <Link href="/catalog">Catalog</Link>
+              {onPersistSessionDraft ? (
+                <button type="button" className="w-full text-left" onClick={handleNavigateToCatalog}>
+                  Catalog
+                </button>
+              ) : (
+                <Link href="/catalog">Catalog</Link>
+              )}
             </li>
             {hasPdf && onOpenStatus && (
               <li>

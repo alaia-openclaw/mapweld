@@ -6,6 +6,7 @@ import WeldOverlay from "./WeldOverlay";
 import SpoolMarker from "./SpoolMarker";
 import PartMarker from "./PartMarker";
 import LineMarker from "./LineMarker";
+import { warnIfDev } from "@/lib/dev-log";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 
@@ -153,7 +154,9 @@ function PDFViewer({
         isPanningRef.current = true;
         try {
           e.currentTarget.setPointerCapture(e.pointerId);
-        } catch (_) {}
+        } catch (err) {
+          warnIfDev("PDFViewer.panCapture", err);
+        }
       }
       if (isPanningRef.current) {
         e.preventDefault();
@@ -168,7 +171,9 @@ function PDFViewer({
     (e) => {
       try {
         e.currentTarget.releasePointerCapture(e.pointerId);
-      } catch (_) {}
+      } catch (err) {
+        warnIfDev("PDFViewer.panRelease", err);
+      }
       panStartRef.current = null;
     },
     []
