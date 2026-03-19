@@ -3,10 +3,8 @@
 import { useMemo } from "react";
 import { PART_TYPE_LABELS, WELD_LOCATION_LABELS } from "@/lib/constants";
 import { partCatalog, getCategories } from "@/lib/part-catalog";
-import {
-  getHierarchyForCategory,
-  getOptionsForStep,
-} from "@/lib/catalog-hierarchy";
+import { getHierarchyForCategory } from "@/lib/catalog-hierarchy";
+import CatalogHierarchyStepSelects from "@/components/CatalogHierarchyStepSelects";
 
 function AddDefaultsBar({
   markupTool,
@@ -125,35 +123,16 @@ function AddDefaultsBar({
             </select>
           </div>
           {isCatalogMode ? (
-        <>
-          {hierarchySteps.map((step) => {
-            const value = hierarchyState[step.key] ?? "";
-            const options = getOptionsForStep(
-              catalogEntriesForCategory,
-              hierarchyState,
-              catalogCategory,
-              step.key
-            );
-            return (
-              <select
-                key={step.key}
-                id={`default-${step.key}`}
-                className="select select-bordered select-xs h-7 min-h-7 py-0.5 w-20 max-w-full text-xs"
-                value={value}
-                onChange={(e) => handleHierarchyChange(step.key, e.target.value)}
-                aria-label={step.label}
-              >
-                <option value="">—</option>
-                {options.map((opt) => (
-                  <option key={opt} value={opt}>
-                    {opt}
-                  </option>
-                ))}
-              </select>
-            );
-          })}
-        </>
-      ) : (
+            <CatalogHierarchyStepSelects
+              catalogCategory={catalogCategory}
+              hierarchySteps={hierarchySteps}
+              hierarchyState={hierarchyState}
+              catalogEntriesForCategory={catalogEntriesForCategory}
+              onHierarchyChange={handleHierarchyChange}
+              variant="compact"
+              idPrefix="default"
+            />
+          ) : (
         <>
           <select
             id="default-partType"

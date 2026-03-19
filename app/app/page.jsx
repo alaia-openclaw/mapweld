@@ -34,6 +34,7 @@ import {
   generateProjectId,
 } from "@/lib/offline-storage";
 import { createDefaultWeld, createDefaultSpool, createDefaultPart, createDefaultDrawing } from "@/lib/defaults";
+import { normalizeJointDimensions } from "@/lib/joint-dimensions";
 import { partCatalog, findCatalogEntry } from "@/lib/part-catalog";
 import { findEntryByHierarchy } from "@/lib/catalog-hierarchy";
 import { getWeldName, getWeldOverallStatus, computeNdtSelection } from "@/lib/weld-utils";
@@ -347,7 +348,10 @@ export default function WeldTrackerApp() {
 
   const handleAddSpoolMarker = useCallback(
     ({ xPercent, yPercent, pageNumber }) => {
-      let newSpool;
+      const t = Date.now();
+      const rand = () => Math.random().toString(36).slice(2, 9);
+      const newSpoolId = `spool-${t}-${rand()}`;
+      const newMarkerId = `spm-${t}-${rand()}`;
       setSpools((prev) => {
         const used = prev
           .map((s) => s.name?.match(/^SP-([A-Z]+)$/i)?.[1])
@@ -368,23 +372,24 @@ export default function WeldTrackerApp() {
                 : max + "A";
           }
         }
-        newSpool = createDefaultSpool({ name: `SP-${nextLetter}` });
+        const newSpool = createDefaultSpool({
+          id: newSpoolId,
+          name: `SP-${nextLetter}`,
+        });
         return [...prev, newSpool];
       });
-      const newMarkerId = `spm-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-      const newMarker = {
-        id: newMarkerId,
-        spoolId: null,
-        drawingId: activeDrawingId ?? null,
-        xPercent,
-        yPercent,
-        indicatorXPercent: xPercent,
-        indicatorYPercent: yPercent,
-        pageNumber: pageNumber ?? 0,
-      };
       setSpoolMarkers((prev) => [
         ...prev,
-        { ...newMarker, spoolId: newSpool.id },
+        {
+          id: newMarkerId,
+          spoolId: newSpoolId,
+          drawingId: activeDrawingId ?? null,
+          xPercent,
+          yPercent,
+          indicatorXPercent: xPercent,
+          indicatorYPercent: yPercent,
+          pageNumber: pageNumber ?? 0,
+        },
       ]);
       setPendingLabelId({ type: "spool", id: newMarkerId });
     },
@@ -867,11 +872,13 @@ export default function WeldTrackerApp() {
       ? data.weldPoints
           .filter((w) => w && typeof w === "object")
           .map((w) => ({
+            ...createDefaultWeld(),
             ...w,
             drawingId: normalizeDrawingId(w.drawingId),
             spoolId: spoolIdSet.has(w.spoolId) ? w.spoolId : null,
             partId1: partIdSet.has(w.partId1) ? w.partId1 : null,
             partId2: partIdSet.has(w.partId2) ? w.partId2 : null,
+            jointDimensions: normalizeJointDimensions(w.jointDimensions),
           }))
       : [];
 
@@ -1444,8 +1451,8 @@ export default function WeldTrackerApp() {
   }, []);
 
   const ndtContext = useMemo(
-    () => ({ systems, lines, spools }),
-    [systems, lines, spools]
+    () => ({ systems, lines, spools, parts }),
+    [systems, lines, spools, parts]
   );
 
   const handleExportExcel = useCallback(() => {
@@ -1891,7 +1898,7 @@ export default function WeldTrackerApp() {
   );
 
   return (
-    <NdtScopeProvider systems={systems} lines={lines} spools={spools}>
+    <NdtScopeProvider systems={systems} lines={lines} spools={spools} parts={parts}>
     <div className="md:container md:mx-auto p-0 md:p-4">
       <>
         <OfflineBanner />

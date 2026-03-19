@@ -10,9 +10,9 @@ import {
 import {
   getHierarchyForCategory,
   getHierarchyStateFromEntry,
-  getOptionsForStep,
   findEntryByHierarchy,
 } from "@/lib/catalog-hierarchy";
+import CatalogHierarchyStepSelects from "@/components/CatalogHierarchyStepSelects";
 
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
@@ -330,37 +330,15 @@ function SidePanelPartForm({
                     </select>
                   </div>
                   {isCatalogMode ? (
-                    <>
-                      {hierarchySteps.map((step) => {
-                        const value = hierarchyState[step.key] ?? "";
-                        const options = getOptionsForStep(
-                          catalogEntriesForCategory,
-                          hierarchyState,
-                          catalogCategory,
-                          step.key
-                        );
-                        return (
-                          <div key={step.key} className="form-control">
-                            <label className="label" htmlFor={`part-hierarchy-${step.key}`}>
-                              <span className="label-text">{step.label}</span>
-                            </label>
-                            <select
-                              id={`part-hierarchy-${step.key}`}
-                              className="select select-bordered select-sm w-full"
-                              value={value}
-                              onChange={(e) => handleHierarchyChange(step.key, e.target.value)}
-                            >
-                              <option value="">—</option>
-                              {options.map((opt) => (
-                                <option key={opt} value={opt}>
-                                  {opt}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        );
-                      })}
-                    </>
+                    <CatalogHierarchyStepSelects
+                      catalogCategory={catalogCategory}
+                      hierarchySteps={hierarchySteps}
+                      hierarchyState={hierarchyState}
+                      catalogEntriesForCategory={catalogEntriesForCategory}
+                      onHierarchyChange={handleHierarchyChange}
+                      variant="form"
+                      idPrefix="part-hierarchy"
+                    />
                   ) : (
                     <>
                       <div className="form-control">

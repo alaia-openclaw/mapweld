@@ -23,6 +23,12 @@ import {
   getResolvedWpsCode,
   getWpsLibraryEntryById,
 } from "@/lib/wps-resolution";
+import {
+  createDefaultJointDimensions,
+  normalizeJointDimensions,
+  getEffectiveJointSide,
+  formatEffectiveJointSideSummary,
+} from "@/lib/joint-dimensions";
 
 function openDocumentPdfInNewTab(doc) {
   if (!doc?.base64 || typeof doc.base64 !== "string") return;
@@ -109,6 +115,7 @@ function SidePanelWeldForm({
   const [heatNumber2, setHeatNumber2] = useState("");
   const [partId1, setPartId1] = useState("");
   const [partId2, setPartId2] = useState("");
+  const [jointDimensions, setJointDimensions] = useState(createDefaultJointDimensions);
   const [welderName, setWelderName] = useState("");
   const [ndtRequired, setNdtRequired] = useState(NDT_REQUIRED_OPTIONS.AUTO);
   const [visualInspection, setVisualInspection] = useState(false);
@@ -130,6 +137,30 @@ function SidePanelWeldForm({
   const partHeat2 = (selectedPart2?.heatNumber ?? "").trim();
   const showSync1 = !!selectedPart1 && !!trimmedHeat1 && trimmedHeat1 !== partHeat1;
   const showSync2 = !!selectedPart2 && !!trimmedHeat2 && trimmedHeat2 !== partHeat2;
+
+  const jointDimensionsNorm = useMemo(
+    () => normalizeJointDimensions(jointDimensions),
+    [jointDimensions]
+  );
+  const effectiveJoint1 = useMemo(
+    () => getEffectiveJointSide({ jointDimensions: jointDimensionsNorm }, selectedPart1, 1),
+    [jointDimensionsNorm, selectedPart1]
+  );
+  const effectiveJoint2 = useMemo(
+    () => getEffectiveJointSide({ jointDimensions: jointDimensionsNorm }, selectedPart2, 2),
+    [jointDimensionsNorm, selectedPart2]
+  );
+
+  function setJointSideField(side, field, value) {
+    const key = side === 1 ? "side1" : "side2";
+    setJointDimensions((prev) => {
+      const n = normalizeJointDimensions(prev);
+      return {
+        ...n,
+        [key]: { ...n[key], [field]: value },
+      };
+    });
+  }
   const libraryWpsEntries = useMemo(
     () => (Array.isArray(wpsLibrary) ? wpsLibrary : []),
     [wpsLibrary]
@@ -301,6 +332,7 @@ function SidePanelWeldForm({
     setHeatNumber2(weld.heatNumber2 || "");
     setPartId1(weld.partId1 || "");
     setPartId2(weld.partId2 || "");
+    setJointDimensions(normalizeJointDimensions(weld.jointDimensions));
     setWelderName(weld.welderName || "");
     setNdtRequired(weld.ndtRequired || NDT_REQUIRED_OPTIONS.AUTO);
     setVisualInspection(weld.visualInspection || false);
@@ -360,6 +392,7 @@ function SidePanelWeldForm({
         ndtResultManualOverride: Object.keys(ndtResultManualOverride).length ? ndtResultManualOverride : undefined,
         spoolId: spoolId || null,
         wpsLibraryEntryId: linkedWpsEntryId || null,
+        jointDimensions: normalizeJointDimensions(jointDimensions),
       });
     }, 600);
     return () => {
@@ -386,6 +419,7 @@ function SidePanelWeldForm({
     ndtResultManualOverride,
     spoolId,
     linkedWpsEntryId,
+    jointDimensions,
     onSave,
   ]);
 
@@ -525,6 +559,8 @@ function SidePanelWeldForm({
       dateFitUp,
       heatNumber1,
       heatNumber2,
+      partId1: partId1 || null,
+      partId2: partId2 || null,
       welderName,
       weldingRecords: recordsToSave,
       ndtRequired,
@@ -532,8 +568,10 @@ function SidePanelWeldForm({
       ndtOverrides,
       ndtResults,
       ndtResultOutcome,
+      ndtResultManualOverride: Object.keys(ndtResultManualOverride).length ? ndtResultManualOverride : undefined,
       spoolId: spoolId || null,
       wpsLibraryEntryId: linkedWpsEntryId || null,
+      jointDimensions: normalizeJointDimensions(jointDimensions),
     });
   }
 
@@ -705,6 +743,9 @@ function SidePanelWeldForm({
                                 dateFitUp,
                                 heatNumber1,
                                 heatNumber2,
+                                partId1: partId1 || null,
+                                partId2: partId2 || null,
+                                jointDimensions: jointDimensionsNorm,
                                 weldingRecords,
                                 ndtRequired,
                                 visualInspection,
@@ -1114,6 +1155,84 @@ function SidePanelWeldForm({
                                     </div>
                                   </>
                                 )}
+                                <div className="border border-base-300 rounded-lg p-2 space-y-2 bg-base-200/50">
+                                  <p className="text-xs font-semibold text-base-content/90">
+                                    Joint diameter & wall (NPS · schedule)
+                                  </p>
+                                  <p className="text-[11px] text-base-content/70">
+                                    <span className="font-medium text-base-content/80">Side 1:</span>{" "}
+                                    {formatEffectiveJointSideSummary(effectiveJoint1)}
+                                  </p>
+                                  <p className="text-[11px] text-base-content/70">
+                                    <span className="font-medium text-base-content/80">Side 2:</span>{" "}
+                                    {formatEffectiveJointSideSummary(effectiveJoint2)}
+                                  </p>
+                                  <p className="text-[10px] text-base-content/50 leading-snug">
+                                    Leave overrides empty to use each linked part&apos;s NPS and thickness (schedule).
+                                    Both parts must be linked; each side needs NPS and wall for fit-up complete.
+                                  </p>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div className="form-control">
+                                      <label className="label py-0 min-h-0" htmlFor="jd-s1-nps">
+                                        <span className="label-text text-[10px]">Override side 1 NPS</span>
+                                      </label>
+                                      <input
+                                        id="jd-s1-nps"
+                                        type="text"
+                                        className="input input-bordered input-xs w-full"
+                                        value={jointDimensionsNorm.side1.nps}
+                                        onChange={(e) => setJointSideField(1, "nps", e.target.value)}
+                                        placeholder="inherit"
+                                      />
+                                    </div>
+                                    <div className="form-control">
+                                      <label className="label py-0 min-h-0" htmlFor="jd-s1-sch">
+                                        <span className="label-text text-[10px]">Override side 1 wall</span>
+                                      </label>
+                                      <input
+                                        id="jd-s1-sch"
+                                        type="text"
+                                        className="input input-bordered input-xs w-full"
+                                        value={jointDimensionsNorm.side1.schedule}
+                                        onChange={(e) => setJointSideField(1, "schedule", e.target.value)}
+                                        placeholder="inherit"
+                                      />
+                                    </div>
+                                    <div className="form-control">
+                                      <label className="label py-0 min-h-0" htmlFor="jd-s2-nps">
+                                        <span className="label-text text-[10px]">Override side 2 NPS</span>
+                                      </label>
+                                      <input
+                                        id="jd-s2-nps"
+                                        type="text"
+                                        className="input input-bordered input-xs w-full"
+                                        value={jointDimensionsNorm.side2.nps}
+                                        onChange={(e) => setJointSideField(2, "nps", e.target.value)}
+                                        placeholder="inherit"
+                                      />
+                                    </div>
+                                    <div className="form-control">
+                                      <label className="label py-0 min-h-0" htmlFor="jd-s2-sch">
+                                        <span className="label-text text-[10px]">Override side 2 wall</span>
+                                      </label>
+                                      <input
+                                        id="jd-s2-sch"
+                                        type="text"
+                                        className="input input-bordered input-xs w-full"
+                                        value={jointDimensionsNorm.side2.schedule}
+                                        onChange={(e) => setJointSideField(2, "schedule", e.target.value)}
+                                        placeholder="inherit"
+                                      />
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    className="btn btn-ghost btn-xs"
+                                    onClick={() => setJointDimensions(createDefaultJointDimensions())}
+                                  >
+                                    Clear weld overrides
+                                  </button>
+                                </div>
                               </div>
                             )}
 

@@ -90,6 +90,13 @@ function PDFViewer({
     }
   }, [pdfBlob, controlledPage]);
 
+  // After finishing label placement, reset so the next add-spool/weld click is not blocked by the
+  // 400ms anti-double-tap guard (same issue as confirming the indicator right after placing anchor).
+  useEffect(() => {
+    if (pendingLabelId) return;
+    lastPlacementTapRef.current = 0;
+  }, [pendingLabelId]);
+
   useEffect(() => {
     if (pendingLabelId) return;
     if (!scrollToTarget || scrollToTarget.pageNumber == null) return;
@@ -250,7 +257,11 @@ function PDFViewer({
         return;
       }
       const now = Date.now();
-      if (now - lastPlacementTapRef.current < 400) return;
+      if (
+        !pendingLabelId &&
+        now - lastPlacementTapRef.current < 400
+      )
+        return;
       lastPlacementTapRef.current = now;
       const target = pageWrapperRef.current;
       if (!target) return;
@@ -259,7 +270,7 @@ function PDFViewer({
       const y = ((e.clientY - rect.top) / rect.height) * 100;
       onPageClick?.({ xPercent: x, yPercent: y, pageNumber: currentPage - 1 });
     },
-    [onPageClick, currentPage]
+    [onPageClick, currentPage, pendingLabelId]
   );
 
   useEffect(() => {
