@@ -285,26 +285,8 @@ function SidePanelSpools({
                 <p className="mt-1">Add with the Add Spool tool on the drawing</p>
               </div>
             ) : (
-              <div className="space-y-2">
-                <div className="bg-base-100 border border-base-300 rounded-lg p-2">
-                  <label className="label py-0 min-h-0">
-                    <span className="label-text text-xs">Select spool from current page</span>
-                  </label>
-                  <select
-                    className="select select-bordered select-sm w-full"
-                    value={expandedSpoolId || ""}
-                    onChange={(e) => setExpandedSpoolId(e.target.value || null)}
-                  >
-                    <option value="">Choose spool…</option>
-                    {spools.map((spool) => (
-                      <option key={spool.id} value={spool.id}>
-                        {spool.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <ul className="space-y-2">
-                  {spools.map((s) => {
+              <ul className="space-y-2">
+                {spools.map((s) => {
                   const isExpanded = s.id === expandedSpoolId;
                   const attachedWelds = weldsBySpoolId[s.id] || [];
                   return (
@@ -583,9 +565,8 @@ function SidePanelSpools({
                       )}
                     </li>
                   );
-                  })}
-                </ul>
-              </div>
+                })}
+              </ul>
             )}
           </div>
         </div>

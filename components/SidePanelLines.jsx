@@ -6,6 +6,9 @@ function SidePanelLines({
   systems = [],
   lines = [],
   onSaveLines,
+  spools = [],
+  onSaveSpools,
+  appMode = "edition",
   systemsManagedExternally = false,
   isOpen,
   onToggle,
@@ -13,6 +16,7 @@ function SidePanelLines({
   hideHeader = false,
 }) {
   const [expandedLineId, setExpandedLineId] = useState(null);
+  const [spoolMenuLineId, setSpoolMenuLineId] = useState(null);
 
   const [editLineName, setEditLineName] = useState("");
   const [editFluidType, setEditFluidType] = useState("");
@@ -71,6 +75,19 @@ function SidePanelLines({
     if (!confirm("Delete this line?")) return;
     onSaveLines?.(lines.filter((l) => l.id !== id));
     if (expandedLineId === id) setExpandedLineId(null);
+  }
+
+  function spoolsOnLine(lineId) {
+    return (spools || []).filter((spool) => spool.lineId === lineId);
+  }
+
+  function assignSpoolToLine(spoolId, lineId) {
+    if (!onSaveSpools) return;
+    onSaveSpools(
+      (spools || []).map((spool) =>
+        spool.id === spoolId ? { ...spool, lineId: lineId || null } : spool
+      )
+    );
   }
 
   const groupedLines = useMemo(() => {
@@ -141,10 +158,10 @@ function SidePanelLines({
                 </p>
               </div>
             ) : (
-              <ul className="space-y-2">
+              <ul className="space-y-3">
                 {groupedLines.map((group) => {
                   return (
-                    <li key={group.id} className="bg-base-100 rounded-lg overflow-hidden border border-base-300 p-2 space-y-1">
+                    <li key={group.id} className="space-y-1">
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
                           <p className="text-xs font-semibold uppercase tracking-wide text-base-content/70 truncate">
@@ -169,7 +186,7 @@ function SidePanelLines({
                           {group.lines.map((line) => {
                             const isExpandedLine = line.id === expandedLineId;
                             return (
-                              <li key={line.id} className="bg-base-200 rounded-lg overflow-hidden">
+                              <li key={line.id} className="bg-base-100 border border-base-300 rounded-lg overflow-hidden">
                                 <button
                                   type="button"
                                   className="w-full text-left text-xs px-2 py-1.5 flex items-center justify-between"
@@ -209,6 +226,8 @@ function SidePanelLines({
   );
 
   function renderLineForm(line) {
+    const linkedSpools = spoolsOnLine(line.id);
+    const availableSpools = (spools || []).filter((spool) => spool.lineId !== line.id);
     return (
       <div className="border-t border-base-300/60 px-2 py-2 space-y-1.5">
         <div className="form-control">
@@ -236,6 +255,67 @@ function SidePanelLines({
         <div className="form-control">
           <label className="label py-0 min-h-0"><span className="label-text text-xs">Material</span></label>
           <input type="text" className="input input-xs input-bordered w-full min-w-0" value={editMaterial} onChange={(e) => setEditMaterial(e.target.value)} onBlur={() => handleUpdateLine(line.id)} placeholder="e.g. CS, SS316" />
+        </div>
+        <div className="space-y-1">
+          <div className="flex items-center justify-between gap-1">
+            <span className="label-text text-xs font-medium">Linked spools ({linkedSpools.length})</span>
+            {appMode === "edition" && (spools || []).length > 0 && (
+              <div className={`dropdown dropdown-end ${spoolMenuLineId === line.id ? "dropdown-open" : ""}`}>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-xs gap-0.5"
+                  onClick={() => setSpoolMenuLineId((prev) => (prev === line.id ? null : line.id))}
+                >
+                  + Add spool
+                </button>
+                <ul className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-56 max-h-56 overflow-y-auto border border-base-300">
+                  {availableSpools.length === 0 ? (
+                    <li><span className="text-xs text-base-content/50">All spools linked</span></li>
+                  ) : (
+                    availableSpools.map((spool) => (
+                      <li key={spool.id}>
+                        <button
+                          type="button"
+                          className="text-left text-sm"
+                          onClick={() => {
+                            assignSpoolToLine(spool.id, line.id);
+                            setSpoolMenuLineId(null);
+                          }}
+                        >
+                          {spool.name || spool.id}
+                        </button>
+                      </li>
+                    ))
+                  )}
+                </ul>
+              </div>
+            )}
+          </div>
+          {linkedSpools.length === 0 ? (
+            <p className="text-xs text-base-content/50">None linked</p>
+          ) : (
+            <ul className="space-y-0.5">
+              {linkedSpools.map((spool) => (
+                <li
+                  key={spool.id}
+                  className="flex items-center justify-between gap-1 text-xs py-1 px-1.5 bg-base-200 rounded min-w-0"
+                >
+                  <span className="truncate" title={spool.name || spool.id}>{spool.name || spool.id}</span>
+                  {appMode === "edition" && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-xs text-error px-0.5 min-h-6"
+                      onClick={() => assignSpoolToLine(spool.id, null)}
+                      aria-label="Unlink spool"
+                      title="Unlink spool"
+                    >
+                      ×
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
         <div className="flex justify-end pt-1">
           <button type="button" className="btn btn-error btn-outline btn-xs" onClick={() => handleDeleteLine(line.id)}>

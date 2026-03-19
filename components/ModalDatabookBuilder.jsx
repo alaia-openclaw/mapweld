@@ -13,6 +13,7 @@ const DOCUMENT_CATEGORIES = [
   { id: "wqr", label: "Welder qualification (WQR)" },
   { id: "wps", label: "WPS" },
   { id: "mtc", label: "Material certificate (MTC)" },
+  { id: "electrode", label: "Electrode register" },
   { id: "ndt_qualification", label: "NDT qualification" },
   { id: "ndt_calibration", label: "NDT calibration" },
   { id: "painting_report", label: "Painting report" },
@@ -62,6 +63,8 @@ function ModalDatabookBuilder({
   const [uploadTitle, setUploadTitle] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [sectionUploadTarget, setSectionUploadTarget] = useState(null);
+  const [sectionFilter, setSectionFilter] = useState("all");
+  const [vaultCategoryFilter, setVaultCategoryFilter] = useState("all");
 
   useEffect(() => {
     if (!isOpen) return;
@@ -71,6 +74,8 @@ function ModalDatabookBuilder({
     setUploadTitle("");
     setActiveTab("sections");
     setSectionUploadTarget(null);
+    setSectionFilter("all");
+    setVaultCategoryFilter("all");
   }, [isOpen, documents, databookConfig]);
 
   const validation = useMemo(
@@ -96,6 +101,27 @@ function ModalDatabookBuilder({
     });
     return map;
   }, [localDocuments]);
+
+  const filteredSections = useMemo(() => {
+    return localConfig.sectionOrder.filter((sectionId) => {
+      if (sectionFilter === "all") return true;
+      const section = DATABOOK_SECTIONS.find((item) => item.id === sectionId);
+      if (!section) return false;
+      if (sectionFilter === "required_missing") {
+        const sectionState = validation.sections.find((item) => item.id === section.id);
+        return section.required && !(sectionState?.ready);
+      }
+      return section.type === sectionFilter;
+    });
+  }, [localConfig.sectionOrder, sectionFilter, validation.sections]);
+
+  const filteredVaultDocuments = useMemo(() => {
+    const sorted = localDocuments
+      .slice()
+      .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+    if (vaultCategoryFilter === "all") return sorted;
+    return sorted.filter((doc) => doc.category === vaultCategoryFilter);
+  }, [localDocuments, vaultCategoryFilter]);
 
   const setSectionIncluded = useCallback((sectionId, included) => {
     setLocalConfig((prev) => {
@@ -287,8 +313,21 @@ function ModalDatabookBuilder({
 
         <div className="flex-1 min-h-0 overflow-auto mt-4 pr-1">
           {activeTab === "sections" && (
-            <div className="space-y-2">
-              {localConfig.sectionOrder.map((sectionId, index) => {
+            <div className="grid grid-cols-1 md:grid-cols-[14rem_minmax(0,1fr)] gap-3">
+              <aside className="border border-base-300 rounded-lg bg-base-100 p-2 h-fit">
+                <p className="text-xs font-semibold uppercase tracking-wide text-base-content/60 px-1 py-1">
+                  Section tree
+                </p>
+                <ul className="menu menu-sm">
+                  <li><button type="button" className={sectionFilter === "all" ? "active" : ""} onClick={() => setSectionFilter("all")}>All sections</button></li>
+                  <li><button type="button" className={sectionFilter === "required_missing" ? "active" : ""} onClick={() => setSectionFilter("required_missing")}>Required missing</button></li>
+                  <li><button type="button" className={sectionFilter === "generated" ? "active" : ""} onClick={() => setSectionFilter("generated")}>Generated</button></li>
+                  <li><button type="button" className={sectionFilter === "uploaded" ? "active" : ""} onClick={() => setSectionFilter("uploaded")}>Uploaded PDFs</button></li>
+                  <li><button type="button" className={sectionFilter === "linked_documents" ? "active" : ""} onClick={() => setSectionFilter("linked_documents")}>Linked data docs</button></li>
+                </ul>
+              </aside>
+              <div className="space-y-2">
+              {filteredSections.map((sectionId) => {
                 const section = DATABOOK_SECTIONS.find((item) => item.id === sectionId);
                 if (!section) return null;
                 const sectionState = validation.sections.find((item) => item.id === section.id);
@@ -297,6 +336,7 @@ function ModalDatabookBuilder({
                   ? (documentsByCategory.get(section.documentCategory) || [])
                   : [];
                 const selectedDocId = localConfig.sectionDocumentIds?.[section.id] || "";
+                const orderIndex = localConfig.sectionOrder.indexOf(sectionId);
 
                 return (
                   <div key={section.id} className="border border-base-300 rounded-lg p-3 bg-base-100">
@@ -321,7 +361,7 @@ function ModalDatabookBuilder({
                           type="button"
                           className="btn btn-ghost btn-xs"
                           onClick={() => moveSection(section.id, "up")}
-                          disabled={index === 0}
+                          disabled={orderIndex <= 0}
                           aria-label="Move section up"
                         >
                           ↑
@@ -330,7 +370,7 @@ function ModalDatabookBuilder({
                           type="button"
                           className="btn btn-ghost btn-xs"
                           onClick={() => moveSection(section.id, "down")}
-                          disabled={index === localConfig.sectionOrder.length - 1}
+                          disabled={orderIndex === localConfig.sectionOrder.length - 1}
                           aria-label="Move section down"
                         >
                           ↓
@@ -357,16 +397,18 @@ function ModalDatabookBuilder({
                               </option>
                             ))}
                           </select>
-                          <label className="btn btn-ghost btn-sm">
-                            Load
-                            <input
-                              type="file"
-                              accept=".pdf,application/pdf"
-                              className="hidden"
-                              onClick={() => setSectionUploadTarget(section.id)}
-                              onChange={handleSectionUpload}
-                            />
-                          </label>
+                          {!selectedDocId && (
+                            <label className="btn btn-ghost btn-sm">
+                              Load
+                              <input
+                                type="file"
+                                accept=".pdf,application/pdf"
+                                className="hidden"
+                                onClick={() => setSectionUploadTarget(section.id)}
+                                onChange={handleSectionUpload}
+                              />
+                            </label>
+                          )}
                         </div>
                       </div>
                     )}
@@ -377,52 +419,81 @@ function ModalDatabookBuilder({
                   </div>
                 );
               })}
+              </div>
             </div>
           )}
 
           {activeTab === "documents" && (
-            <div className="space-y-4">
-              <div className="border border-base-300 rounded-lg p-3 bg-base-100">
-                <h4 className="font-medium text-sm">Upload PDF documents</h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2">
-                  <input
-                    type="text"
-                    className="input input-bordered input-sm"
-                    value={uploadTitle}
-                    onChange={(e) => setUploadTitle(e.target.value)}
-                    placeholder="Optional title override"
-                  />
-                  <select
-                    className="select select-bordered select-sm"
-                    value={uploadCategory}
-                    onChange={(e) => setUploadCategory(e.target.value)}
-                  >
-                    {DOCUMENT_CATEGORIES.map((category) => (
-                      <option key={category.id} value={category.id}>
-                        {category.label}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    type="file"
-                    accept=".pdf,application/pdf"
-                    multiple
-                    className="file-input file-input-bordered file-input-sm w-full"
-                    onChange={handleUploadFiles}
-                    disabled={isUploading}
-                  />
+            <div className="grid grid-cols-1 md:grid-cols-[14rem_minmax(0,1fr)] gap-3">
+              <aside className="border border-base-300 rounded-lg bg-base-100 p-2 h-fit">
+                <p className="text-xs font-semibold uppercase tracking-wide text-base-content/60 px-1 py-1">
+                  Categories
+                </p>
+                <ul className="menu menu-sm">
+                  <li>
+                    <button
+                      type="button"
+                      className={vaultCategoryFilter === "all" ? "active" : ""}
+                      onClick={() => setVaultCategoryFilter("all")}
+                    >
+                      All ({localDocuments.length})
+                    </button>
+                  </li>
+                  {DOCUMENT_CATEGORIES.map((category) => {
+                    const count = (documentsByCategory.get(category.id) || []).length;
+                    return (
+                      <li key={category.id}>
+                        <button
+                          type="button"
+                          className={vaultCategoryFilter === category.id ? "active" : ""}
+                          onClick={() => setVaultCategoryFilter(category.id)}
+                        >
+                          {category.label} ({count})
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </aside>
+              <div className="space-y-4">
+                <div className="border border-base-300 rounded-lg p-3 bg-base-100">
+                  <h4 className="font-medium text-sm">Upload PDF documents</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2">
+                    <input
+                      type="text"
+                      className="input input-bordered input-sm"
+                      value={uploadTitle}
+                      onChange={(e) => setUploadTitle(e.target.value)}
+                      placeholder="Optional title override"
+                    />
+                    <select
+                      className="select select-bordered select-sm"
+                      value={uploadCategory}
+                      onChange={(e) => setUploadCategory(e.target.value)}
+                    >
+                      {DOCUMENT_CATEGORIES.map((category) => (
+                        <option key={category.id} value={category.id}>
+                          {category.label}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="file"
+                      accept=".pdf,application/pdf"
+                      multiple
+                      className="file-input file-input-bordered file-input-sm w-full"
+                      onChange={handleUploadFiles}
+                      disabled={isUploading}
+                    />
+                  </div>
+                  {isUploading && <p className="text-xs text-base-content/60 mt-2">Uploading…</p>}
                 </div>
-                {isUploading && <p className="text-xs text-base-content/60 mt-2">Uploading…</p>}
-              </div>
 
-              {localDocuments.length === 0 ? (
-                <p className="text-sm text-base-content/60">No documents uploaded yet.</p>
-              ) : (
-                <ul className="space-y-2">
-                  {localDocuments
-                    .slice()
-                    .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))
-                    .map((doc) => (
+                {filteredVaultDocuments.length === 0 ? (
+                  <p className="text-sm text-base-content/60">No documents in this category.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {filteredVaultDocuments.map((doc) => (
                       <li key={doc.id} className="border border-base-300 rounded-lg p-3 bg-base-100">
                         <div className="flex items-center gap-2">
                           <div className="min-w-0 flex-1">
@@ -441,8 +512,9 @@ function ModalDatabookBuilder({
                         </div>
                       </li>
                     ))}
-                </ul>
-              )}
+                  </ul>
+                )}
+              </div>
             </div>
           )}
 

@@ -1666,6 +1666,7 @@ export default function WeldTrackerApp() {
                   <SidePanelLines
                     systems={systems}
                     lines={linesOnCurrentPage}
+                    spools={spoolsOnCurrentPage}
                     isOpen={showLinePanel}
                     onToggle={() => {
                       setShowDrawingPanel(false);
@@ -1675,6 +1676,8 @@ export default function WeldTrackerApp() {
                       setShowLinePanel((v) => !v);
                     }}
                     onSaveLines={handleSaveVisibleLines}
+                    onSaveSpools={handleSaveVisibleSpools}
+                    appMode={appMode}
                     systemsManagedExternally
                     isStacked={!showDrawingPanel && !showLinePanel && !showWeldPanel && !showSpoolPanel && !showPartPanel}
                   />
@@ -1735,6 +1738,8 @@ export default function WeldTrackerApp() {
                     parts={partsOnCurrentPage}
                     partMarkers={partMarkersOnCurrentPage}
                     spools={spoolsOnCurrentPage}
+                    documents={documents}
+                    materialCertificates={materialCertificates}
                     selectedPartMarkerId={selectedPartMarkerId}
                     isOpen={showPartPanel}
                     onToggle={() => {
@@ -1746,6 +1751,8 @@ export default function WeldTrackerApp() {
                     }}
                     onSelectPartMarker={setSelectedPartMarkerId}
                     onSavePart={handleSavePart}
+                    onSaveDocuments={setDocuments}
+                    onSaveMaterialCertificates={setMaterialCertificates}
                     onDeletePart={handleDeletePart}
                     appMode={appMode}
                     isStacked={!showDrawingPanel && !showLinePanel && !showWeldPanel && !showSpoolPanel && !showPartPanel}
@@ -1873,9 +1880,12 @@ export default function WeldTrackerApp() {
               <SidePanelLines
                 systems={systems}
                 lines={linesOnCurrentPage}
+                spools={spoolsOnCurrentPage}
                 isOpen={true}
                 onToggle={() => {}}
                 onSaveLines={handleSaveVisibleLines}
+                onSaveSpools={handleSaveVisibleSpools}
+                appMode={appMode}
                 systemsManagedExternally
                 isStacked={false}
                 hideHeader
@@ -1933,11 +1943,15 @@ export default function WeldTrackerApp() {
                 parts={partsOnCurrentPage}
                 partMarkers={partMarkersOnCurrentPage}
                 spools={spoolsOnCurrentPage}
+                documents={documents}
+                materialCertificates={materialCertificates}
                 selectedPartMarkerId={selectedPartMarkerId}
                 isOpen={true}
                 onToggle={() => {}}
                 onSelectPartMarker={setSelectedPartMarkerId}
                 onSavePart={handleSavePart}
+                onSaveDocuments={setDocuments}
+                onSaveMaterialCertificates={setMaterialCertificates}
                 onDeletePart={handleDeletePart}
                 appMode={appMode}
                 isStacked={false}

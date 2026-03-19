@@ -14,15 +14,31 @@ import {
   findEntryByHierarchy,
 } from "@/lib/catalog-hierarchy";
 
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      resolve(result.replace(/^data:.*?;base64,/, ""));
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 function SidePanelPartForm({
   parts = [],
   partMarkers = [],
   spools = [],
+  documents = [],
+  materialCertificates = [],
   selectedPartMarkerId,
   isOpen,
   onToggle,
   onSelectPartMarker,
   onSavePart,
+  onSaveDocuments,
+  onSaveMaterialCertificates,
   onDeletePart,
   appMode = "edition",
   isStacked = false,
@@ -44,6 +60,7 @@ function SidePanelPartForm({
   const [heatNumber, setHeatNumber] = useState("");
   const [variation, setVariation] = useState("");
   const autoSaveTimeoutRef = useRef(null);
+  const mtcUploadInputRef = useRef(null);
 
   const categories = getCategories();
   const catalogEntriesForCategory = useMemo(
@@ -164,6 +181,18 @@ function SidePanelPartForm({
     () => getHierarchyForCategory(catalogCategory),
     [catalogCategory]
   );
+  const mtcDocuments = useMemo(
+    () => (documents || []).filter((doc) => doc?.category === "mtc"),
+    [documents]
+  );
+  const normalizedHeat = (heatNumber || "").trim();
+  const linkedMtc = useMemo(
+    () =>
+      (materialCertificates || []).find(
+        (cert) => (cert?.heatNumber || "").trim() === normalizedHeat
+      ) || null,
+    [materialCertificates, normalizedHeat]
+  );
 
   function handleCatalogCategoryChange(value) {
     setCatalogCategory(value);
@@ -183,6 +212,40 @@ function SidePanelPartForm({
       }
       return next;
     });
+  }
+
+  function setHeatMtcDocument(documentId) {
+    if (!normalizedHeat || !onSaveMaterialCertificates) return;
+    const nextCertificates = [...(materialCertificates || [])];
+    const idx = nextCertificates.findIndex(
+      (cert) => (cert?.heatNumber || "").trim() === normalizedHeat
+    );
+    const nextEntry = {
+      id: idx >= 0 ? nextCertificates[idx].id : `mtc-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      heatNumber: normalizedHeat,
+      documentId: documentId || null,
+      linkedPartIds: idx >= 0 ? nextCertificates[idx].linkedPartIds || [] : [],
+    };
+    if (idx >= 0) nextCertificates[idx] = nextEntry;
+    else nextCertificates.push(nextEntry);
+    onSaveMaterialCertificates(nextCertificates);
+  }
+
+  async function handleUploadMtcForHeat(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !normalizedHeat || !onSaveDocuments || !onSaveMaterialCertificates) return;
+    const uploadedDoc = {
+      id: `doc-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      title: `${normalizedHeat} MTC`,
+      category: "mtc",
+      fileName: file.name || `${normalizedHeat}-mtc.pdf`,
+      mimeType: file.type || "application/pdf",
+      base64: await fileToBase64(file),
+      createdAt: new Date().toISOString(),
+    };
+    onSaveDocuments([...(documents || []), uploadedDoc]);
+    setHeatMtcDocument(uploadedDoc.id);
   }
 
   return (
@@ -414,6 +477,41 @@ function SidePanelPartForm({
                       placeholder="e.g. H12345"
                     />
                   </div>
+                  <div className="form-control">
+                    <label className="label" htmlFor="part-mtc">
+                      <span className="label-text">MTC PDF link</span>
+                    </label>
+                    <div className="flex gap-1">
+                      <select
+                        id="part-mtc"
+                        className="select select-bordered select-sm flex-1"
+                        value={linkedMtc?.documentId || ""}
+                        onChange={(e) => setHeatMtcDocument(e.target.value)}
+                        disabled={!normalizedHeat}
+                      >
+                        <option value="">
+                          {normalizedHeat ? "No MTC linked" : "Enter heat number first"}
+                        </option>
+                        {mtcDocuments.map((doc) => (
+                          <option key={doc.id} value={doc.id}>
+                            {doc.title || doc.fileName}
+                          </option>
+                        ))}
+                      </select>
+                      {!linkedMtc?.documentId && normalizedHeat && (
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => mtcUploadInputRef.current?.click()}
+                        >
+                          Load
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-xs text-base-content/60 mt-1">
+                      Link certificate by heat number for databook traceability.
+                    </p>
+                  </div>
                 </div>
               </>
             ) : (
@@ -446,6 +544,13 @@ function SidePanelPartForm({
           </div>
         </div>
       )}
+      <input
+        ref={mtcUploadInputRef}
+        type="file"
+        accept=".pdf,application/pdf"
+        className="hidden"
+        onChange={handleUploadMtcForHeat}
+      />
     </div>
   );
 }
