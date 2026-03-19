@@ -265,6 +265,8 @@ export default function WeldTrackerApp() {
     setPdfPage(1);
     setNumPdfPages(null);
     if (isFirstDrawing) {
+      // Only clear data tied to the drawing canvas. Do not reset project setup (personnel,
+      // NDT defaults, WPS library, etc.) — e.g. after the setup wizard, the first PDF load must keep that.
       setWeldPoints([]);
       setSpools([]);
       setSpoolMarkers([]);
@@ -272,16 +274,8 @@ export default function WeldTrackerApp() {
       setParts([]);
       setPartMarkers([]);
       setSelectedPartMarkerId(null);
-      setPersonnel({ fitters: [], welders: [], wqrs: [] });
-      setDrawingSettings({ ndtRequirements: [], weldingSpec: "" });
       setNdtRequests([]);
       setNdtReports([]);
-      setDocuments([]);
-      setDatabookConfig(createDefaultDatabookConfig());
-      setWpsLibrary([]);
-      setElectrodeLibrary([]);
-      setMaterialCertificates([]);
-      setProjectId(generateProjectId());
     }
     setSelectedWeldId(null);
     setSelectedSpoolMarkerId(null);
