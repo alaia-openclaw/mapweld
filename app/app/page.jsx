@@ -17,6 +17,7 @@ import ModalProjects from "@/components/ModalProjects";
 import ModalDatabookBuilder from "@/components/ModalDatabookBuilder";
 import NdtKanbanPage from "@/components/NdtKanbanPage";
 import StatusPage from "@/components/StatusPage";
+import ProjectHealthPage from "@/components/ProjectHealthPage";
 import PageThumbnailPanel from "@/components/PageThumbnailPanel";
 import OfflineBanner from "@/components/OfflineBanner";
 import BottomSheet from "@/components/BottomSheet";
@@ -119,6 +120,7 @@ export default function WeldTrackerApp() {
   const [showProjects, setShowProjects] = useState(false);
   const [showNdtPanel, setShowNdtPanel] = useState(false);
   const [showStatusPage, setShowStatusPage] = useState(false);
+  const [showHealthPage, setShowHealthPage] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [projectId, setProjectId] = useState(null);
   const [spoolMarkers, setSpoolMarkers] = useState([]);
@@ -1767,8 +1769,21 @@ export default function WeldTrackerApp() {
           onOpenParameters={() => setShowParameters(true)}
           onOpenDatabook={() => setShowDatabookBuilder(true)}
           onOpenProjects={() => setShowProjects(true)}
-          onOpenNdt={() => setShowNdtPanel(true)}
-          onOpenStatus={() => setShowStatusPage(true)}
+          onOpenNdt={() => {
+            setShowStatusPage(false);
+            setShowHealthPage(false);
+            setShowNdtPanel(true);
+          }}
+          onOpenStatus={() => {
+            setShowNdtPanel(false);
+            setShowHealthPage(false);
+            setShowStatusPage(true);
+          }}
+          onOpenHealth={() => {
+            setShowNdtPanel(false);
+            setShowStatusPage(false);
+            setShowHealthPage(true);
+          }}
           onPrint={() => setShowPrintModal(true)}
           onPersistSessionDraft={persistSessionDraftToStorage}
         />
@@ -1792,6 +1807,37 @@ export default function WeldTrackerApp() {
               setShowStatusPage(false);
             }}
             onClose={() => setShowStatusPage(false)}
+          />
+        </div>
+      ) : showHealthPage ? (
+        <div className="flex-1 min-h-0 flex flex-col rounded-lg overflow-hidden shadow bg-base-100">
+          <ProjectHealthPage
+            weldPoints={weldPoints}
+            drawings={drawings}
+            spools={spools}
+            parts={parts}
+            lines={lines}
+            systems={systems}
+            personnel={personnel}
+            wpsLibrary={wpsLibrary}
+            electrodeLibrary={electrodeLibrary}
+            drawingSettings={drawingSettings}
+            projectMeta={projectMeta}
+            partMarkers={partMarkers}
+            spoolMarkers={spoolMarkers}
+            lineMarkers={lineMarkers}
+            getWeldName={getWeldName}
+            onOpenParameters={() => setShowParameters(true)}
+            onSelectWeld={(weldId) => {
+              setSelectedWeldId(weldId);
+              setSelectedSpoolMarkerId(null);
+              setSelectedPartMarkerId(null);
+              setSelectedLineMarkerId(null);
+              setFormWeld(weldPoints.find((w) => w.id === weldId) ?? null);
+              setActiveSidePanel("welds");
+              setShowHealthPage(false);
+            }}
+            onClose={() => setShowHealthPage(false)}
           />
         </div>
       ) : showNdtPanel ? (
@@ -2289,7 +2335,7 @@ export default function WeldTrackerApp() {
       )}
 
       {/* Mobile bottom sheet for welds/spools/parts */}
-      {pdfBlob && !showStatusPage && !showNdtPanel && (
+      {pdfBlob && !showStatusPage && !showHealthPage && !showNdtPanel && (
         <>
           {!mobileSheetOpen && (
             <button

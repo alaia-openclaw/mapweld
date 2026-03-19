@@ -27,3 +27,4 @@ MapWeld is a fully client-side weld traceability web app built with Next.js 14 (
 - The app page (`/app`) is a large client-side bundle (~670 kB First Load JS). Hot reload works but may take a moment on first load.
 - No `.env` file is needed — no environment variables are required.
 - If **IndexedDB** or **sessionStorage** fails (private mode, quota), the UI shows a dismissible warning; **Save project** (`.weldproject`) remains reliable.
+- **Project health** (toolbar **Health** when a PDF is loaded) runs pure checks in `lib/project-health.js` over the in-memory snapshot (drawings/PDFs, lines, welds, spools, parts, library links, NDT). It is display-only — no auto-fix.

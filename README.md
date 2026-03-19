@@ -30,6 +30,14 @@ Open [http://localhost:3000](http://localhost:3000).
 4. **Save Project** – Downloads a `.weldproject` file (PDF + welds)
 5. **Load Project** – Upload a `.weldproject` file to restore your session
 6. **Export Excel** – Export weld data to `.xlsx`
+7. **Health** (with a PDF loaded) – Full-screen data-quality panel: missing PDFs on drawing records, lines without drawings, weld/spool/part link errors, WPS/electrode vs library, personnel gaps, NDT result gaps. Use **Open weld** / **Open parameters** from the panel where offered.
+
+### QA ideas (health panel)
+
+- Save/reload `.weldproject`: drawings should keep `pdfBase64` so health does not flag “no PDF” after reopening (blob-only URLs are session-only).
+- Create a line with no linked drawings → expect a systems/lines finding.
+- Set a weld WPS string that is not in **Parameters → WPS library** (with library non-empty) → library warning.
+- Remove a welder from personnel while still referenced on a weld record → library error.
 
 ## Run Locally (Production)
 
