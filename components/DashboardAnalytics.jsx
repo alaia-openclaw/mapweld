@@ -1,18 +1,11 @@
 "use client";
 
 import { useMemo } from "react";
-import { computeNdtSelection } from "@/lib/weld-utils";
-import {
-  NDT_METHOD_LABELS,
-  WELD_LOCATION_LABELS,
-  WELD_TYPE_LABELS,
-  formatNdtRequirements,
-} from "@/lib/constants";
+import { WELD_LOCATION_LABELS, WELD_TYPE_LABELS } from "@/lib/constants";
 
 function DashboardAnalytics({
   weldPoints = [],
   weldStatusByWeldId = new Map(),
-  drawingSettings = {},
   spools = [],
 }) {
   const stats = useMemo(() => {
@@ -22,7 +15,6 @@ function DashboardAnalytics({
     let notStarted = 0;
     const byLocation = { shop: 0, field: 0 };
     const byType = {};
-    let weldsRequiringNdt = 0;
 
     weldPoints.forEach((w) => {
       const status = weldStatusByWeldId.get(w.id);
@@ -35,13 +27,8 @@ function DashboardAnalytics({
 
       const type = w.weldType || "butt";
       byType[type] = (byType[type] || 0) + 1;
-
-      const ndtSel = computeNdtSelection(w, drawingSettings, weldPoints);
-      const anyNdt = Object.values(ndtSel).some(Boolean);
-      if (anyNdt) weldsRequiringNdt++;
     });
 
-    const ndtRequirements = drawingSettings.ndtRequirements || [];
     const assignedToSpool = weldPoints.filter((w) => w.spoolId).length;
 
     return {
@@ -51,12 +38,10 @@ function DashboardAnalytics({
       notStarted,
       byLocation,
       byType,
-      weldsRequiringNdt,
-      ndtRequirements,
       assignedToSpool,
       spoolCount: spools.length,
     };
-  }, [weldPoints, weldStatusByWeldId, drawingSettings, spools]);
+  }, [weldPoints, weldStatusByWeldId, spools]);
 
   const progressPct =
     stats.total > 0 ? Math.round((stats.complete / stats.total) * 100) : 0;
@@ -100,22 +85,6 @@ function DashboardAnalytics({
             </span>
           </div>
         </div>
-
-        {stats.ndtRequirements.length > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="text-base-content/60 text-sm font-medium">
-              NDT (drawing)
-            </span>
-            <span className="text-sm">
-              {formatNdtRequirements(stats.ndtRequirements)}
-            </span>
-            {stats.total > 0 && (
-              <span className="text-xs text-base-content/50">
-                ({stats.weldsRequiringNdt} welds)
-              </span>
-            )}
-          </div>
-        )}
 
         <div className="flex items-center gap-3 text-sm">
           <span className="text-base-content/60">Location</span>

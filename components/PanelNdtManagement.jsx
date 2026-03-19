@@ -22,6 +22,7 @@ import {
   isWeldAlreadyAcceptedForMethod,
   computeNdtSelection,
 } from "@/lib/weld-utils";
+import { useNdtScope } from "@/contexts/NdtScopeContext";
 import FormNdtReport from "@/components/FormNdtReport";
 import FormNdtRequest from "@/components/FormNdtRequest";
 
@@ -36,6 +37,7 @@ function PanelNdtManagement({
   getWeldName,
   onClose,
 }) {
+  const ndtContext = useNdtScope();
   const [view, setView] = useState("list");
   const [editingReportId, setEditingReportId] = useState(null);
   const [editingRequestId, setEditingRequestId] = useState(null);
@@ -171,10 +173,10 @@ function PanelNdtManagement({
     methodOptions.forEach((method) => {
       const weldIds = weldPoints
         .filter((w) => {
-          const ndtSel = computeNdtSelection(w, drawingSettings, weldPoints);
+          const ndtSel = computeNdtSelection(w, drawingSettings, weldPoints, ndtContext);
           if (!ndtSel[method]) return false;
           return (
-            isWeldReadyForNdt(w) &&
+            isWeldReadyForNdt(w, ndtContext) &&
             !isWeldRepairNeeded(w) &&
             !isWeldAlreadyAcceptedForMethod(w, method) &&
             !isWeldInNdtRequestForMethod(w.id, method, existingPlusNew())
@@ -199,8 +201,8 @@ function PanelNdtManagement({
   }
 
   const weldsReadyCount = useMemo(
-    () => weldPoints.filter((w) => isWeldReadyForNdt(w)).length,
-    [weldPoints]
+    () => weldPoints.filter((w) => isWeldReadyForNdt(w, ndtContext)).length,
+    [weldPoints, ndtContext]
   );
 
   const recapOptions = useMemo(() => {
@@ -224,7 +226,7 @@ function PanelNdtManagement({
   const recapWelds = useMemo(() => {
     if (!recapFilter) return [];
     if (recapFilter === "not-ready") {
-      return weldPoints.filter((w) => !isWeldReadyForNdt(w));
+      return weldPoints.filter((w) => !isWeldReadyForNdt(w, ndtContext));
     }
     if (recapFilter === "repair") {
       return weldPoints.filter((w) => isWeldRepairNeeded(w));
@@ -233,7 +235,7 @@ function PanelNdtManagement({
       const method = recapFilter.slice(6);
       return weldPoints.filter(
         (w) =>
-          isWeldReadyForNdt(w) &&
+          isWeldReadyForNdt(w, ndtContext) &&
           !isWeldRepairNeeded(w) &&
           !isWeldAlreadyAcceptedForMethod(w, method) &&
           !isWeldInNdtRequestForMethod(w.id, method, ndtRequests)
@@ -248,7 +250,7 @@ function PanelNdtManagement({
       return weldPoints.filter((w) => isWeldInNdtRequestForMethod(w.id, method, ndtRequests));
     }
     return [];
-  }, [weldPoints, recapFilter, ndtRequests]);
+  }, [weldPoints, recapFilter, ndtRequests, ndtContext]);
 
   return (
     <div className="flex flex-col h-full bg-base-100 border-l border-base-300">

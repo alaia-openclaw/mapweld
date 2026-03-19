@@ -8,8 +8,8 @@ import {
   NDT_RESULT_OUTCOME_LABELS,
   sortNdtMethods,
 } from "@/lib/constants";
-import { getWeldName, getWeldOverallStatus } from "@/lib/weld-utils";
-import { computeNdtSelection } from "@/lib/weld-utils";
+import { getWeldName, getWeldOverallStatus, computeNdtSelection } from "@/lib/weld-utils";
+import { useNdtScope } from "@/contexts/NdtScopeContext";
 
 function generateId() {
   return `row-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -28,11 +28,11 @@ function fileToBase64(file) {
   });
 }
 
-function getWeldStatusLabel(weld, weldPoints, ndtRequests, drawingSettings) {
+function getWeldStatusLabel(weld, weldPoints, ndtRequests, drawingSettings, ndtContext) {
   const req = (ndtRequests || []).find((r) => (r.weldIds || []).includes(weld.id));
   if (req) return `In NDT request: ${req.title || req.method || req.id}`;
-  const ndtSel = computeNdtSelection(weld, drawingSettings, weldPoints);
-  const status = getWeldOverallStatus(weld, ndtSel);
+  const ndtSel = computeNdtSelection(weld, drawingSettings, weldPoints, ndtContext);
+  const status = getWeldOverallStatus(weld, ndtSel, ndtContext);
   const labels = { complete: "Complete", incomplete: "Incomplete", not_started: "Not started" };
   return labels[status] || status;
 }
@@ -50,6 +50,7 @@ function FormNdtReport({
   getWeldName: getWeldNameProp,
   drawingSettings = {},
 }) {
+  const ndtContext = useNdtScope();
   const getWeldNameLocal = getWeldNameProp || ((w) => getWeldName(w, weldPoints));
   const availableMethods = useMemo(() => {
     // In locked contexts (e.g. Kanban tab), methodOptions should define allowed values.
@@ -363,8 +364,8 @@ function FormNdtReport({
                         </span>
                       )}
                     </td>
-                    <td className="text-xs text-base-content/70 align-top" title={weld ? getWeldStatusLabel(weld, weldPoints, ndtRequests, drawingSettings) : ""}>
-                      {weld ? getWeldStatusLabel(weld, weldPoints, ndtRequests, drawingSettings) : "—"}
+                    <td className="text-xs text-base-content/70 align-top" title={weld ? getWeldStatusLabel(weld, weldPoints, ndtRequests, drawingSettings, ndtContext) : ""}>
+                      {weld ? getWeldStatusLabel(weld, weldPoints, ndtRequests, drawingSettings, ndtContext) : "—"}
                     </td>
                     <td>
                       <select

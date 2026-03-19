@@ -16,7 +16,28 @@ import {
   WELDING_PROCESS_LABELS,
   sortNdtMethods,
 } from "@/lib/constants";
-import { getWeldName, getWeldOverallStatus, getWeldSectionCompletion, computeNdtSelection, getNdtSelectionWarnings } from "@/lib/weld-utils";
+import { getWeldName, getWeldSectionCompletion, computeNdtSelection, getNdtSelectionWarnings } from "@/lib/weld-utils";
+import { useNdtScope } from "@/contexts/NdtScopeContext";
+import {
+  getInheritedWpsCode,
+  getResolvedWpsCode,
+  getWpsLibraryEntryById,
+} from "@/lib/wps-resolution";
+
+function openDocumentPdfInNewTab(doc) {
+  if (!doc?.base64 || typeof doc.base64 !== "string") return;
+  try {
+    const binary = atob(doc.base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const blob = new Blob([bytes], { type: doc.mimeType || "application/pdf" });
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank", "noopener,noreferrer");
+    setTimeout(() => URL.revokeObjectURL(url), 120_000);
+  } catch (err) {
+    console.warn("openDocumentPdfInNewTab:", err);
+  }
+}
 
 function electrodeRefKey(s) {
   return (s || "").trim().toLowerCase();
@@ -61,6 +82,8 @@ function SidePanelWeldForm({
   onUpdatePartHeat,
   personnel = { fitters: [], welders: [] },
   wpsLibrary = [],
+  /** Project documents (for opening linked WPS PDF from library entry). */
+  documents = [],
   electrodeLibrary = [],
   ndtAutoLabel,
   drawingSettings = { ndtRequirements: [] },
@@ -68,9 +91,18 @@ function SidePanelWeldForm({
   isStacked = false,
   hideHeader = false,
 }) {
+  const ndtContext = useNdtScope();
+  const inheritedWpsCode = useMemo(() => {
+    if (!weld || !ndtContext) return "";
+    return getInheritedWpsCode(weld, ndtContext.systems, ndtContext.lines, ndtContext.spools);
+  }, [weld, ndtContext]);
   const [weldType, setWeldType] = useState("butt");
   const [weldLocation, setWeldLocation] = useState("shop");
   const [wps, setWps] = useState("");
+  /** Optional `wpsLibrary` row id — easier filtering / PDF jump (not required). */
+  const [linkedWpsEntryId, setLinkedWpsEntryId] = useState("");
+  const [weldListWpsFilter, setWeldListWpsFilter] = useState("");
+  const [wpsLinkFilter, setWpsLinkFilter] = useState("");
   const [fitterName, setFitterName] = useState("");
   const [dateFitUp, setDateFitUp] = useState("");
   const [heatNumber1, setHeatNumber1] = useState("");
@@ -108,6 +140,63 @@ function SidePanelWeldForm({
         .sort((a, b) => a.localeCompare(b)),
     [libraryWpsEntries]
   );
+
+  const wpsLinkFilterNorm = (wpsLinkFilter || "").trim().toLowerCase();
+  const filteredWpsLibraryForLink = useMemo(() => {
+    if (!wpsLinkFilterNorm) return libraryWpsEntries;
+    return libraryWpsEntries.filter((entry) => {
+      const code = (entry?.code || "").trim().toLowerCase();
+      const title = (entry?.title || "").trim().toLowerCase();
+      return code.includes(wpsLinkFilterNorm) || title.includes(wpsLinkFilterNorm);
+    });
+  }, [libraryWpsEntries, wpsLinkFilterNorm]);
+
+  const weldListFilterNorm = (weldListWpsFilter || "").trim().toLowerCase();
+  const filteredWeldPoints = useMemo(() => {
+    if (!weldListFilterNorm) return weldPoints;
+    return weldPoints.filter((w) => {
+      const resolved =
+        ndtContext != null &&
+        Array.isArray(ndtContext.systems) &&
+        Array.isArray(ndtContext.lines) &&
+        Array.isArray(ndtContext.spools)
+          ? getResolvedWpsCode(w, ndtContext.systems, ndtContext.lines, ndtContext.spools)
+          : (w.wps || "").trim();
+      const entry = getWpsLibraryEntryById(libraryWpsEntries, w.wpsLibraryEntryId);
+      const hay = [
+        resolved,
+        entry ? `${entry.code || ""} ${entry.title || ""}` : "",
+        w.wps || "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(weldListFilterNorm);
+    });
+  }, [weldPoints, weldListFilterNorm, ndtContext, libraryWpsEntries]);
+
+  const linkedWpsEntry = useMemo(
+    () => getWpsLibraryEntryById(libraryWpsEntries, linkedWpsEntryId),
+    [libraryWpsEntries, linkedWpsEntryId]
+  );
+  const linkedWpsDocument = useMemo(() => {
+    if (!linkedWpsEntry?.documentId || !Array.isArray(documents)) return null;
+    return documents.find((d) => d.id === linkedWpsEntry.documentId) || null;
+  }, [linkedWpsEntry, documents]);
+
+  function syncLinkedWpsAfterCodeChange(nextCode) {
+    if (!linkedWpsEntryId) return;
+    const entry = getWpsLibraryEntryById(libraryWpsEntries, linkedWpsEntryId);
+    const nextTrim = (nextCode || "").trim();
+    if (!entry || (entry.code || "").trim() !== nextTrim) setLinkedWpsEntryId("");
+  }
+
+  function applyPresetWpsCode(code) {
+    const v = (code || "").trim();
+    setWps(v);
+    const matches = libraryWpsEntries.filter((e) => (e.code || "").trim() === v);
+    if (matches.length === 1) setLinkedWpsEntryId(matches[0].id);
+    else setLinkedWpsEntryId("");
+  }
   const fitterOptions = useMemo(
     () =>
       [...new Set((personnel?.fitters || []).map((fitter) => (fitter?.name || "").trim()).filter(Boolean))]
@@ -204,6 +293,8 @@ function SidePanelWeldForm({
     setWeldType(weld.weldType || "butt");
     setWeldLocation(weld.weldLocation || "shop");
     setWps(weld.wps || "");
+    setLinkedWpsEntryId(weld.wpsLibraryEntryId || "");
+    setWpsLinkFilter("");
     setFitterName(weld.fitterName || "");
     setDateFitUp(weld.dateFitUp || "");
     setHeatNumber1(weld.heatNumber1 || "");
@@ -232,6 +323,12 @@ function SidePanelWeldForm({
     setNdtResultManualOverride(weld.ndtResultManualOverride || {});
     setNdtResultOverrideUnlocked(false);
   }, [weld]);
+
+  useEffect(() => {
+    if (!linkedWpsEntryId) return;
+    if (libraryWpsEntries.some((e) => e.id === linkedWpsEntryId)) return;
+    setLinkedWpsEntryId("");
+  }, [libraryWpsEntries, linkedWpsEntryId]);
 
   const autoSaveTimeoutRef = useRef(null);
   useEffect(() => {
@@ -262,6 +359,7 @@ function SidePanelWeldForm({
         ndtResultOutcome,
         ndtResultManualOverride: Object.keys(ndtResultManualOverride).length ? ndtResultManualOverride : undefined,
         spoolId: spoolId || null,
+        wpsLibraryEntryId: linkedWpsEntryId || null,
       });
     }, 600);
     return () => {
@@ -287,6 +385,7 @@ function SidePanelWeldForm({
     ndtResultOutcome,
     ndtResultManualOverride,
     spoolId,
+    linkedWpsEntryId,
     onSave,
   ]);
 
@@ -434,6 +533,7 @@ function SidePanelWeldForm({
       ndtResults,
       ndtResultOutcome,
       spoolId: spoolId || null,
+      wpsLibraryEntryId: linkedWpsEntryId || null,
     });
   }
 
@@ -499,8 +599,26 @@ function SidePanelWeldForm({
                 <p className="mt-1">Add welds with the Add tool</p>
               </div>
             ) : (
+              <>
+                <div className="mb-2 flex flex-col gap-1">
+                  <label className="label py-0 min-h-0" htmlFor="weld-list-wps-filter">
+                    <span className="label-text text-xs">Filter welds by WPS</span>
+                  </label>
+                  <input
+                    id="weld-list-wps-filter"
+                    type="search"
+                    className="input input-bordered input-xs w-full"
+                    value={weldListWpsFilter}
+                    onChange={(e) => setWeldListWpsFilter(e.target.value)}
+                    placeholder="Code, resolved WPS, or linked library title…"
+                    autoComplete="off"
+                  />
+                  {weldListFilterNorm && filteredWeldPoints.length === 0 ? (
+                    <p className="text-xs text-base-content/55">No welds match this filter.</p>
+                  ) : null}
+                </div>
               <ul className="w-full min-w-full max-w-full bg-base-100 rounded-lg p-0 gap-0 list-none">
-                {weldPoints.map((w) => {
+                {filteredWeldPoints.map((w) => {
                   const isExpanded = w.id === expandedWeldId;
                   const listStatus = weldStatusByWeldId?.get(w.id);
                   const statusBorder =
@@ -538,14 +656,19 @@ function SidePanelWeldForm({
                           </span>
                           <span className="text-xs opacity-70 truncate max-w-full">
                             {(() => {
-                              const ndtSel = computeNdtSelection(w, drawingSettings, weldPoints);
-                              const section = getWeldSectionCompletion(w, ndtSel);
+                              const ndtSel = computeNdtSelection(w, drawingSettings, weldPoints, ndtContext);
+                              const section = getWeldSectionCompletion(w, ndtSel, ndtContext);
                               const missing = [];
                               if (!section.general) missing.push("General");
                               if (!section.fitup) missing.push("Fitup");
                               if (!section.welding) missing.push("Welding");
                               if (!section.inspection) missing.push("Inspection");
-                              return missing.length > 0 ? `Missing: ${missing.join(", ")}` : "—";
+                              const linkEntry = getWpsLibraryEntryById(libraryWpsEntries, w.wpsLibraryEntryId);
+                              const linkHint = linkEntry
+                                ? ` · WPS lib: ${(linkEntry.code || "").trim() || linkEntry.id}`
+                                : "";
+                              const base = missing.length > 0 ? `Missing: ${missing.join(", ")}` : "—";
+                              return base === "—" && !linkHint ? "—" : `${base}${linkHint}`;
                             })()}
                           </span>
                         </span>
@@ -574,7 +697,10 @@ function SidePanelWeldForm({
                               const virtualWeld = {
                                 id: weld?.id,
                                 weldLocation: weld?.weldLocation,
+                                spoolId: weld?.spoolId ?? null,
+                                lineId: weld?.lineId ?? null,
                                 wps,
+                                wpsLibraryEntryId: linkedWpsEntryId || null,
                                 fitterName,
                                 dateFitUp,
                                 heatNumber1,
@@ -586,8 +712,8 @@ function SidePanelWeldForm({
                                 ndtResults,
                                 ndtResultOutcome,
                               };
-                              const ndtSel = computeNdtSelection(virtualWeld, drawingSettings, weldPoints);
-                              const sectionComplete = getWeldSectionCompletion(virtualWeld, ndtSel);
+                              const ndtSel = computeNdtSelection(virtualWeld, drawingSettings, weldPoints, ndtContext);
+                              const sectionComplete = getWeldSectionCompletion(virtualWeld, ndtSel, ndtContext);
                               return ["general", "fitup", "welding", "inspection"].map((sectionKey) => (
                               <div key={sectionKey} className="w-full border border-base-300 rounded-none overflow-hidden first:rounded-t-lg last:rounded-b-lg border-b-0 last:border-b border-base-300">
                                 <button
@@ -618,36 +744,124 @@ function SidePanelWeldForm({
                                           <label className="label" htmlFor="side-wps">
                                             <span className="label-text">WPS</span>
                                           </label>
+                                          <p className="text-xs text-base-content/60 -mt-1 mb-1">
+                                            {inheritedWpsCode
+                                              ? `Leave blank to inherit: ${inheritedWpsCode} (line → system)`
+                                              : "Set WPS on the weld, or define default WPS on the line/system in Settings / Lines."}
+                                          </p>
                                           <div className="space-y-1.5">
                                             {wpsPresetCodes.length > 0 && (
                                               <select
                                                 className="select select-bordered select-sm"
-                                                value={wpsPresetCodes.includes((wps || "").trim()) ? (wps || "").trim() : "__custom__"}
+                                                value={
+                                                  !(wps || "").trim()
+                                                    ? "__inherit__"
+                                                    : wpsPresetCodes.includes((wps || "").trim())
+                                                      ? (wps || "").trim()
+                                                      : "__custom__"
+                                                }
                                                 onChange={(e) => {
-                                                  if (e.target.value === "__custom__") {
+                                                  const v = e.target.value;
+                                                  if (v === "__inherit__") {
                                                     setWps("");
+                                                    setLinkedWpsEntryId("");
                                                     return;
                                                   }
-                                                  setWps(e.target.value);
+                                                  if (v === "__custom__") {
+                                                    setWps("");
+                                                    setLinkedWpsEntryId("");
+                                                    return;
+                                                  }
+                                                  applyPresetWpsCode(v);
                                                 }}
                                               >
-                                                <option value="__custom__">Custom WPS</option>
+                                                <option value="__inherit__">
+                                                  {inheritedWpsCode
+                                                    ? `Inherit (${inheritedWpsCode})`
+                                                    : "Inherit from line/system (none set)"}
+                                                </option>
+                                                <option value="__custom__">Custom / override (type below)</option>
                                                 {wpsPresetCodes.map((code) => (
                                                   <option key={code} value={code}>{code}</option>
                                                 ))}
                                               </select>
                                             )}
-                                            {wpsPresetCodes.length === 0 || !wpsPresetCodes.includes((wps || "").trim()) ? (
+                                            {wpsPresetCodes.length === 0 ||
+                                            !(wps || "").trim() ||
+                                            !wpsPresetCodes.includes((wps || "").trim()) ? (
                                               <input
                                                 id="side-wps"
                                                 type="text"
                                                 className="input input-bordered input-sm"
                                                 value={wps}
-                                                onChange={(e) => setWps(e.target.value)}
-                                                placeholder="Type custom WPS"
+                                                onChange={(e) => {
+                                                  const next = e.target.value;
+                                                  setWps(next);
+                                                  syncLinkedWpsAfterCodeChange(next);
+                                                }}
+                                                placeholder={
+                                                  inheritedWpsCode
+                                                    ? `Override (blank = ${inheritedWpsCode})`
+                                                    : "Type WPS code"
+                                                }
                                               />
                                             ) : null}
                                           </div>
+                                        </div>
+                                        <div className="form-control">
+                                          <label className="label py-0" htmlFor="side-wps-library-link">
+                                            <span className="label-text">WPS library link</span>
+                                            <span className="label-text-alt text-base-content/50 font-normal">optional</span>
+                                          </label>
+                                          <p className="text-xs text-base-content/60 mb-1">
+                                            Pick a registered WPS to filter the weld list and open its PDF when linked in Settings.
+                                          </p>
+                                          {libraryWpsEntries.length === 0 ? (
+                                            <p className="text-xs text-base-content/50">No WPS library entries — add them in Settings → Project info.</p>
+                                          ) : (
+                                            <>
+                                              <input
+                                                id="side-wps-library-filter"
+                                                type="search"
+                                                className="input input-bordered input-xs w-full mb-1"
+                                                value={wpsLinkFilter}
+                                                onChange={(e) => setWpsLinkFilter(e.target.value)}
+                                                placeholder="Filter by code or title…"
+                                                autoComplete="off"
+                                              />
+                                              <select
+                                                id="side-wps-library-link"
+                                                className="select select-bordered select-sm w-full"
+                                                value={linkedWpsEntryId}
+                                                onChange={(e) => {
+                                                  const id = e.target.value;
+                                                  setLinkedWpsEntryId(id);
+                                                  if (!id) return;
+                                                  const entry = libraryWpsEntries.find((x) => x.id === id);
+                                                  if (entry) setWps((entry.code || "").trim());
+                                                }}
+                                              >
+                                                <option value="">Not linked</option>
+                                                {filteredWpsLibraryForLink.map((entry) => (
+                                                  <option key={entry.id} value={entry.id}>
+                                                    {(entry.code || "").trim() || entry.id}
+                                                    {entry.title ? ` — ${entry.title}` : ""}
+                                                  </option>
+                                                ))}
+                                              </select>
+                                              {linkedWpsEntry && linkedWpsDocument?.base64 ? (
+                                                <button
+                                                  type="button"
+                                                  className="btn btn-ghost btn-xs mt-1 gap-1"
+                                                  onClick={() => openDocumentPdfInNewTab(linkedWpsDocument)}
+                                                >
+                                                  Open linked WPS PDF
+                                                </button>
+                                              ) : linkedWpsEntry?.documentId && !linkedWpsDocument?.base64 ? (
+                                                <p className="text-xs text-warning mt-1">Linked WPS has a document id but the file is not in this project vault.</p>
+                                              ) : null}
+                                            </>
+                                          )}
                                         </div>
                                         <div className="grid grid-cols-2 gap-4">
                                           <div className="form-control">
@@ -1123,7 +1337,7 @@ function SidePanelWeldForm({
                                           visualInspection,
                                           ndtOverrides,
                                         };
-                                        const sel = computeNdtSelection(virtualW, drawingSettings, weldPoints);
+                                        const sel = computeNdtSelection(virtualW, drawingSettings, weldPoints, ndtContext);
                                         const isRequired = !!sel[m];
                                         const overrideVal = ndtOverrides[m] ?? NDT_OVERRIDE_OPTIONS.AUTO;
                                         const outcome = ndtResultOutcome[m];
@@ -1204,7 +1418,7 @@ function SidePanelWeldForm({
                                   </table>
                                   {(() => {
                                     const allWarnings = inspectionMethods.flatMap((m) =>
-                                      getNdtSelectionWarnings(weldPoints, drawingSettings, m)
+                                      getNdtSelectionWarnings(weldPoints, drawingSettings, m, ndtContext)
                                     );
                                     if (allWarnings.length === 0) return null;
                                     return (
@@ -1255,6 +1469,7 @@ function SidePanelWeldForm({
                     );
                   })}
                 </ul>
+              </>
               )}
             </div>
           </div>

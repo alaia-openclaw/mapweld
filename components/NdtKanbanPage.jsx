@@ -22,6 +22,7 @@ import {
   isWeldAlreadyAcceptedForMethod,
   computeNdtSelection,
 } from "@/lib/weld-utils";
+import { useNdtScope } from "@/contexts/NdtScopeContext";
 import FormNdtRequest from "@/components/FormNdtRequest";
 import FormNdtReport from "@/components/FormNdtReport";
 
@@ -62,6 +63,7 @@ function NdtKanbanPage({
   getWeldName,
   onClose,
 }) {
+  const ndtContext = useNdtScope();
   const [activeTab, setActiveTab] = useState(NDT_METHODS[0]);
   const [dragItem, setDragItem] = useState(null);
   const [requestFormOpen, setRequestFormOpen] = useState(false);
@@ -105,16 +107,16 @@ function NdtKanbanPage({
     const planned = [];
     const repairNeeded = [];
     weldPoints.forEach((w) => {
-      const ndtSel = computeNdtSelection(w, drawingSettings, weldPoints);
+      const ndtSel = computeNdtSelection(w, drawingSettings, weldPoints, ndtContext);
       if (!ndtSel[method]) return;
       if (isWeldRepairNeeded(w)) repairNeeded.push(w);
       else if (isWeldAlreadyAcceptedForMethod(w, method)) alreadyAccepted.push(w);
       else if (isWeldInNdtRequestForMethod(w.id, method, ndtRequests)) planned.push(w);
-      else if (isWeldReadyForNdt(w)) ready.push(w);
+      else if (isWeldReadyForNdt(w, ndtContext)) ready.push(w);
       else notReady.push(w);
     });
     return { ready, notReady, alreadyAccepted, planned, repairNeeded };
-  }, [weldPoints, method, ndtRequests, drawingSettings]);
+  }, [weldPoints, method, ndtRequests, drawingSettings, ndtContext]);
 
   const draftRequests = useMemo(
     () => ndtRequests.filter((r) => r.method === method && (r.status || NDT_REQUEST_STATUS.DRAFT) === NDT_REQUEST_STATUS.DRAFT),
@@ -486,7 +488,7 @@ function NdtKanbanPage({
                     </div>
                   )
               )}
-              {weldPoints.filter((w) => computeNdtSelection(w, drawingSettings, weldPoints)[method]).length === 0 && (
+              {weldPoints.filter((w) => computeNdtSelection(w, drawingSettings, weldPoints, ndtContext)[method]).length === 0 && (
                 <p className="text-sm text-base-content/50">No welds for this NDT type.</p>
               )}
             </div>

@@ -31,6 +31,7 @@ function SidePanelLines({
   const [editDiameterRange, setEditDiameterRange] = useState("");
   const [editThickness, setEditThickness] = useState("");
   const [editMaterial, setEditMaterial] = useState("");
+  const [editWps, setEditWps] = useState("");
 
   const prevExpandedLineRef = useRef(null);
 
@@ -46,6 +47,7 @@ function SidePanelLines({
       setEditDiameterRange(line.diameterRange ?? "");
       setEditThickness(line.thickness ?? "");
       setEditMaterial(line.material ?? "");
+      setEditWps(line.wps ?? "");
     }
   }, [expandedLineId, lines]);
 
@@ -66,7 +68,7 @@ function SidePanelLines({
     const name = getNextUniqueLineName(allLines || lines);
     onSaveLines?.([
       ...lines,
-      { id, systemId, name, fluidType: "", pressure: "", diameterRange: "", thickness: "", material: "", drawingIds: [] },
+      { id, systemId, name, wps: "", fluidType: "", pressure: "", diameterRange: "", thickness: "", material: "", drawingIds: [] },
     ]);
     setExpandedLineId(id);
   }
@@ -78,6 +80,7 @@ function SidePanelLines({
           ? {
               ...l,
               name: editLineName.trim() || l.name,
+              wps: editWps.trim(),
               fluidType: editFluidType.trim(),
               pressure: editPressure.trim(),
               diameterRange: editDiameterRange.trim(),
@@ -317,7 +320,7 @@ function SidePanelLines({
             </ul>
             {systemsManagedExternally && (
               <p className="text-xs text-base-content/60 mt-3">
-                Systems are managed in Parameters &gt; Project tab.
+                Systems are managed in Settings → Project info & libraries.
               </p>
             )}
           </div>
@@ -334,6 +337,19 @@ function SidePanelLines({
         <div className="form-control">
           <label className="label py-0 min-h-0"><span className="label-text text-xs">Line name</span></label>
           <input type="text" className="input input-xs input-bordered w-full min-w-0" value={editLineName} onChange={(e) => setEditLineName(e.target.value)} onBlur={() => handleUpdateLine(line.id)} />
+        </div>
+        <div className="form-control">
+          <label className="label py-0 min-h-0">
+            <span className="label-text text-xs">Default WPS</span>
+          </label>
+          <input
+            type="text"
+            className="input input-xs input-bordered w-full min-w-0"
+            value={editWps}
+            onChange={(e) => setEditWps(e.target.value)}
+            onBlur={() => handleUpdateLine(line.id)}
+            placeholder="Overrides system; welds can override again"
+          />
         </div>
         <div className="grid grid-cols-2 gap-1.5">
           <div className="form-control">

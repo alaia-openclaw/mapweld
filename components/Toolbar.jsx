@@ -195,9 +195,9 @@ function Toolbar({
         </button>
       )}
       {hasPdf && onOpenParameters && (
-        <button type="button" className={`${btn} btn-ghost`} onClick={onOpenParameters} title="Parameters">
+        <button type="button" className={`${btn} btn-ghost`} onClick={onOpenParameters} title="Settings">
           <IconCog />
-          <span className="hidden xl:inline">Params</span>
+          <span className="hidden xl:inline">Settings</span>
         </button>
       )}
       {hasPdf && onOpenDatabook && (
@@ -327,7 +327,7 @@ function Toolbar({
             {hasPdf && onOpenParameters && (
               <li>
                 <button type="button" onClick={onOpenParameters}>
-                  Parameters
+                  Settings
                 </button>
               </li>
             )}

@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useRef } from "react";
 import { NDT_METHODS, NDT_METHOD_LABELS, sortNdtMethods } from "@/lib/constants";
+import SidePanelDrawings from "@/components/SidePanelDrawings";
+import SidePanelLines from "@/components/SidePanelLines";
+import SidePanelSpools from "@/components/SidePanelSpools";
 
 function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -19,7 +22,14 @@ function fileToBase64(file) {
   });
 }
 
-function ModalParameters({
+/**
+ * @typedef {object} ModalSettingsStructureIntegration
+ * @property {object} [drawings] — props for SidePanelDrawings (except hideHeader, isOpen, onToggle)
+ * @property {object} [lines] — lines, spools, onSaveLines, onSaveSpools, onCreateLineOnCurrentPage, onLinkLineToCurrentPage, appMode
+ * @property {object} [spools] — spools, parts, lines, spoolMarkers, weldPoints, weldStatusByWeldId, getWeldName, onSave, onAssignWeldToSpool, onAssignPartToSpool, appMode
+ */
+
+function ModalSettings({
   isOpen,
   onClose,
   settings = { ndtRequirements: [], weldingSpec: "" },
@@ -31,8 +41,10 @@ function ModalParameters({
   electrodeLibrary = [],
   documents = [],
   onSave,
+  /** When set, tree includes Drawings / Systems & lines / Spools with full-project editors */
+  structureIntegration = null,
 }) {
-  const [activeTab, setActiveTab] = useState("default");
+  const [activeSection, setActiveSection] = useState("project-ndt");
 
   // Default NDT state
   const [ndtRequirements, setNdtRequirements] = useState([]);
@@ -95,6 +107,7 @@ function ModalParameters({
       setEditingWelderId(null);
       wqrUploadTargetRef.current = null;
       wpsUploadTargetRef.current = null;
+      setActiveSection("project-ndt");
     }
   }, [settings, isOpen, projectMeta, systems, wpsLibrary]);
 
@@ -236,7 +249,7 @@ function ModalParameters({
   function handleAddSystem() {
     const nextSystems = [
       ...projectSystems,
-      { id: generateId(), name: `System ${projectSystems.length + 1}`, description: "" },
+      { id: generateId(), name: `System ${projectSystems.length + 1}`, description: "", wps: "" },
     ];
     setProjectSystems(nextSystems);
     onSave?.({
@@ -388,33 +401,49 @@ function ModalParameters({
 
   if (!isOpen) return null;
 
-  const tabs = [
-    { key: "default", label: "Default NDT" },
+  const treeItems = [
+    { key: "project-ndt", label: "Project NDT & spec" },
     { key: "personnel", label: "Personnel" },
-    { key: "project", label: "Project" },
+    { key: "project-info", label: "Project info & libraries" },
+    ...(structureIntegration
+      ? [
+          { key: "drawings", label: "Drawings" },
+          { key: "lines", label: "Systems & lines" },
+          { key: "spools", label: "Spools" },
+        ]
+      : []),
   ];
 
   return (
     <dialog open={isOpen} className="modal modal-open">
-      <div className="modal-box w-full min-w-80 max-w-4xl max-h-[90vh] overflow-y-auto">
-        <h3 className="font-bold text-lg">Parameters</h3>
-
-        <div role="tablist" className="tabs tabs-boxed tabs-sm mt-4">
-          {tabs.map(({ key, label }) => (
-            <button
-              key={key}
-              type="button"
-              role="tab"
-              className={`tab ${activeTab === key ? "tab-active" : ""}`}
-              onClick={() => setActiveTab(key)}
-            >
-              {label}
-            </button>
-          ))}
+      <div className="modal-box w-full min-w-80 max-w-6xl max-h-[90vh] flex flex-col p-0 sm:p-6 gap-0 overflow-hidden">
+        <div className="px-4 pt-4 sm:px-0 sm:pt-0 shrink-0">
+          <h3 className="font-bold text-lg">Settings</h3>
+          <p className="text-xs text-base-content/60 mt-1">Project defaults, personnel, structure, and libraries</p>
         </div>
 
-        {activeTab === "default" && (
-          <div className="mt-4">
+        <div className="flex flex-1 min-h-0 flex-col md:flex-row gap-0 md:gap-4 mt-3 border-t border-base-300 md:border-0">
+          <nav
+            className="flex md:flex-col gap-1 p-2 md:p-0 md:w-52 shrink-0 border-b md:border-b-0 md:border-r border-base-300 overflow-x-auto md:overflow-y-auto bg-base-200/40 md:bg-transparent"
+            aria-label="Settings sections"
+          >
+            {treeItems.map(({ key, label }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setActiveSection(key)}
+                className={`btn btn-sm justify-start font-normal whitespace-nowrap md:w-full ${
+                  activeSection === key ? "btn-primary" : "btn-ghost"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+
+          <div className="flex-1 min-h-0 min-w-0 overflow-y-auto px-4 pb-4 md:px-0 md:pr-1">
+        {activeSection === "project-ndt" && (
+          <div className="mt-2 md:mt-0">
             <div className="form-control">
               <label className="label">
                 <span className="label-text">NDT / QC checks</span>
@@ -520,8 +549,8 @@ function ModalParameters({
           </div>
         )}
 
-        {activeTab === "personnel" && (
-          <div className="mt-4 space-y-4">
+        {activeSection === "personnel" && (
+          <div className="mt-2 md:mt-0 space-y-4">
             <p className="text-sm text-base-content/70">
               Manage fitters, welders, and welder qualifications (WQR).
             </p>
@@ -747,8 +776,8 @@ function ModalParameters({
           </div>
         )}
 
-        {activeTab === "project" && (
-          <div className="mt-4 space-y-4">
+        {activeSection === "project-info" && (
+          <div className="mt-2 md:mt-0 space-y-4">
             <p className="text-sm text-base-content/70">
               Project information used for documentation and export.
             </p>
@@ -798,6 +827,18 @@ function ModalParameters({
                       value={system.description || ""}
                       onChange={(e) => handleUpdateSystem(system.id, { description: e.target.value })}
                       placeholder="Description"
+                    />
+                  </div>
+                  <div className="form-control">
+                    <label className="label py-0">
+                      <span className="label-text text-xs">Default WPS (inherited by lines & welds)</span>
+                    </label>
+                    <input
+                      type="text"
+                      className="input input-bordered input-sm w-full"
+                      value={system.wps || ""}
+                      onChange={(e) => handleUpdateSystem(system.id, { wps: e.target.value })}
+                      placeholder="e.g. WPS-001 — optional; lines can override"
                     />
                   </div>
                   <div className="flex justify-end">
@@ -886,6 +927,44 @@ function ModalParameters({
             </div>
           </div>
         )}
+
+        {structureIntegration?.drawings && activeSection === "drawings" && (
+          <div className="mt-2 md:mt-0 min-h-[min(70vh,520px)] flex flex-col border border-base-300 rounded-lg overflow-hidden bg-base-100">
+            <SidePanelDrawings
+              hideHeader
+              isOpen
+              onToggle={() => {}}
+              {...structureIntegration.drawings}
+            />
+          </div>
+        )}
+
+        {structureIntegration?.lines && activeSection === "lines" && (
+          <div className="mt-2 md:mt-0 min-h-[min(70vh,520px)] flex flex-col border border-base-300 rounded-lg overflow-hidden bg-base-100">
+            <SidePanelLines
+              hideHeader
+              isOpen
+              onToggle={() => {}}
+              systems={projectSystems}
+              systemsManagedExternally
+              selectedLineId={null}
+              {...structureIntegration.lines}
+            />
+          </div>
+        )}
+
+        {structureIntegration?.spools && activeSection === "spools" && (
+          <div className="mt-2 md:mt-0 min-h-[min(70vh,520px)] flex flex-col border border-base-300 rounded-lg overflow-hidden bg-base-100">
+            <SidePanelSpools
+              hideHeader
+              isOpen
+              onToggle={() => {}}
+              {...structureIntegration.spools}
+            />
+          </div>
+        )}
+          </div>
+        </div>
         <input
           ref={wqrUploadInputRef}
           type="file"
@@ -910,4 +989,6 @@ function ModalParameters({
   );
 }
 
-export default ModalParameters;
+export default ModalSettings;
+/** @deprecated Use ModalSettings */
+export { ModalSettings as ModalParameters };

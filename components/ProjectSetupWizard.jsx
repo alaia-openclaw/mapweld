@@ -459,7 +459,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                 onClick={() =>
                   setSystems((prev) => [
                     ...prev,
-                    { id: generateId(), name: `System ${prev.length + 1}`, description: "" },
+                    { id: generateId(), name: `System ${prev.length + 1}`, description: "", wps: "" },
                   ])
                 }
               >
@@ -490,6 +490,17 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                         placeholder="Description"
                       />
                     </div>
+                    <input
+                      type="text"
+                      className="input input-bordered input-sm w-full"
+                      value={sys.wps || ""}
+                      onChange={(e) =>
+                        setSystems((prev) =>
+                          prev.map((s) => (s.id === sys.id ? { ...s, wps: e.target.value } : s))
+                        )
+                      }
+                      placeholder="Default WPS for this system (optional)"
+                    />
                     <div className="flex justify-end">
                       <button
                         type="button"
@@ -509,7 +520,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
           {step === 4 && (
             <div className="space-y-4">
               <p className="text-sm text-base-content/70">
-                Register WPS codes used on welds. Link PDFs later in <strong>Parameters</strong> if needed.
+                Register WPS codes used on welds. Link PDFs later in <strong>Settings</strong> if needed. You can also set default WPS per system (above) or per line in the Lines panel.
               </p>
               <button
                 type="button"

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useNdtScope } from "@/contexts/NdtScopeContext";
 import { NDT_METHODS, NDT_METHOD_LABELS, NDT_REQUEST_STATUS, NDT_REQUEST_STATUS_LABELS, sortNdtMethods } from "@/lib/constants";
 import {
   getWeldName,
@@ -26,6 +27,7 @@ function FormNdtRequest({
   onCancel,
   getWeldName: getWeldNameProp,
 }) {
+  const ndtContext = useNdtScope();
   const getWeldNameLocal = getWeldNameProp || ((w) => getWeldName(w, weldPoints));
   const availableMethods = useMemo(() => {
     if (hideMethodSelect && Array.isArray(methodOptions) && methodOptions.length > 0) {
@@ -51,7 +53,7 @@ function FormNdtRequest({
     const plannedList = [];
     const repairNeededList = [];
     weldPoints.forEach((w) => {
-      const ndtSel = computeNdtSelection(w, drawingSettings, weldPoints);
+      const ndtSel = computeNdtSelection(w, drawingSettings, weldPoints, ndtContext);
       if (!ndtSel[method]) return;
       if (isWeldRepairNeeded(w)) {
         repairNeededList.push(w);
@@ -59,7 +61,7 @@ function FormNdtRequest({
         alreadyAcceptedList.push(w);
       } else if (isWeldInNdtRequestForMethod(w.id, method, ndtRequests)) {
         plannedList.push(w);
-      } else if (isWeldReadyForNdt(w)) {
+      } else if (isWeldReadyForNdt(w, ndtContext)) {
         readyForNdtList.push(w);
       } else {
         notReadyList.push(w);
@@ -72,7 +74,7 @@ function FormNdtRequest({
       planned: plannedList,
       repairNeeded: repairNeededList,
     };
-  }, [weldPoints, method, ndtRequests, drawingSettings]);
+  }, [weldPoints, method, ndtRequests, drawingSettings, ndtContext]);
 
   function toggleWeld(weldId) {
     setWeldIds((prev) => {

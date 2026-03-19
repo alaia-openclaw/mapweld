@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useCallback } from "react";
 import { computeNdtSelection } from "@/lib/weld-utils";
+import { useNdtScope } from "@/contexts/NdtScopeContext";
 import {
   getWeldPipelineStage,
   WELD_PIPELINE_STAGES,
@@ -41,6 +42,7 @@ function StatusPage({
   spools = [],
   onSpoolsChange,
 }) {
+  const ndtContext = useNdtScope();
   const [tab, setTab] = useState("overview");
   const [filterLocation, setFilterLocation] = useState("all"); // all | shop | field
   const [search, setSearch] = useState("");
@@ -55,14 +57,14 @@ function StatusPage({
     const buckets = Object.fromEntries(WELD_PIPELINE_STAGES.map((c) => [c.id, []]));
     safeWeldPoints.forEach((w) => {
       if (filterLocation !== "all" && (w.weldLocation || "shop") !== filterLocation) return;
-      const ndtSel = computeNdtSelection(w, drawingSettings, safeWeldPoints);
-      const stage = getWeldPipelineStage(w, ndtSel);
+      const ndtSel = computeNdtSelection(w, drawingSettings, safeWeldPoints, ndtContext);
+      const stage = getWeldPipelineStage(w, ndtSel, ndtContext);
       const name = getWeldName?.(w, safeWeldPoints) ?? w.id;
       if (search && !name.toLowerCase().includes(search.toLowerCase())) return;
       if (buckets[stage]) buckets[stage].push(w);
     });
     return buckets;
-  }, [safeWeldPoints, drawingSettings, filterLocation, search, getWeldName]);
+  }, [safeWeldPoints, drawingSettings, filterLocation, search, getWeldName, ndtContext]);
 
   const spoolByStage = useMemo(() => {
     const buckets = Object.fromEntries(SPOOL_LIFECYCLE_STAGES.map((c) => [c.id, []]));
@@ -80,8 +82,8 @@ function StatusPage({
     let weldCompleted = 0;
     const weldByStage = Object.fromEntries(WELD_PIPELINE_STAGES.map((c) => [c.id, 0]));
     safeWeldPoints.forEach((w) => {
-      const ndtSel = computeNdtSelection(w, drawingSettings, safeWeldPoints);
-      const stage = getWeldPipelineStage(w, ndtSel);
+      const ndtSel = computeNdtSelection(w, drawingSettings, safeWeldPoints, ndtContext);
+      const stage = getWeldPipelineStage(w, ndtSel, ndtContext);
       weldByStage[stage] = (weldByStage[stage] || 0) + 1;
       if (stage === "completed") weldCompleted++;
     });
@@ -112,7 +114,7 @@ function StatusPage({
       spoolByStage,
       combined,
     };
-  }, [safeWeldPoints, safeSpools, drawingSettings]);
+  }, [safeWeldPoints, safeSpools, drawingSettings, ndtContext]);
 
   const handleSpoolStageChange = useCallback(
     (spoolId, stage) => {
