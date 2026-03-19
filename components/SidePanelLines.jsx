@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 
 function SidePanelLines({
   systems = [],
@@ -12,7 +12,6 @@ function SidePanelLines({
   isStacked = false,
   hideHeader = false,
 }) {
-  const [expandedSystemId, setExpandedSystemId] = useState(null);
   const [expandedLineId, setExpandedLineId] = useState(null);
 
   const [editLineName, setEditLineName] = useState("");
@@ -74,11 +73,30 @@ function SidePanelLines({
     if (expandedLineId === id) setExpandedLineId(null);
   }
 
-  function linesForSystem(sysId) {
-    return lines.filter((l) => l.systemId === sysId);
-  }
+  const groupedLines = useMemo(() => {
+    const groups = (systems || []).map((system) => ({
+      id: system.id,
+      label: system.name || "Unnamed system",
+      description: system.description || "",
+      lines: [],
+    }));
+    const byId = new Map(groups.map((group) => [group.id, group]));
+    const orphan = { id: "__none__", label: "No system", description: "", lines: [] };
 
-  const orphanLines = lines.filter((l) => !l.systemId || !systems.some((s) => s.id === l.systemId));
+    (lines || []).forEach((line) => {
+      if (line.systemId && byId.has(line.systemId)) byId.get(line.systemId).lines.push(line);
+      else orphan.lines.push(line);
+    });
+
+    groups.forEach((group) =>
+      group.lines.sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+    );
+    orphan.lines.sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+
+    const all = groups;
+    if (orphan.lines.length > 0) all.push(orphan);
+    return all;
+  }, [systems, lines]);
 
   return (
     <div
@@ -115,111 +133,68 @@ function SidePanelLines({
       {isOpen && (
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden w-full min-w-0 h-0 basis-0">
           <div className={`flex-1 min-h-0 overflow-y-scroll overflow-x-auto p-2 min-w-0 pb-12 overscroll-contain [scrollbar-gutter:stable] ${hideHeader ? "mobile-no-scrollbar" : ""}`}>
-            {systems.length === 0 && orphanLines.length === 0 ? (
+            {lines.length === 0 ? (
               <div className="text-center py-6 text-base-content/60 text-sm">
-                <p>No systems or lines</p>
+                <p>No lines on this page</p>
                 <p className="mt-1">
-                  {systemsManagedExternally ? "Add systems in Parameters > Project tab" : "Add a system to group piping lines"}
+                  Lines are filtered to the current page.
                 </p>
               </div>
             ) : (
               <ul className="space-y-2">
-                {systems.map((sys) => {
-                  const sysLines = linesForSystem(sys.id);
-                  const isExpandedSys = sys.id === expandedSystemId;
+                {groupedLines.map((group) => {
                   return (
-                    <li key={sys.id} className="bg-base-100 rounded-lg overflow-hidden border border-base-300">
-                      <div className="flex items-center gap-2 p-2">
+                    <li key={group.id} className="bg-base-100 rounded-lg overflow-hidden border border-base-300 p-2 space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-base-content/70 truncate">
+                            {group.label}
+                          </p>
+                          {group.description ? (
+                            <p className="text-xs text-base-content/55 truncate">{group.description}</p>
+                          ) : null}
+                        </div>
                         <button
                           type="button"
-                          className="flex-1 text-left truncate font-medium text-sm"
-                          onClick={() => setExpandedSystemId((prev) => (prev === sys.id ? null : sys.id))}
+                          className="btn btn-ghost btn-xs gap-0.5"
+                          onClick={() => handleAddLine(group.id === "__none__" ? null : group.id)}
                         >
-                          {sys.name || "Unnamed system"}
-                          <span className="ml-1.5 badge badge-ghost badge-xs">{sysLines.length} line{sysLines.length !== 1 ? "s" : ""}</span>
+                          + Add line
                         </button>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className={`h-4 w-4 flex-shrink-0 transition-transform ${isExpandedSys ? "rotate-180" : ""}`}
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
                       </div>
-                      {isExpandedSys && (
-                        <div className="border-t border-base-300 px-2 py-2 space-y-2">
-                          {sys.description ? (
-                            <p className="text-xs text-base-content/60">{sys.description}</p>
-                          ) : null}
-
-                          <div className="space-y-1 pt-1">
-                            <div className="flex items-center justify-between">
-                              <span className="label-text text-xs font-medium">Lines ({sysLines.length})</span>
-                              <button type="button" className="btn btn-ghost btn-xs gap-0.5" onClick={() => handleAddLine(sys.id)}>
-                                + Add line
-                              </button>
-                            </div>
-                            {sysLines.length === 0 ? (
-                              <p className="text-xs text-base-content/50">No lines in this system</p>
-                            ) : (
-                              <ul className="space-y-1">
-                                {sysLines.map((line) => {
-                                  const isExpandedLine = line.id === expandedLineId;
-                                  return (
-                                    <li key={line.id} className="bg-base-200 rounded-lg overflow-hidden">
-                                      <button
-                                        type="button"
-                                        className="w-full text-left text-xs px-2 py-1.5 flex items-center justify-between"
-                                        onClick={() => setExpandedLineId((prev) => (prev === line.id ? null : line.id))}
-                                      >
-                                        <span className="truncate font-medium">{line.name || "Unnamed line"}</span>
-                                        <svg
-                                          xmlns="http://www.w3.org/2000/svg"
-                                          className={`h-3 w-3 flex-shrink-0 transition-transform ${isExpandedLine ? "rotate-180" : ""}`}
-                                          fill="none"
-                                          viewBox="0 0 24 24"
-                                          stroke="currentColor"
-                                        >
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                        </svg>
-                                      </button>
-                                      {isExpandedLine && renderLineForm(line)}
-                                    </li>
-                                  );
-                                })}
-                              </ul>
-                            )}
-                          </div>
-                        </div>
+                      {group.lines.length === 0 ? (
+                        <p className="text-xs text-base-content/50">No lines in this group</p>
+                      ) : (
+                        <ul className="space-y-1">
+                          {group.lines.map((line) => {
+                            const isExpandedLine = line.id === expandedLineId;
+                            return (
+                              <li key={line.id} className="bg-base-200 rounded-lg overflow-hidden">
+                                <button
+                                  type="button"
+                                  className="w-full text-left text-xs px-2 py-1.5 flex items-center justify-between"
+                                  onClick={() => setExpandedLineId((prev) => (prev === line.id ? null : line.id))}
+                                >
+                                  <span className="truncate font-medium">{line.name || "Unnamed line"}</span>
+                                  <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className={`h-3 w-3 flex-shrink-0 transition-transform ${isExpandedLine ? "rotate-180" : ""}`}
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                  </svg>
+                                </button>
+                                {isExpandedLine && renderLineForm(line)}
+                              </li>
+                            );
+                          })}
+                        </ul>
                       )}
                     </li>
                   );
                 })}
-
-                {orphanLines.length > 0 && (
-                  <li className="bg-base-100 rounded-lg overflow-hidden border border-base-300 p-2 space-y-1">
-                    <span className="label-text text-xs font-medium text-base-content/60">Lines without system</span>
-                    <ul className="space-y-1">
-                      {orphanLines.map((line) => {
-                        const isExpandedLine = line.id === expandedLineId;
-                        return (
-                          <li key={line.id} className="bg-base-200 rounded-lg overflow-hidden">
-                            <button
-                              type="button"
-                              className="w-full text-left text-xs px-2 py-1.5 flex items-center justify-between"
-                              onClick={() => setExpandedLineId((prev) => (prev === line.id ? null : line.id))}
-                            >
-                              <span className="truncate font-medium">{line.name || "Unnamed line"}</span>
-                            </button>
-                            {isExpandedLine && renderLineForm(line)}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </li>
-                )}
               </ul>
             )}
             {systemsManagedExternally && (

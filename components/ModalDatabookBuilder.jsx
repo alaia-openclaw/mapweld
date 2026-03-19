@@ -61,6 +61,7 @@ function ModalDatabookBuilder({
   const [uploadCategory, setUploadCategory] = useState("other");
   const [uploadTitle, setUploadTitle] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+  const [sectionUploadTarget, setSectionUploadTarget] = useState(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -69,6 +70,7 @@ function ModalDatabookBuilder({
     setUploadCategory("other");
     setUploadTitle("");
     setActiveTab("sections");
+    setSectionUploadTarget(null);
   }, [isOpen, documents, databookConfig]);
 
   const validation = useMemo(
@@ -177,6 +179,31 @@ function ModalDatabookBuilder({
       return { ...prev, sectionDocumentIds: nextLinks };
     });
   }
+
+  const handleSectionUpload = useCallback(async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !sectionUploadTarget) return;
+    const section = DATABOOK_SECTIONS.find((item) => item.id === sectionUploadTarget);
+    if (!section?.documentCategory) return;
+    const uploaded = {
+      id: generateId("doc"),
+      title: file.name.replace(/\.pdf$/i, ""),
+      category: section.documentCategory,
+      fileName: file.name,
+      mimeType: file.type || "application/pdf",
+      base64: await fileToBase64(file),
+      createdAt: new Date().toISOString(),
+    };
+    setLocalDocuments((prev) => [...prev, uploaded]);
+    setLocalConfig((prev) => ({
+      ...prev,
+      sectionDocumentIds: {
+        ...(prev.sectionDocumentIds || {}),
+        [section.id]: uploaded.id,
+      },
+    }));
+  }, [sectionUploadTarget]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -316,19 +343,31 @@ function ModalDatabookBuilder({
                         <label className="label py-0">
                           <span className="label-text text-xs">Linked document</span>
                         </label>
-                        <select
-                          className="select select-bordered select-sm w-full"
-                          value={selectedDocId}
-                          onChange={(e) => linkSectionDocument(section.id, e.target.value)}
-                          disabled={!isIncluded}
-                        >
-                          <option value="">Select PDF document…</option>
-                          {availableDocuments.map((doc) => (
-                            <option key={doc.id} value={doc.id}>
-                              {doc.title || doc.fileName}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="flex gap-1">
+                          <select
+                            className="select select-bordered select-sm w-full"
+                            value={selectedDocId}
+                            onChange={(e) => linkSectionDocument(section.id, e.target.value)}
+                            disabled={!isIncluded}
+                          >
+                            <option value="">Select PDF document…</option>
+                            {availableDocuments.map((doc) => (
+                              <option key={doc.id} value={doc.id}>
+                                {doc.title || doc.fileName}
+                              </option>
+                            ))}
+                          </select>
+                          <label className="btn btn-ghost btn-sm">
+                            Load
+                            <input
+                              type="file"
+                              accept=".pdf,application/pdf"
+                              className="hidden"
+                              onClick={() => setSectionUploadTarget(section.id)}
+                              onChange={handleSectionUpload}
+                            />
+                          </label>
+                        </div>
                       </div>
                     )}
 

@@ -34,6 +34,7 @@ function SidePanelWeldForm({
   onUpdatePartHeat,
   personnel = { fitters: [], welders: [] },
   wpsLibrary = [],
+  electrodeLibrary = [],
   ndtAutoLabel,
   drawingSettings = { ndtRequirements: [] },
   weldStatusByWeldId,
@@ -70,11 +71,57 @@ function SidePanelWeldForm({
   const partHeat2 = (selectedPart2?.heatNumber ?? "").trim();
   const showSync1 = !!selectedPart1 && !!trimmedHeat1 && trimmedHeat1 !== partHeat1;
   const showSync2 = !!selectedPart2 && !!trimmedHeat2 && trimmedHeat2 !== partHeat2;
-  const libraryWpsEntries = Array.isArray(wpsLibrary) ? wpsLibrary : [];
-  const matchingWpsEntry = libraryWpsEntries.find(
-    (entry) => (entry?.code || "").trim() === (wps || "").trim()
+  const libraryWpsEntries = useMemo(
+    () => (Array.isArray(wpsLibrary) ? wpsLibrary : []),
+    [wpsLibrary]
   );
-  const fitterOptions = (personnel?.fitters || []).filter((fitter) => !!fitter?.name?.trim());
+  const wpsPresetCodes = useMemo(
+    () =>
+      [...new Set(libraryWpsEntries.map((entry) => (entry?.code || "").trim()).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b)),
+    [libraryWpsEntries]
+  );
+  const fitterOptions = useMemo(
+    () =>
+      [...new Set((personnel?.fitters || []).map((fitter) => (fitter?.name || "").trim()).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b)),
+    [personnel]
+  );
+  const electrodeOptions = useMemo(
+    () =>
+      [...new Set((electrodeLibrary || []).map((entry) => (entry?.code || "").trim()).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b)),
+    [electrodeLibrary]
+  );
+  const welderPresetEntries = useMemo(() => {
+    const entries = [];
+    const welders = personnel?.welders || [];
+    const wqrs = personnel?.wqrs || [];
+    welders.forEach((welder) => {
+      const welderName = (welder?.name || "").trim();
+      if (!welderName) return;
+      const welderWqrs = (welder?.wqrIds || [])
+        .map((wqrId) => wqrs.find((wqr) => wqr.id === wqrId))
+        .filter(Boolean);
+      if (welderWqrs.length === 0) {
+        entries.push({ label: welderName, welderId: welder.id, welderName, wqrId: null });
+        return;
+      }
+      welderWqrs.forEach((wqr) => {
+        entries.push({
+          label: `${welderName} | ${wqr.code}`,
+          welderId: welder.id,
+          welderName,
+          wqrId: wqr.id,
+        });
+      });
+    });
+    return entries;
+  }, [personnel]);
+  const welderPresetByLabel = useMemo(
+    () => new Map(welderPresetEntries.map((entry) => [entry.label, entry])),
+    [welderPresetEntries]
+  );
   const inspectionMethods = useMemo(
     () =>
       sortNdtMethods([
@@ -260,42 +307,33 @@ function SidePanelWeldForm({
     });
   }
 
-  function toggleRecordWelderId(recordIndex, welderId) {
-    setWeldingRecords((prev) => {
-      const next = [...prev];
-      const ids = next[recordIndex].welderIds || [];
-      const nextIds = ids.includes(welderId) ? ids.filter((x) => x !== welderId) : [...ids, welderId];
-      const allowedWqrIds = new Set(
-        nextIds.flatMap((selectedWelderId) => {
-          const welder = (personnel?.welders || []).find((item) => item.id === selectedWelderId);
-          return welder?.wqrIds || [];
-        })
-      );
-      const currentWqrIds = next[recordIndex].wqrIds || [];
-      const filteredWqrIds = currentWqrIds.filter((id) => allowedWqrIds.has(id));
-      next[recordIndex] = { ...next[recordIndex], welderIds: nextIds, wqrIds: filteredWqrIds };
-      return next;
+  function handleRecordWelderWqrInput(recordIndex, value) {
+    const preset = welderPresetByLabel.get(value);
+    if (preset) {
+      handleUpdateWeldingRecord(recordIndex, {
+        welderName: preset.welderName,
+        welderIds: [preset.welderId],
+        wqrIds: preset.wqrId ? [preset.wqrId] : [],
+      });
+      return;
+    }
+    handleUpdateWeldingRecord(recordIndex, {
+      welderName: value,
+      welderIds: [],
+      wqrIds: [],
     });
   }
 
-  function toggleRecordWqrId(recordIndex, wqrId) {
-    setWeldingRecords((prev) => {
-      const next = [...prev];
-      const ids = next[recordIndex].wqrIds || [];
-      const nextIds = ids.includes(wqrId) ? ids.filter((x) => x !== wqrId) : [...ids, wqrId];
-      next[recordIndex] = { ...next[recordIndex], wqrIds: nextIds };
-      return next;
-    });
-  }
-
-  function toggleRecordWeldingProcess(recordIndex, proc) {
-    setWeldingRecords((prev) => {
-      const next = [...prev];
-      const procs = next[recordIndex].weldingProcesses || [];
-      const nextProcs = procs.includes(proc) ? procs.filter((x) => x !== proc) : [...procs, proc];
-      next[recordIndex] = { ...next[recordIndex], weldingProcesses: nextProcs };
-      return next;
-    });
+  function getRecordWelderWqrDisplayValue(record) {
+    const selectedWelderId = (record.welderIds || [])[0];
+    if (!selectedWelderId) return record.welderName || "";
+    const selectedWelder = (personnel?.welders || []).find((welder) => welder.id === selectedWelderId);
+    if (!selectedWelder?.name) return record.welderName || "";
+    const selectedWqrId = (record.wqrIds || [])[0];
+    if (!selectedWqrId) return selectedWelder.name;
+    const selectedWqr = (personnel?.wqrs || []).find((wqr) => wqr.id === selectedWqrId);
+    if (!selectedWqr?.code) return selectedWelder.name;
+    return `${selectedWelder.name} | ${selectedWqr.code}`;
   }
 
   function handleSubmit(e) {
@@ -508,34 +546,20 @@ function SidePanelWeldForm({
                                           <label className="label" htmlFor="side-wps">
                                             <span className="label-text">WPS</span>
                                           </label>
-                                          <div className="space-y-1.5">
-                                            {libraryWpsEntries.length > 0 && (
-                                              <select
-                                                className="select select-bordered select-sm"
-                                                value={matchingWpsEntry?.id || "__custom__"}
-                                                onChange={(e) => {
-                                                  if (e.target.value === "__custom__") return;
-                                                  const entry = libraryWpsEntries.find((item) => item.id === e.target.value);
-                                                  if (entry?.code) setWps(entry.code);
-                                                }}
-                                              >
-                                                <option value="__custom__">Custom / manual WPS</option>
-                                                {libraryWpsEntries.map((entry) => (
-                                                  <option key={entry.id} value={entry.id}>
-                                                    {entry.code}{entry.title ? ` — ${entry.title}` : ""}
-                                                  </option>
-                                                ))}
-                                              </select>
-                                            )}
-                                            <input
-                                              id="side-wps"
-                                              type="text"
-                                              className="input input-bordered input-sm"
-                                              value={wps}
-                                              onChange={(e) => setWps(e.target.value)}
-                                              placeholder="Type or override WPS code"
-                                            />
-                                          </div>
+                                          <input
+                                            id="side-wps"
+                                            type="text"
+                                            list="side-wps-options"
+                                            className="input input-bordered input-sm"
+                                            value={wps}
+                                            onChange={(e) => setWps(e.target.value)}
+                                            placeholder="Search preset or type custom WPS"
+                                          />
+                                          <datalist id="side-wps-options">
+                                            {wpsPresetCodes.map((code) => (
+                                              <option key={code} value={code} />
+                                            ))}
+                                          </datalist>
                                         </div>
                                         <div className="grid grid-cols-2 gap-4">
                                           <div className="form-control">
@@ -595,28 +619,20 @@ function SidePanelWeldForm({
                                   <label className="label" htmlFor="side-fitterName">
                                     <span className="label-text">Fitter</span>
                                   </label>
-                                  <div className="space-y-1.5">
-                                    {fitterOptions.length > 0 && (
-                                      <select
-                                        className="select select-bordered select-sm"
-                                        value={fitterOptions.some((f) => f.name === fitterName) ? fitterName : ""}
-                                        onChange={(e) => setFitterName(e.target.value)}
-                                      >
-                                        <option value="">Select existing fitter</option>
-                                        {fitterOptions.map((f) => (
-                                          <option key={f.id} value={f.name}>{f.name}</option>
-                                        ))}
-                                      </select>
-                                    )}
-                                    <input
-                                      id="side-fitterName"
-                                      type="text"
-                                      className="input input-bordered input-sm"
-                                      value={fitterName}
-                                      onChange={(e) => setFitterName(e.target.value)}
-                                      placeholder="Type fitter name (custom or existing)"
-                                    />
-                                  </div>
+                                  <input
+                                    id="side-fitterName"
+                                    type="text"
+                                    list="side-fitter-options"
+                                    className="input input-bordered input-sm"
+                                    value={fitterName}
+                                    onChange={(e) => setFitterName(e.target.value)}
+                                    placeholder="Search preset or type custom fitter"
+                                  />
+                                  <datalist id="side-fitter-options">
+                                    {fitterOptions.map((name) => (
+                                      <option key={name} value={name} />
+                                    ))}
+                                  </datalist>
                                 </div>
                                 <div className="form-control">
                                   <label className="label" htmlFor="side-dateFitUp">
@@ -830,75 +846,23 @@ function SidePanelWeldForm({
                                         </div>
                                         <div className="form-control">
                                           <label className="label py-0" htmlFor={`side-welder-${rec.id}`}>
-                                            <span className="label-text text-xs">Welder(s)</span>
+                                            <span className="label-text text-xs">Welder / WQR</span>
                                           </label>
                                           <input
                                             id={`side-welder-${rec.id}`}
                                             type="text"
+                                            list={`side-welder-options-${rec.id}`}
                                             className="input input-bordered input-xs w-full"
-                                            placeholder={personnel?.welders?.length ? "Or type custom name" : "Welder name"}
-                                            value={rec.welderName ?? ""}
-                                            onChange={(e) => handleUpdateWeldingRecord(idx, { welderName: e.target.value })}
+                                            placeholder="Search welder or WQR, or type custom"
+                                            value={getRecordWelderWqrDisplayValue(rec)}
+                                            onChange={(e) => handleRecordWelderWqrInput(idx, e.target.value)}
                                             autoComplete="off"
                                           />
-                                          {personnel?.welders?.length > 0 && (
-                                            <div className="flex flex-wrap gap-1 mt-1">
-                                              {personnel.welders.map((welder) => (
-                                                <label key={welder.id} className="label cursor-pointer gap-1 py-0">
-                                                  <input
-                                                    type="checkbox"
-                                                    className="checkbox checkbox-xs"
-                                                    checked={(rec.welderIds || []).includes(welder.id)}
-                                                    onChange={() => toggleRecordWelderId(idx, welder.id)}
-                                                  />
-                                                  <span className="label-text text-xs">{welder.name}</span>
-                                                </label>
-                                              ))}
-                                            </div>
-                                          )}
-                                        </div>
-                                        <div className="form-control">
-                                          <label className="label py-0">
-                                            <span className="label-text text-xs">WQR selection</span>
-                                          </label>
-                                          {(() => {
-                                            const selectedWelderIds = rec.welderIds || [];
-                                            const availableWqrIds = [
-                                              ...new Set(
-                                                selectedWelderIds.flatMap((welderId) => {
-                                                  const welder = (personnel?.welders || []).find((item) => item.id === welderId);
-                                                  return welder?.wqrIds || [];
-                                                })
-                                              ),
-                                            ];
-                                            const availableWqrs = (personnel?.wqrs || []).filter((wqr) =>
-                                              selectedWelderIds.length === 0
-                                                ? true
-                                                : availableWqrIds.includes(wqr.id)
-                                            );
-                                            if (availableWqrs.length === 0) {
-                                              return (
-                                                <p className="text-xs text-base-content/50 py-1">
-                                                  Select welder(s) to pick specific WQR.
-                                                </p>
-                                              );
-                                            }
-                                            return (
-                                              <div className="flex flex-wrap gap-1 mt-1">
-                                                {availableWqrs.map((wqr) => (
-                                                  <label key={wqr.id} className="label cursor-pointer gap-1 py-0">
-                                                    <input
-                                                      type="checkbox"
-                                                      className="checkbox checkbox-xs"
-                                                      checked={(rec.wqrIds || []).includes(wqr.id)}
-                                                      onChange={() => toggleRecordWqrId(idx, wqr.id)}
-                                                    />
-                                                    <span className="label-text text-xs">{wqr.code}</span>
-                                                  </label>
-                                                ))}
-                                              </div>
-                                            );
-                                          })()}
+                                          <datalist id={`side-welder-options-${rec.id}`}>
+                                            {welderPresetEntries.map((entry) => (
+                                              <option key={`${entry.welderId}-${entry.wqrId || "none"}`} value={entry.label} />
+                                            ))}
+                                          </datalist>
                                         </div>
                                         <div className="form-control">
                                           <label className="label py-0" htmlFor={`side-process-${rec.id}`}>
@@ -930,6 +894,7 @@ function SidePanelWeldForm({
                                               <div key={i} className="flex gap-1">
                                                 <input
                                                   type="text"
+                                                  list={`side-electrode-options-${rec.id}`}
                                                   className="input input-bordered input-xs flex-1"
                                                   value={val}
                                                   onChange={(e) => handleRecordElectrodeChange(idx, i, e.target.value)}
@@ -964,6 +929,11 @@ function SidePanelWeldForm({
                                             >
                                               + Add
                                             </button>
+                                            <datalist id={`side-electrode-options-${rec.id}`}>
+                                              {electrodeOptions.map((code) => (
+                                                <option key={code} value={code} />
+                                              ))}
+                                            </datalist>
                                           </div>
                                         </div>
                                         <div className="form-control">

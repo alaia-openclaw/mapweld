@@ -7,6 +7,18 @@ function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const value = typeof reader.result === "string" ? reader.result : "";
+      resolve(value.replace(/^data:.*?;base64,/, ""));
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 const ITP_CATEGORIES = [
   { id: "general", label: "General" },
   { id: "fitup", label: "Fit-up" },
@@ -24,6 +36,7 @@ function ModalParameters({
   projectSettings = { steps: [] },
   projectMeta = { projectName: "", client: "", spec: "", revision: "", date: "" },
   wpsLibrary = [],
+  electrodeLibrary = [],
   documents = [],
   onSave,
 }) {
@@ -45,17 +58,20 @@ function ModalParameters({
   const [metaRevision, setMetaRevision] = useState("");
   const [metaDate, setMetaDate] = useState("");
   const [projectSystems, setProjectSystems] = useState([]);
-  const [newSystemName, setNewSystemName] = useState("");
-  const [newSystemDesc, setNewSystemDesc] = useState("");
   const [projectWpsLibrary, setProjectWpsLibrary] = useState([]);
-  const [newWpsCode, setNewWpsCode] = useState("");
-  const [newWpsTitle, setNewWpsTitle] = useState("");
+  const [projectElectrodeLibrary, setProjectElectrodeLibrary] = useState([]);
 
   // Personnel state
   const [fitterName, setFitterName] = useState("");
   const [welderName, setWelderName] = useState("");
   const [editingWelderId, setEditingWelderId] = useState(null);
   const [wqrCode, setWqrCode] = useState("");
+  const wqrUploadInputRef = useRef(null);
+  const wpsUploadInputRef = useRef(null);
+  const electrodeUploadInputRef = useRef(null);
+  const [wqrUploadTargetId, setWqrUploadTargetId] = useState(null);
+  const [wpsUploadTargetId, setWpsUploadTargetId] = useState(null);
+  const [electrodeUploadTargetId, setElectrodeUploadTargetId] = useState(null);
 
   const fitters = personnel.fitters || [];
   const welders = personnel.welders || [];
@@ -77,13 +93,13 @@ function ModalParameters({
       setMetaDate(projectMeta?.date || "");
       setProjectSystems(Array.isArray(systems) ? systems : []);
       setProjectWpsLibrary(Array.isArray(wpsLibrary) ? wpsLibrary : []);
+      setProjectElectrodeLibrary(Array.isArray(electrodeLibrary) ? electrodeLibrary : []);
       setCustomNdtMethod("");
-      setNewSystemName("");
-      setNewSystemDesc("");
-      setNewWpsCode("");
-      setNewWpsTitle("");
+      setWqrUploadTargetId(null);
+      setWpsUploadTargetId(null);
+      setElectrodeUploadTargetId(null);
     }
-  }, [settings, isOpen, projectSettings, projectMeta, systems, wpsLibrary]);
+  }, [settings, isOpen, projectSettings, projectMeta, systems, wpsLibrary, electrodeLibrary]);
 
   function addNdtRow(method, pct = 100) {
     const normalizedMethod = String(method || "").trim().toUpperCase();
@@ -125,8 +141,7 @@ function ModalParameters({
     setNdtRequirements((prev) => prev.filter((r) => r.method !== method));
   }
 
-  function handleAddCustomNdtMethod(e) {
-    e.preventDefault();
+  function handleAddCustomNdtMethod() {
     if (!customNdtMethod.trim()) return;
     addNdtRow(customNdtMethod.trim(), 100);
     setCustomNdtMethod("");
@@ -221,15 +236,11 @@ function ModalParameters({
     });
   }
 
-  function handleAddSystem(e) {
-    e.preventDefault();
-    if (!newSystemName.trim()) return;
+  function handleAddSystem() {
     setProjectSystems((prev) => [
       ...prev,
-      { id: generateId(), name: newSystemName.trim(), description: newSystemDesc.trim() },
+      { id: generateId(), name: `System ${prev.length + 1}`, description: "" },
     ]);
-    setNewSystemName("");
-    setNewSystemDesc("");
   }
 
   function handleRemoveSystem(systemId) {
@@ -242,17 +253,12 @@ function ModalParameters({
     );
   }
 
-  function handleAddWps(e) {
-    e.preventDefault();
-    const code = newWpsCode.trim();
-    if (!code) return;
-    if (projectWpsLibrary.some((entry) => entry.code === code)) return;
+  function handleAddWps() {
+    const nextCode = `WPS-${String(projectWpsLibrary.length + 1).padStart(3, "0")}`;
     setProjectWpsLibrary((prev) => [
       ...prev,
-      { id: generateId(), code, title: newWpsTitle.trim(), documentId: null },
+      { id: generateId(), code: nextCode, title: "", documentId: null },
     ]);
-    setNewWpsCode("");
-    setNewWpsTitle("");
   }
 
   function handleRemoveWps(wpsId) {
@@ -263,6 +269,94 @@ function ModalParameters({
     setProjectWpsLibrary((prev) =>
       prev.map((entry) => (entry.id === wpsId ? { ...entry, ...updates } : entry))
     );
+  }
+
+  function handleAddElectrode() {
+    const nextCode = `ELEC-${String(projectElectrodeLibrary.length + 1).padStart(3, "0")}`;
+    setProjectElectrodeLibrary((prev) => [
+      ...prev,
+      { id: generateId(), code: nextCode, title: "", documentId: null },
+    ]);
+  }
+
+  function handleRemoveElectrode(electrodeId) {
+    setProjectElectrodeLibrary((prev) => prev.filter((entry) => entry.id !== electrodeId));
+  }
+
+  function handleUpdateElectrode(electrodeId, updates) {
+    setProjectElectrodeLibrary((prev) =>
+      prev.map((entry) => (entry.id === electrodeId ? { ...entry, ...updates } : entry))
+    );
+  }
+
+  async function uploadLinkedDocument(file, category, fallbackTitle) {
+    const base64 = await fileToBase64(file);
+    return {
+      id: generateId(),
+      title: (fallbackTitle || file.name || "").replace(/\.pdf$/i, ""),
+      category,
+      fileName: file.name || `${fallbackTitle || "document"}.pdf`,
+      mimeType: file.type || "application/pdf",
+      base64,
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  async function handleUploadWqrDocument(wqrId, event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !wqrId) return;
+    const wqr = wqrs.find((item) => item.id === wqrId);
+    if (!wqr) return;
+    const newDoc = await uploadLinkedDocument(file, "wqr", wqr.code || "WQR");
+    onSave?.({
+      drawingSettings: { ndtRequirements, weldingSpec },
+      personnel: {
+        ...personnel,
+        wqrs: wqrs.map((item) =>
+          item.id === wqrId ? { ...item, documentId: newDoc.id } : item
+        ),
+      },
+      documents: [...documents, newDoc],
+    });
+  }
+
+  async function handleUploadWpsDocument(wpsId, event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !wpsId) return;
+    const wpsEntry = projectWpsLibrary.find((entry) => entry.id === wpsId);
+    if (!wpsEntry) return;
+    const newDoc = await uploadLinkedDocument(file, "wps", wpsEntry.code || "WPS");
+    const nextWpsLibrary = projectWpsLibrary.map((entry) =>
+      entry.id === wpsId ? { ...entry, documentId: newDoc.id } : entry
+    );
+    setProjectWpsLibrary(nextWpsLibrary);
+    onSave?.({
+      drawingSettings: { ndtRequirements, weldingSpec },
+      personnel,
+      wpsLibrary: nextWpsLibrary,
+      documents: [...documents, newDoc],
+    });
+  }
+
+  async function handleUploadElectrodeDocument(electrodeId, event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !electrodeId) return;
+    const entry = projectElectrodeLibrary.find((item) => item.id === electrodeId);
+    if (!entry) return;
+    const newDoc = await uploadLinkedDocument(file, "electrode", entry.code || "Electrode");
+    const nextLibrary = projectElectrodeLibrary.map((item) =>
+      item.id === electrodeId ? { ...item, documentId: newDoc.id } : item
+    );
+    setProjectElectrodeLibrary(nextLibrary);
+    onSave?.({
+      drawingSettings: { ndtRequirements, weldingSpec },
+      personnel,
+      electrodeLibrary: nextLibrary,
+      documents: [...documents, newDoc],
+    });
   }
 
   const autoSaveTimeoutRef = useRef(null);
@@ -277,12 +371,13 @@ function ModalParameters({
         projectMeta: { projectName: metaProjectName, client: metaClient, spec: metaSpec, revision: metaRevision, date: metaDate },
         systems: projectSystems,
         wpsLibrary: projectWpsLibrary,
+        electrodeLibrary: projectElectrodeLibrary,
       });
     }, 500);
     return () => {
       if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
     };
-  }, [isOpen, ndtRequirements, weldingSpec, personnel, itpSteps, metaProjectName, metaClient, metaSpec, metaRevision, metaDate, projectSystems, projectWpsLibrary, onSave]);
+  }, [isOpen, ndtRequirements, weldingSpec, personnel, itpSteps, metaProjectName, metaClient, metaSpec, metaRevision, metaDate, projectSystems, projectWpsLibrary, projectElectrodeLibrary, onSave]);
 
   if (!isOpen) return null;
 
@@ -313,7 +408,7 @@ function ModalParameters({
         </div>
 
         {activeTab === "default" && (
-          <form onSubmit={(e) => e.preventDefault()} className="mt-4">
+          <div className="mt-4">
             <div className="form-control">
               <label className="label">
                 <span className="label-text">NDT / QC checks</span>
@@ -385,7 +480,7 @@ function ModalParameters({
                   </button>
                 ))}
               </div>
-              <form className="mt-2 flex gap-2" onSubmit={handleAddCustomNdtMethod}>
+              <div className="mt-2 flex gap-2">
                 <input
                   type="text"
                   className="input input-bordered input-sm flex-1"
@@ -393,10 +488,10 @@ function ModalParameters({
                   onChange={(e) => setCustomNdtMethod(e.target.value.toUpperCase())}
                   placeholder="Custom test code (e.g. PWHT)"
                 />
-                <button type="submit" className="btn btn-ghost btn-sm">
+                <button type="button" className="btn btn-ghost btn-sm" onClick={handleAddCustomNdtMethod}>
                   + Add custom
                 </button>
-              </form>
+              </div>
             </div>
             <div className="form-control mt-4">
               <label className="label" htmlFor="weldingSpec">
@@ -416,7 +511,7 @@ function ModalParameters({
                 Close
               </button>
             </div>
-          </form>
+          </div>
         )}
 
         {activeTab === "personnel" && (
@@ -553,18 +648,30 @@ function ModalParameters({
                               <label className="label py-0">
                                 <span className="label-text text-xs">Linked WQR PDF</span>
                               </label>
-                              <select
-                                className="select select-bordered select-xs"
-                                value={wqr.documentId || ""}
-                                onChange={(e) => handleUpdateWqrDocument(wqr.id, e.target.value)}
-                              >
-                                <option value="">No PDF linked</option>
-                                {wqrDocuments.map((doc) => (
-                                  <option key={doc.id} value={doc.id}>
-                                    {doc.title || doc.fileName}
-                                  </option>
-                                ))}
-                              </select>
+                              <div className="flex gap-1">
+                                <select
+                                  className="select select-bordered select-xs flex-1"
+                                  value={wqr.documentId || ""}
+                                  onChange={(e) => handleUpdateWqrDocument(wqr.id, e.target.value)}
+                                >
+                                  <option value="">No PDF linked</option>
+                                  {wqrDocuments.map((doc) => (
+                                    <option key={doc.id} value={doc.id}>
+                                      {doc.title || doc.fileName}
+                                    </option>
+                                  ))}
+                                </select>
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost btn-xs"
+                                  onClick={() => {
+                                    setWqrUploadTargetId(wqr.id);
+                                    wqrUploadInputRef.current?.click();
+                                  }}
+                                >
+                                  Load
+                                </button>
+                              </div>
                             </div>
                           </li>
                         ) : null;
@@ -714,25 +821,11 @@ function ModalParameters({
             </div>
 
             <div className="divider my-1">Systems</div>
-            <form className="grid grid-cols-1 md:grid-cols-3 gap-2" onSubmit={handleAddSystem}>
-              <input
-                type="text"
-                className="input input-bordered input-sm"
-                value={newSystemName}
-                onChange={(e) => setNewSystemName(e.target.value)}
-                placeholder="System name"
-              />
-              <input
-                type="text"
-                className="input input-bordered input-sm"
-                value={newSystemDesc}
-                onChange={(e) => setNewSystemDesc(e.target.value)}
-                placeholder="Description"
-              />
-              <button type="submit" className="btn btn-ghost btn-sm">
+            <div className="flex justify-end">
+              <button type="button" className="btn btn-ghost btn-sm" onClick={handleAddSystem}>
                 + Add system
               </button>
-            </form>
+            </div>
             <ul className="space-y-2">
               {projectSystems.map((system) => (
                 <li key={system.id} className="p-2 bg-base-200 rounded-lg space-y-2">
@@ -760,30 +853,14 @@ function ModalParameters({
                 </li>
               ))}
             </ul>
-            {projectSystems.length === 0 && (
-              <p className="text-sm text-base-content/50">No systems yet.</p>
-            )}
+            {projectSystems.length === 0 && <p className="text-sm text-base-content/50">No systems yet.</p>}
 
             <div className="divider my-1">WPS Library</div>
-            <form className="grid grid-cols-1 md:grid-cols-3 gap-2" onSubmit={handleAddWps}>
-              <input
-                type="text"
-                className="input input-bordered input-sm"
-                value={newWpsCode}
-                onChange={(e) => setNewWpsCode(e.target.value.toUpperCase())}
-                placeholder="WPS code (e.g. WPS-001)"
-              />
-              <input
-                type="text"
-                className="input input-bordered input-sm"
-                value={newWpsTitle}
-                onChange={(e) => setNewWpsTitle(e.target.value)}
-                placeholder="WPS title (optional)"
-              />
-              <button type="submit" className="btn btn-ghost btn-sm">
+            <div className="flex justify-end">
+              <button type="button" className="btn btn-ghost btn-sm" onClick={handleAddWps}>
                 + Add WPS
               </button>
-            </form>
+            </div>
             <ul className="space-y-2">
               {projectWpsLibrary.map((entry) => (
                 <li key={entry.id} className="p-2 bg-base-200 rounded-lg space-y-2">
@@ -808,18 +885,30 @@ function ModalParameters({
                       <label className="label py-0">
                         <span className="label-text text-xs">Linked WPS PDF</span>
                       </label>
-                      <select
-                        className="select select-bordered select-sm"
-                        value={entry.documentId || ""}
-                        onChange={(e) => handleUpdateWps(entry.id, { documentId: e.target.value || null })}
-                      >
-                        <option value="">No PDF linked</option>
-                        {wpsDocuments.map((doc) => (
-                          <option key={doc.id} value={doc.id}>
-                            {doc.title || doc.fileName}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="flex gap-1">
+                        <select
+                          className="select select-bordered select-sm flex-1"
+                          value={entry.documentId || ""}
+                          onChange={(e) => handleUpdateWps(entry.id, { documentId: e.target.value || null })}
+                        >
+                          <option value="">No PDF linked</option>
+                          {wpsDocuments.map((doc) => (
+                            <option key={doc.id} value={doc.id}>
+                              {doc.title || doc.fileName}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => {
+                            setWpsUploadTargetId(entry.id);
+                            wpsUploadInputRef.current?.click();
+                          }}
+                        >
+                          Load
+                        </button>
+                      </div>
                     </div>
                     <div className="flex justify-end">
                       <button type="button" className="btn btn-ghost btn-xs text-error" onClick={() => handleRemoveWps(entry.id)}>
@@ -830,14 +919,101 @@ function ModalParameters({
                 </li>
               ))}
             </ul>
-            {projectWpsLibrary.length === 0 && (
-              <p className="text-sm text-base-content/50">No WPS entries yet.</p>
+            {projectWpsLibrary.length === 0 && <p className="text-sm text-base-content/50">No WPS entries yet.</p>}
+
+            <div className="divider my-1">Electrode Register</div>
+            <div className="flex justify-end">
+              <button type="button" className="btn btn-ghost btn-sm" onClick={handleAddElectrode}>
+                + Add electrode
+              </button>
+            </div>
+            <ul className="space-y-2">
+              {projectElectrodeLibrary.map((entry) => (
+                <li key={entry.id} className="p-2 bg-base-200 rounded-lg space-y-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      className="input input-bordered input-sm"
+                      value={entry.code || ""}
+                      onChange={(e) => handleUpdateElectrode(entry.id, { code: e.target.value.toUpperCase() })}
+                      placeholder="Electrode code"
+                    />
+                    <input
+                      type="text"
+                      className="input input-bordered input-sm"
+                      value={entry.title || ""}
+                      onChange={(e) => handleUpdateElectrode(entry.id, { title: e.target.value })}
+                      placeholder="Description"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 items-end">
+                    <div className="form-control">
+                      <label className="label py-0">
+                        <span className="label-text text-xs">Linked electrode PDF</span>
+                      </label>
+                      <div className="flex gap-1">
+                        <select
+                          className="select select-bordered select-sm flex-1"
+                          value={entry.documentId || ""}
+                          onChange={(e) => handleUpdateElectrode(entry.id, { documentId: e.target.value || null })}
+                        >
+                          <option value="">No PDF linked</option>
+                          {documents.map((doc) => (
+                            <option key={doc.id} value={doc.id}>
+                              {doc.title || doc.fileName}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => {
+                            setElectrodeUploadTargetId(entry.id);
+                            electrodeUploadInputRef.current?.click();
+                          }}
+                        >
+                          Load
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex justify-end">
+                      <button type="button" className="btn btn-ghost btn-xs text-error" onClick={() => handleRemoveElectrode(entry.id)}>
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            {projectElectrodeLibrary.length === 0 && (
+              <p className="text-sm text-base-content/50">No electrode entries yet.</p>
             )}
             <div className="modal-action mt-4">
               <button type="button" className="btn btn-ghost" onClick={onClose}>Close</button>
             </div>
           </div>
         )}
+        <input
+          ref={wqrUploadInputRef}
+          type="file"
+          accept=".pdf,application/pdf"
+          className="hidden"
+          onChange={(e) => handleUploadWqrDocument(wqrUploadTargetId, e)}
+        />
+        <input
+          ref={wpsUploadInputRef}
+          type="file"
+          accept=".pdf,application/pdf"
+          className="hidden"
+          onChange={(e) => handleUploadWpsDocument(wpsUploadTargetId, e)}
+        />
+        <input
+          ref={electrodeUploadInputRef}
+          type="file"
+          accept=".pdf,application/pdf"
+          className="hidden"
+          onChange={(e) => handleUploadElectrodeDocument(electrodeUploadTargetId, e)}
+        />
       </div>
       <form method="dialog" className="modal-backdrop">
         <button type="button" onClick={onClose}>

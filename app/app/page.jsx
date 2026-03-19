@@ -119,6 +119,7 @@ export default function WeldTrackerApp() {
   const [documents, setDocuments] = useState([]);
   const [databookConfig, setDatabookConfig] = useState(createDefaultDatabookConfig());
   const [wpsLibrary, setWpsLibrary] = useState([]);
+  const [electrodeLibrary, setElectrodeLibrary] = useState([]);
   const [materialCertificates, setMaterialCertificates] = useState([]);
   const [addDefaults, setAddDefaults] = useState({
     spoolId: null,
@@ -147,6 +148,9 @@ export default function WeldTrackerApp() {
   const sidePanelResizeRef = useRef(null);
   const emptyStatePdfInputRef = useRef(null);
   const emptyStateProjectInputRef = useRef(null);
+  const [floatingToolbarPos, setFloatingToolbarPos] = useState({ x: 8, y: 8 });
+  const [isFloatingToolbarCollapsed, setIsFloatingToolbarCollapsed] = useState(false);
+  const floatingToolbarDragRef = useRef(null);
 
   const handleManualPageSelect = useCallback((nextPageOrUpdater) => {
     setPdfPage((prev) => {
@@ -176,6 +180,25 @@ export default function WeldTrackerApp() {
     return () => {
       window.removeEventListener("mousemove", move);
       window.removeEventListener("mouseup", up);
+    };
+  }, []);
+
+  useEffect(() => {
+    const onPointerMove = (e) => {
+      const drag = floatingToolbarDragRef.current;
+      if (!drag) return;
+      const nextX = Math.max(4, Math.min(window.innerWidth - 220, drag.startX + (e.clientX - drag.pointerStartX)));
+      const nextY = Math.max(4, Math.min(window.innerHeight - 48, drag.startY + (e.clientY - drag.pointerStartY)));
+      setFloatingToolbarPos({ x: nextX, y: nextY });
+    };
+    const onPointerUp = () => {
+      floatingToolbarDragRef.current = null;
+    };
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
     };
   }, []);
 
@@ -222,6 +245,7 @@ export default function WeldTrackerApp() {
       setDocuments([]);
       setDatabookConfig(createDefaultDatabookConfig());
       setWpsLibrary([]);
+      setElectrodeLibrary([]);
       setMaterialCertificates([]);
       setProjectId(generateProjectId());
     }
@@ -238,6 +262,7 @@ export default function WeldTrackerApp() {
   const handleModeChange = useCallback((mode) => {
     setAppMode(mode);
     if (mode === "inspection") setFormWeld(null);
+    if (mode === "inspection") setIsFloatingToolbarCollapsed(true);
   }, []);
 
   const handleToolChange = useCallback((tool) => {
@@ -760,6 +785,7 @@ export default function WeldTrackerApp() {
       documents: normalizedDocuments,
       databookConfig: normalizeDatabookConfig(data.databookConfig),
       wpsLibrary: Array.isArray(data.wpsLibrary) ? data.wpsLibrary : [],
+      electrodeLibrary: Array.isArray(data.electrodeLibrary) ? data.electrodeLibrary : [],
       materialCertificates: Array.isArray(data.materialCertificates) ? data.materialCertificates : [],
     };
   }, []);
@@ -848,6 +874,7 @@ export default function WeldTrackerApp() {
       setDocuments(normalized.documents);
       setDatabookConfig(normalized.databookConfig);
       setWpsLibrary(normalized.wpsLibrary);
+      setElectrodeLibrary(normalized.electrodeLibrary);
       setMaterialCertificates(normalized.materialCertificates);
       setFormWeld(null);
       setSelectedWeldId(null);
@@ -990,6 +1017,7 @@ export default function WeldTrackerApp() {
       documents,
       databookConfig,
       wpsLibrary,
+      electrodeLibrary,
       materialCertificates,
     };
     if (projectId) {
@@ -1023,6 +1051,7 @@ export default function WeldTrackerApp() {
     documents,
     databookConfig,
     wpsLibrary,
+    electrodeLibrary,
     materialCertificates,
     pdfToBase64,
   ]);
@@ -1071,6 +1100,7 @@ export default function WeldTrackerApp() {
         documents,
         databookConfig,
         wpsLibrary,
+        electrodeLibrary,
         materialCertificates,
       });
     }, 500);
@@ -1100,6 +1130,7 @@ export default function WeldTrackerApp() {
     documents,
     databookConfig,
     wpsLibrary,
+    electrodeLibrary,
     materialCertificates,
     pdfToBase64,
   ]);
@@ -1234,6 +1265,16 @@ export default function WeldTrackerApp() {
     [spools, spoolIdsOnCurrentPage]
   );
 
+  const lineIdsOnCurrentPage = useMemo(
+    () => [...new Set(spoolsOnCurrentPage.map((spool) => spool.lineId).filter(Boolean))],
+    [spoolsOnCurrentPage]
+  );
+
+  const linesOnCurrentPage = useMemo(
+    () => lines.filter((line) => lineIdsOnCurrentPage.includes(line.id)),
+    [lines, lineIdsOnCurrentPage]
+  );
+
   const partsOnCurrentPage = useMemo(
     () => parts.filter((p) => partIdsOnCurrentPage.includes(p.id)),
     [parts, partIdsOnCurrentPage]
@@ -1263,6 +1304,31 @@ export default function WeldTrackerApp() {
       )
     );
   }, [spoolsOnCurrentPage]);
+
+  const handleSaveVisibleLines = useCallback((newLines) => {
+    const existingVisibleIds = new Set(linesOnCurrentPage.map((line) => line.id));
+    const nextVisibleIds = new Set((newLines || []).map((line) => line.id));
+    const deletedLineIds = [...existingVisibleIds].filter((id) => !nextVisibleIds.has(id));
+
+    setLines((prev) => {
+      const preserved = prev.filter((line) => !existingVisibleIds.has(line.id));
+      return [...preserved, ...(newLines || [])];
+    });
+
+    if (deletedLineIds.length === 0) return;
+    const deletedSet = new Set(deletedLineIds);
+    setSpools((prev) =>
+      prev.map((spool) => (deletedSet.has(spool.lineId) ? { ...spool, lineId: null } : spool))
+    );
+    setDrawings((prev) =>
+      prev.map((drawing) => ({
+        ...drawing,
+        lineIds: Array.isArray(drawing.lineIds)
+          ? drawing.lineIds.filter((lineId) => !deletedSet.has(lineId))
+          : [],
+      }))
+    );
+  }, [linesOnCurrentPage]);
 
   const scrollToTarget = useMemo(() => {
     if (selectedWeldId) {
@@ -1350,80 +1416,123 @@ export default function WeldTrackerApp() {
             {pdfBlob ? (
               <>
                 {pdfBlob && (
-                  <div className="absolute top-2 left-2 z-20 flex flex-col gap-3 pointer-events-none items-start">
+                  <div
+                    className="absolute z-20 flex flex-col gap-3 pointer-events-none items-start"
+                    style={{ left: `${floatingToolbarPos.x}px`, top: `${floatingToolbarPos.y}px` }}
+                  >
                     <div className="pointer-events-auto shrink-0 flex items-center gap-2 px-2 py-1.5 rounded-lg bg-base-200/70 backdrop-blur-md border border-base-300/50 shadow-sm w-fit">
-                      <MarkupToolbar
-                        markupTool={markupTool}
-                        onToolChange={handleToolChange}
-                        appMode={appMode}
-                        onModeChange={handleModeChange}
-                        className="!p-0 !bg-transparent !border-0 !shadow-none"
-                      />
-                      <span className="w-px h-5 bg-base-300/60 shrink-0 hidden md:block" aria-hidden />
-                      <div className="hidden md:flex items-center gap-0">
-                        <button
-                          type="button"
-                          className="btn btn-xs btn-ghost h-7 min-h-7 w-7 p-0"
-                          onClick={() => setPdfScale((s) => Math.max(0.5, s - 0.25))}
-                          disabled={pdfScale <= 0.5}
-                          aria-label="Zoom out"
-                          title="Zoom out"
-                        >
-                          −
-                        </button>
-                        <span className="text-xs tabular-nums min-w-[2.5rem] text-center text-base-content/70">
-                          {Math.round(pdfScale * 100)}%
-                        </span>
-                        <button
-                          type="button"
-                          className="btn btn-xs btn-ghost h-7 min-h-7 w-7 p-0"
-                          onClick={() => setPdfScale((s) => Math.min(2.5, s + 0.25))}
-                          disabled={pdfScale >= 2.5}
-                          aria-label="Zoom in"
-                          title="Zoom in"
-                        >
-                          +
-                        </button>
-                      </div>
                       <button
                         type="button"
-                        className="btn btn-xs btn-ghost h-7 min-h-7 gap-1 hidden md:flex"
-                        onClick={() => setShowOverlay((v) => !v)}
-                        aria-label={showOverlay ? "Hide markers" : "Show markers"}
-                        title={showOverlay ? "Hide markers" : "Show markers"}
+                        className="btn btn-xs btn-ghost h-7 min-h-7 w-7 p-0 cursor-grab active:cursor-grabbing"
+                        title="Drag toolbar"
+                        aria-label="Drag toolbar"
+                        onPointerDown={(e) => {
+                          if (e.button !== 0 && e.pointerType === "mouse") return;
+                          e.preventDefault();
+                          floatingToolbarDragRef.current = {
+                            startX: floatingToolbarPos.x,
+                            startY: floatingToolbarPos.y,
+                            pointerStartX: e.clientX,
+                            pointerStartY: e.clientY,
+                          };
+                        }}
                       >
-                        {showOverlay ? "Hide markers" : "Show markers"}
+                        ::
                       </button>
-                      {numPdfPages != null && numPdfPages > 1 && (
+                      <button
+                        type="button"
+                        className="btn btn-xs btn-ghost h-7 min-h-7 w-7 p-0"
+                        onClick={() => setIsFloatingToolbarCollapsed((value) => !value)}
+                        aria-label={isFloatingToolbarCollapsed ? "Expand toolbar" : "Collapse toolbar"}
+                        title={isFloatingToolbarCollapsed ? "Expand toolbar" : "Collapse toolbar"}
+                      >
+                        {isFloatingToolbarCollapsed ? "▸" : "▾"}
+                      </button>
+                      {isFloatingToolbarCollapsed ? (
+                        <button
+                          type="button"
+                          className={`btn btn-xs ${appMode === "inspection" ? "btn-warning" : "btn-ghost"}`}
+                          onClick={() => handleModeChange(appMode === "inspection" ? "edition" : "inspection")}
+                          title={appMode === "inspection" ? "Locked (inspection)" : "Unlocked (edition)"}
+                        >
+                          {appMode === "inspection" ? "Locked" : "Tools"}
+                        </button>
+                      ) : (
                         <>
-                          <span className="w-px h-5 bg-base-300/60 shrink-0 ml-1" aria-hidden />
-                          <div className="flex items-center gap-0.5">
+                          <MarkupToolbar
+                            markupTool={markupTool}
+                            onToolChange={handleToolChange}
+                            appMode={appMode}
+                            onModeChange={handleModeChange}
+                            className="!p-0 !bg-transparent !border-0 !shadow-none"
+                          />
+                          <span className="w-px h-5 bg-base-300/60 shrink-0 hidden md:block" aria-hidden />
+                          <div className="hidden md:flex items-center gap-0">
                             <button
                               type="button"
                               className="btn btn-xs btn-ghost h-7 min-h-7 w-7 p-0"
-                              onClick={() => handleManualPageSelect((p) => Math.max(1, p - 1))}
-                              disabled={pdfPage <= 1}
-                              aria-label="Previous page"
+                              onClick={() => setPdfScale((s) => Math.max(0.5, s - 0.25))}
+                              disabled={pdfScale <= 0.5}
+                              aria-label="Zoom out"
+                              title="Zoom out"
                             >
-                              ‹
+                              −
                             </button>
-                            <span className="text-xs tabular-nums min-w-[2.5rem] text-center">
-                              {pdfPage}/{numPdfPages}
+                            <span className="text-xs tabular-nums min-w-[2.5rem] text-center text-base-content/70">
+                              {Math.round(pdfScale * 100)}%
                             </span>
                             <button
                               type="button"
                               className="btn btn-xs btn-ghost h-7 min-h-7 w-7 p-0"
-                              onClick={() => handleManualPageSelect((p) => Math.min(numPdfPages, p + 1))}
-                              disabled={pdfPage >= numPdfPages}
-                              aria-label="Next page"
+                              onClick={() => setPdfScale((s) => Math.min(2.5, s + 0.25))}
+                              disabled={pdfScale >= 2.5}
+                              aria-label="Zoom in"
+                              title="Zoom in"
                             >
-                              ›
+                              +
                             </button>
                           </div>
+                          <button
+                            type="button"
+                            className="btn btn-xs btn-ghost h-7 min-h-7 gap-1 hidden md:flex"
+                            onClick={() => setShowOverlay((v) => !v)}
+                            aria-label={showOverlay ? "Hide markers" : "Show markers"}
+                            title={showOverlay ? "Hide markers" : "Show markers"}
+                          >
+                            {showOverlay ? "Hide markers" : "Show markers"}
+                          </button>
+                          {numPdfPages != null && numPdfPages > 1 && (
+                            <>
+                              <span className="w-px h-5 bg-base-300/60 shrink-0 ml-1" aria-hidden />
+                              <div className="flex items-center gap-0.5">
+                                <button
+                                  type="button"
+                                  className="btn btn-xs btn-ghost h-7 min-h-7 w-7 p-0"
+                                  onClick={() => handleManualPageSelect((p) => Math.max(1, p - 1))}
+                                  disabled={pdfPage <= 1}
+                                  aria-label="Previous page"
+                                >
+                                  ‹
+                                </button>
+                                <span className="text-xs tabular-nums min-w-[2.5rem] text-center">
+                                  {pdfPage}/{numPdfPages}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="btn btn-xs btn-ghost h-7 min-h-7 w-7 p-0"
+                                  onClick={() => handleManualPageSelect((p) => Math.min(numPdfPages, p + 1))}
+                                  disabled={pdfPage >= numPdfPages}
+                                  aria-label="Next page"
+                                >
+                                  ›
+                                </button>
+                              </div>
+                            </>
+                          )}
                         </>
                       )}
                     </div>
-                    {appMode === "edition" && markupTool !== "select" && (
+                    {!isFloatingToolbarCollapsed && appMode === "edition" && markupTool !== "select" && (
                       <div className="pointer-events-auto shrink-0">
                         <AddDefaultsBar
                           markupTool={markupTool}
@@ -1556,7 +1665,7 @@ export default function WeldTrackerApp() {
                   />
                   <SidePanelLines
                     systems={systems}
-                    lines={lines}
+                    lines={linesOnCurrentPage}
                     isOpen={showLinePanel}
                     onToggle={() => {
                       setShowDrawingPanel(false);
@@ -1565,7 +1674,7 @@ export default function WeldTrackerApp() {
                       setShowPartPanel(false);
                       setShowLinePanel((v) => !v);
                     }}
-                    onSaveLines={setLines}
+                    onSaveLines={handleSaveVisibleLines}
                     systemsManagedExternally
                     isStacked={!showDrawingPanel && !showLinePanel && !showWeldPanel && !showSpoolPanel && !showPartPanel}
                   />
@@ -1589,7 +1698,7 @@ export default function WeldTrackerApp() {
                     weldPoints={weldsOnCurrentPage}
                     weldStatusByWeldId={weldStatusByWeldId}
                     getWeldName={getWeldName}
-                    lines={lines}
+                    lines={linesOnCurrentPage}
                   />
                   <SidePanelWeldForm
                     weldPoints={weldsOnCurrentPage}
@@ -1617,6 +1726,7 @@ export default function WeldTrackerApp() {
                     onUpdatePartHeat={handleUpdatePartHeat}
                     personnel={personnel}
                     wpsLibrary={wpsLibrary}
+                    electrodeLibrary={electrodeLibrary}
                     ndtAutoLabel={formatNdtRequirements(drawingSettings.ndtRequirements)}
                     drawingSettings={drawingSettings}
                     isStacked={!showDrawingPanel && !showLinePanel && !showWeldPanel && !showSpoolPanel && !showPartPanel}
@@ -1762,10 +1872,10 @@ export default function WeldTrackerApp() {
             {mobileSheetTab === "lines" && (
               <SidePanelLines
                 systems={systems}
-                lines={lines}
+                lines={linesOnCurrentPage}
                 isOpen={true}
                 onToggle={() => {}}
-                onSaveLines={setLines}
+                onSaveLines={handleSaveVisibleLines}
                 systemsManagedExternally
                 isStacked={false}
                 hideHeader
@@ -1787,7 +1897,7 @@ export default function WeldTrackerApp() {
                 weldPoints={weldsOnCurrentPage}
                 weldStatusByWeldId={weldStatusByWeldId}
                 getWeldName={getWeldName}
-                lines={lines}
+                lines={linesOnCurrentPage}
               />
             )}
             {mobileSheetTab === "welds" && (
@@ -1811,6 +1921,7 @@ export default function WeldTrackerApp() {
                 onUpdatePartHeat={handleUpdatePartHeat}
                 personnel={personnel}
                 wpsLibrary={wpsLibrary}
+                electrodeLibrary={electrodeLibrary}
                 ndtAutoLabel={formatNdtRequirements(drawingSettings.ndtRequirements)}
                 drawingSettings={drawingSettings}
                 isStacked={false}
@@ -1846,14 +1957,17 @@ export default function WeldTrackerApp() {
         projectSettings={projectSettings}
         projectMeta={projectMeta}
         wpsLibrary={wpsLibrary}
+        electrodeLibrary={electrodeLibrary}
         documents={documents}
-        onSave={({ drawingSettings: s, personnel: p, projectSettings: ps, projectMeta: pm, systems: sys, wpsLibrary: wps }) => {
+        onSave={({ drawingSettings: s, personnel: p, projectSettings: ps, projectMeta: pm, systems: sys, wpsLibrary: wps, electrodeLibrary: electrodes, documents: docs }) => {
           if (s != null) setDrawingSettings(s);
           if (p != null) setPersonnel(p);
           if (ps != null) setProjectSettings(ps);
           if (pm != null) setProjectMeta(pm);
           if (sys != null) setSystems(sys);
           if (wps != null) setWpsLibrary(wps);
+          if (electrodes != null) setElectrodeLibrary(electrodes);
+          if (docs != null) setDocuments(docs);
         }}
       />
 
