@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { getNextUniqueLineName } from "@/lib/line-utils";
+import { formatNdtRequirements } from "@/lib/constants";
+import NdtRequirementsOverrideTable from "@/components/NdtRequirementsOverrideTable";
 
 function SidePanelLines({
   systems = [],
@@ -19,6 +21,7 @@ function SidePanelLines({
   onToggle,
   isStacked = false,
   hideHeader = false,
+  drawingSettings = { ndtRequirements: [] },
 }) {
   const [expandedLineId, setExpandedLineId] = useState(null);
   const [spoolMenuLineId, setSpoolMenuLineId] = useState(null);
@@ -68,7 +71,19 @@ function SidePanelLines({
     const name = getNextUniqueLineName(allLines || lines);
     onSaveLines?.([
       ...lines,
-      { id, systemId, name, wps: "", fluidType: "", pressure: "", diameterRange: "", thickness: "", material: "", drawingIds: [] },
+      {
+        id,
+        systemId,
+        name,
+        wps: "",
+        fluidType: "",
+        pressure: "",
+        diameterRange: "",
+        thickness: "",
+        material: "",
+        drawingIds: [],
+        ndtRequirements: [],
+      },
     ]);
     setExpandedLineId(id);
   }
@@ -351,6 +366,26 @@ function SidePanelLines({
             placeholder="Overrides system; welds can override again"
           />
         </div>
+        {appMode === "edition" && (
+          <div className="border border-base-300/80 rounded-md p-2 bg-base-200/50">
+            <NdtRequirementsOverrideTable
+              variant="compact"
+              scope="override"
+              title="NDT overrides (optional)"
+              hint={
+                formatNdtRequirements(drawingSettings?.ndtRequirements || []).trim()
+                  ? `Project base: ${formatNdtRequirements(drawingSettings.ndtRequirements)}. Line overrides system; both merge per method with project.`
+                  : "Per-method % override. Line overrides system; both merge with project defaults."
+              }
+              rows={Array.isArray(line.ndtRequirements) ? line.ndtRequirements : []}
+              onChange={(nextReqs) => {
+                onSaveLines?.(
+                  lines.map((l) => (l.id === line.id ? { ...l, ndtRequirements: nextReqs } : l))
+                );
+              }}
+            />
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-1.5">
           <div className="form-control">
             <label className="label py-0 min-h-0"><span className="label-text text-xs">Fluid type</span></label>

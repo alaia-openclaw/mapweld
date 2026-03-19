@@ -26,6 +26,8 @@ import {
   loadProject,
   PROJECT_FILE_VERSION,
   migrateDrawingSettings,
+  normalizeSystemRecord,
+  normalizeLineRecord,
 } from "@/lib/project-file";
 import {
   saveProject as saveToIndexedDB,
@@ -960,8 +962,12 @@ export default function WeldTrackerApp() {
               thickness: "",
               materialGrade: "",
             },
-      systems: Array.isArray(data.systems) ? data.systems : [],
-      lines: Array.isArray(data.lines) ? data.lines : [],
+      systems: Array.isArray(data.systems)
+        ? data.systems.filter((s) => s && typeof s === "object").map(normalizeSystemRecord)
+        : [],
+      lines: Array.isArray(data.lines)
+        ? data.lines.filter((ln) => ln && typeof ln === "object").map(normalizeLineRecord)
+        : [],
       projectSettings:
         data.projectSettings && typeof data.projectSettings === "object"
           ? data.projectSettings
@@ -1791,6 +1797,7 @@ export default function WeldTrackerApp() {
           thickness: "",
           material: "",
           drawingIds: [activeDrawingId],
+          ndtRequirements: [],
         },
       ];
     });
@@ -1836,6 +1843,7 @@ export default function WeldTrackerApp() {
               lines,
               allLines: lines,
               spools,
+              drawingSettings,
               onSaveLines: handleSaveAllLines,
               onSaveSpools: handleSaveAllSpools,
               onCreateLineOnCurrentPage: handleCreateLineOnCurrentDrawing,
@@ -1878,6 +1886,7 @@ export default function WeldTrackerApp() {
       weldStatusByWeldId,
       handleAssignWeldToSpool,
       handleAssignPartToSpool,
+      drawingSettings,
     ]
   );
 
@@ -2347,6 +2356,7 @@ export default function WeldTrackerApp() {
                             selectedLineId={selectedLineIdFromMarker}
                             allLines={lines}
                             spools={spoolsOnCurrentPage}
+                            drawingSettings={drawingSettings}
                             isOpen
                             onToggle={() => {}}
                             onSaveLines={handleSaveVisibleLines}
@@ -2557,6 +2567,7 @@ export default function WeldTrackerApp() {
                 selectedLineId={selectedLineIdFromMarker}
                 allLines={lines}
                 spools={spoolsOnCurrentPage}
+                drawingSettings={drawingSettings}
                 isOpen={true}
                 onToggle={() => {}}
                 onSaveLines={handleSaveVisibleLines}

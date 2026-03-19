@@ -459,7 +459,13 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                 onClick={() =>
                   setSystems((prev) => [
                     ...prev,
-                    { id: generateId(), name: `System ${prev.length + 1}`, description: "", wps: "" },
+                    {
+                      id: generateId(),
+                      name: `System ${prev.length + 1}`,
+                      description: "",
+                      wps: "",
+                      ndtRequirements: [],
+                    },
                   ])
                 }
               >

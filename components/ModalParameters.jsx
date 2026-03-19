@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { NDT_METHODS, NDT_METHOD_LABELS, sortNdtMethods } from "@/lib/constants";
 import SidePanelDrawings from "@/components/SidePanelDrawings";
 import SidePanelLines from "@/components/SidePanelLines";
 import SidePanelSpools from "@/components/SidePanelSpools";
+import NdtRequirementsOverrideTable from "@/components/NdtRequirementsOverrideTable";
+import { migrateNdtRequirementsRows } from "@/lib/ndt-requirements-rows";
 
 function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -49,7 +50,6 @@ function ModalSettings({
   // Default NDT state
   const [ndtRequirements, setNdtRequirements] = useState([]);
   const [weldingSpec, setWeldingSpec] = useState("");
-  const [customNdtMethod, setCustomNdtMethod] = useState("");
 
   // Project meta state
   const [metaProjectName, setMetaProjectName] = useState("");
@@ -90,7 +90,7 @@ function ModalSettings({
     parametersModalWasOpenRef.current = true;
 
     if (settings) {
-      setNdtRequirements(settings.ndtRequirements || []);
+      setNdtRequirements(migrateNdtRequirementsRows(settings.ndtRequirements || []));
       setWeldingSpec(settings.weldingSpec || "");
     }
     setMetaProjectName(projectMeta?.projectName || "");
@@ -102,7 +102,6 @@ function ModalSettings({
     setProjectWpsLibrary(Array.isArray(wpsLibrary) ? wpsLibrary : []);
 
     if (justOpened) {
-      setCustomNdtMethod("");
       setPersonnelSubtab("fitters");
       setEditingWelderId(null);
       wqrUploadTargetRef.current = null;
@@ -110,52 +109,6 @@ function ModalSettings({
       setActiveSection("project-ndt");
     }
   }, [settings, isOpen, projectMeta, systems, wpsLibrary]);
-
-  function addNdtRow(method, pct = 100) {
-    const normalizedMethod = String(method || "").trim().toUpperCase();
-    if (!normalizedMethod) return;
-    setNdtRequirements((prev) => {
-      const filtered = prev.filter((r) => r.method !== normalizedMethod);
-      const merged = [...filtered, { method: normalizedMethod, pct: Math.min(100, Math.max(0, pct)) }];
-      const orderedMethods = sortNdtMethods(merged.map((r) => r.method));
-      return merged.sort((a, b) => orderedMethods.indexOf(a.method) - orderedMethods.indexOf(b.method));
-    });
-  }
-
-  function updateNdtRow(method, field, value) {
-    const num = value === "" ? null : parseInt(value, 10);
-    if (num !== null && (isNaN(num) || num < 0)) return;
-    const clamped = num != null ? Math.min(100, Math.max(0, num)) : null;
-    setNdtRequirements((prev) => {
-      const prevReq = prev.find((r) => r.method === method);
-      if (!prevReq) return prev;
-      const next = { ...prevReq };
-      if (field === "pct") {
-        next.pct = clamped ?? 100;
-        delete next.pctShop;
-        delete next.pctField;
-      } else if (field === "shop") {
-        if (clamped == null || clamped === (prevReq.pct ?? 100)) delete next.pctShop;
-        else next.pctShop = clamped;
-      } else if (field === "field") {
-        if (clamped == null || clamped === (prevReq.pct ?? 100)) delete next.pctField;
-        else next.pctField = clamped;
-      }
-      const updated = prev.map((r) => (r.method === method ? next : r));
-      const orderedMethods = sortNdtMethods(updated.map((r) => r.method));
-      return updated.sort((a, b) => orderedMethods.indexOf(a.method) - orderedMethods.indexOf(b.method));
-    });
-  }
-
-  function removeNdtRow(method) {
-    setNdtRequirements((prev) => prev.filter((r) => r.method !== method));
-  }
-
-  function handleAddCustomNdtMethod() {
-    if (!customNdtMethod.trim()) return;
-    addNdtRow(customNdtMethod.trim(), 100);
-    setCustomNdtMethod("");
-  }
 
   // Personnel
   function handleAddFitter(e) {
@@ -249,7 +202,13 @@ function ModalSettings({
   function handleAddSystem() {
     const nextSystems = [
       ...projectSystems,
-      { id: generateId(), name: `System ${projectSystems.length + 1}`, description: "", wps: "" },
+      {
+        id: generateId(),
+        name: `System ${projectSystems.length + 1}`,
+        description: "",
+        wps: "",
+        ndtRequirements: [],
+      },
     ];
     setProjectSystems(nextSystems);
     onSave?.({
@@ -444,90 +403,13 @@ function ModalSettings({
           <div className="flex-1 min-h-0 min-w-0 overflow-y-auto px-4 pb-4 md:px-0 md:pr-1">
         {activeSection === "project-ndt" && (
           <div className="mt-2 md:mt-0">
-            <div className="form-control">
-              <label className="label">
-                <span className="label-text">NDT / QC checks</span>
-              </label>
-              <p className="text-xs text-base-content/60 mb-2">
-                Add methods with % required. Default methods are VT, MPI, RT, UT and you can add custom tests (e.g. PWHT).
-                Shop % / Field % apply by weld location.
-              </p>
-              <div className="mt-2 space-y-2">
-                {ndtRequirements.map((r) => (
-                  <div
-                    key={r.method}
-                    className="flex flex-wrap items-center gap-2 p-2 bg-base-200 rounded-lg"
-                  >
-                    <span className="w-24 font-medium">
-                      {NDT_METHOD_LABELS[r.method] || r.method}
-                    </span>
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs text-base-content/60">Shop</span>
-                      <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        className="input input-bordered input-sm w-16"
-                        value={r.pctShop ?? r.pct ?? 100}
-                        onChange={(e) => updateNdtRow(r.method, "shop", e.target.value)}
-                      />
-                      <span className="text-sm">%</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs text-base-content/60">Field</span>
-                      <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        className="input input-bordered input-sm w-16"
-                        value={r.pctField ?? r.pct ?? 100}
-                        onChange={(e) => updateNdtRow(r.method, "field", e.target.value)}
-                      />
-                      <span className="text-sm">%</span>
-                    </div>
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-sm btn-square ml-auto"
-                      onClick={() => removeNdtRow(r.method)}
-                      aria-label={`Remove ${r.method}`}
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-                {ndtRequirements.length === 0 && (
-                  <p className="text-sm text-base-content/50 py-2">
-                    No NDT methods set. Add below.
-                  </p>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-1 mt-2">
-                {NDT_METHODS.filter(
-                  (m) => !ndtRequirements.some((r) => r.method === m)
-                ).map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    className="btn btn-ghost btn-xs"
-                    onClick={() => addNdtRow(m)}
-                  >
-                    + {NDT_METHOD_LABELS[m] || m}
-                  </button>
-                ))}
-              </div>
-              <div className="mt-2 flex gap-2">
-                <input
-                  type="text"
-                  className="input input-bordered input-sm flex-1"
-                  value={customNdtMethod}
-                  onChange={(e) => setCustomNdtMethod(e.target.value.toUpperCase())}
-                  placeholder="Custom test code (e.g. PWHT)"
-                />
-                <button type="button" className="btn btn-ghost btn-sm" onClick={handleAddCustomNdtMethod}>
-                  + Add custom
-                </button>
-              </div>
-            </div>
+            <NdtRequirementsOverrideTable
+              scope="project"
+              title="NDT / QC checks"
+              hint="Add methods with % required. Default methods are VT, MPI, RT, UT; add custom tests (e.g. PWHT). Shop % / Field % apply by weld location."
+              rows={ndtRequirements}
+              onChange={setNdtRequirements}
+            />
             <div className="form-control mt-4">
               <label className="label" htmlFor="weldingSpec">
                 <span className="label-text">Welding spec</span>
@@ -841,6 +723,14 @@ function ModalSettings({
                       placeholder="e.g. WPS-001 — optional; lines can override"
                     />
                   </div>
+                  <NdtRequirementsOverrideTable
+                    variant="compact"
+                    scope="override"
+                    title="NDT overrides (optional)"
+                    hint="Per-method % for this system. Merges with project defaults; line-level overrides win over system for welds on that line."
+                    rows={Array.isArray(system.ndtRequirements) ? system.ndtRequirements : []}
+                    onChange={(nextReqs) => handleUpdateSystem(system.id, { ndtRequirements: nextReqs })}
+                  />
                   <div className="flex justify-end">
                     <button type="button" className="btn btn-ghost btn-xs text-error" onClick={() => handleRemoveSystem(system.id)}>
                       Remove
@@ -949,6 +839,7 @@ function ModalSettings({
               systemsManagedExternally
               selectedLineId={null}
               {...structureIntegration.lines}
+              drawingSettings={settings}
             />
           </div>
         )}
