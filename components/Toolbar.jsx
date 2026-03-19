@@ -70,6 +70,14 @@ function IconPrint() {
   );
 }
 
+function IconBook() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.484 9.246 5 7.5 5A4.5 4.5 0 003 9.5v9A2.5 2.5 0 005.5 21H12m0-14.747C13.168 5.484 14.754 5 16.5 5A4.5 4.5 0 0121 9.5v9a2.5 2.5 0 01-2.5 2.5H12" />
+    </svg>
+  );
+}
+
 function Toolbar({
   hasPdf,
   hasWelds,
@@ -79,6 +87,7 @@ function Toolbar({
   onExportExcel,
   onPrint,
   onOpenParameters,
+  onOpenDatabook,
   onOpenProjects,
   onOpenNdt,
   onOpenStatus,
@@ -161,6 +170,12 @@ function Toolbar({
         <button type="button" className={`${btn} btn-ghost`} onClick={onOpenParameters} title="Parameters">
           <IconCog />
           <span className="hidden xl:inline">Params</span>
+        </button>
+      )}
+      {hasPdf && onOpenDatabook && (
+        <button type="button" className={`${btn} btn-ghost`} onClick={onOpenDatabook} title="Databook builder">
+          <IconBook />
+          <span className="hidden xl:inline">Databook</span>
         </button>
       )}
       <Link
@@ -263,6 +278,13 @@ function Toolbar({
               <li>
                 <button type="button" onClick={onOpenParameters}>
                   Parameters
+                </button>
+              </li>
+            )}
+            {hasPdf && onOpenDatabook && (
+              <li>
+                <button type="button" onClick={onOpenDatabook}>
+                  Databook
                 </button>
               </li>
             )}

@@ -49,12 +49,12 @@ This checklist tracks the minimum feature set required to ship a first productio
 
 | ID | Phase | Task | Depends on | Status | Notes |
 |---|---|---|---|---|---|
-| FND-001 | Foundation | Add project schema v5 for databook docs/sections config | - | todo | Add migration from v4 in `lib/project-file.js` |
-| FND-002 | Foundation | Implement unified document vault model (`documents[]`) | FND-001 | todo | Store PDF metadata + base64 payload |
-| FND-003 | Foundation | Build generic PDF upload/list/remove component | FND-002 | todo | Reuse for ITP/NDT/Painting/Final release |
-| FND-004 | Foundation | Create databook section manifest + validators | FND-001 | todo | Single source of truth for order/required sections |
-| FND-005 | Foundation | Add Databook Builder screen (section order + readiness) | FND-004 | todo | Include required/missing indicators |
-| FND-006 | Foundation | Persist databook config in project save/load/session | FND-001, FND-004 | todo | Ensure backward compatibility |
+| FND-001 | Foundation | Add project schema v5 for databook docs/sections config | - | done | Added `PROJECT_FILE_VERSION = 5` + migration scaffolding |
+| FND-002 | Foundation | Implement unified document vault model (`documents[]`) | FND-001 | done | Added normalized `documents[]` state + persistence |
+| FND-003 | Foundation | Build generic PDF upload/list/remove component | FND-002 | done | Implemented upload/list/remove in Databook Builder modal |
+| FND-004 | Foundation | Create databook section manifest + validators | FND-001 | done | Added `lib/databook-sections.js` |
+| FND-005 | Foundation | Add Databook Builder screen (section order + readiness) | FND-004 | in_progress | Modal is live; generation hooks still pending |
+| FND-006 | Foundation | Persist databook config in project save/load/session | FND-001, FND-004 | done | Included in project save/load + session draft |
 | GEN-001 | Generated | Generate project summary PDF (drawings/systems/lines) | FND-004 | todo | Include revision and counts |
 | GEN-002 | Generated | Generate as-built drawing pages with overlays | FND-004 | todo | Support multi-drawing projects |
 | GEN-003 | Generated | Add drawing list summary page for as-built section | GEN-002 | todo | Include drawing id/name/revision/linked lines |

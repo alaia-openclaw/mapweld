@@ -14,6 +14,7 @@ import AddDefaultsBar from "@/components/AddDefaultsBar";
 import DashboardAnalytics from "@/components/DashboardAnalytics";
 import ModalParameters from "@/components/ModalParameters";
 import ModalProjects from "@/components/ModalProjects";
+import ModalDatabookBuilder from "@/components/ModalDatabookBuilder";
 import NdtKanbanPage from "@/components/NdtKanbanPage";
 import StatusPage from "@/components/StatusPage";
 import PageThumbnailPanel from "@/components/PageThumbnailPanel";
@@ -37,6 +38,7 @@ import { formatNdtRequirements, NDT_REPORT_STATUS } from "@/lib/constants";
 import { exportWeldsToExcel } from "@/lib/excel-export";
 import { applyReportToWelds } from "@/lib/ndt-utils";
 import { saveDraftToSession, loadDraftFromSession } from "@/lib/session-draft";
+import { createDefaultDatabookConfig, normalizeDatabookConfig } from "@/lib/databook-sections";
 
 const PDFViewerDynamic = dynamic(() => import("@/components/PDFViewer"), {
   ssr: false,
@@ -92,6 +94,7 @@ export default function WeldTrackerApp() {
   const [showWeldPanel, setShowWeldPanel] = useState(false);
   const [showSpoolPanel, setShowSpoolPanel] = useState(false);
   const [showParameters, setShowParameters] = useState(false);
+  const [showDatabookBuilder, setShowDatabookBuilder] = useState(false);
   const [showProjects, setShowProjects] = useState(false);
   const [showNdtPanel, setShowNdtPanel] = useState(false);
   const [showStatusPage, setShowStatusPage] = useState(false);
@@ -113,6 +116,10 @@ export default function WeldTrackerApp() {
   const [lines, setLines] = useState([]);
   const [projectSettings, setProjectSettings] = useState({ steps: [] });
   const [projectMeta, setProjectMeta] = useState({ projectName: "", client: "", spec: "", revision: "", date: "" });
+  const [documents, setDocuments] = useState([]);
+  const [databookConfig, setDatabookConfig] = useState(createDefaultDatabookConfig());
+  const [wpsLibrary, setWpsLibrary] = useState([]);
+  const [materialCertificates, setMaterialCertificates] = useState([]);
   const [addDefaults, setAddDefaults] = useState({
     spoolId: null,
     weldLocation: "shop",
@@ -199,6 +206,10 @@ export default function WeldTrackerApp() {
       setDrawingSettings({ ndtRequirements: [], weldingSpec: "" });
       setNdtRequests([]);
       setNdtReports([]);
+      setDocuments([]);
+      setDatabookConfig(createDefaultDatabookConfig());
+      setWpsLibrary([]);
+      setMaterialCertificates([]);
       setProjectId(generateProjectId());
     }
     setSelectedWeldId(null);
@@ -674,6 +685,21 @@ export default function WeldTrackerApp() {
           }))
       : [];
 
+    const normalizedDocuments = Array.isArray(data.documents)
+      ? data.documents
+          .filter((doc) => doc && typeof doc === "object")
+          .map((doc) => ({
+            id: doc.id || `doc-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+            title: doc.title || doc.fileName || "",
+            category: doc.category || "other",
+            fileName: doc.fileName || doc.title || "document.pdf",
+            mimeType: doc.mimeType || "application/pdf",
+            base64: doc.base64 || "",
+            createdAt: doc.createdAt || new Date().toISOString(),
+          }))
+          .filter((doc) => !!doc.base64)
+      : [];
+
     return {
       ...data,
       weldPoints: normalizedWelds,
@@ -718,6 +744,10 @@ export default function WeldTrackerApp() {
         data.projectMeta && typeof data.projectMeta === "object"
           ? data.projectMeta
           : { projectName: "", client: "", spec: "", revision: "", date: "" },
+      documents: normalizedDocuments,
+      databookConfig: normalizeDatabookConfig(data.databookConfig),
+      wpsLibrary: Array.isArray(data.wpsLibrary) ? data.wpsLibrary : [],
+      materialCertificates: Array.isArray(data.materialCertificates) ? data.materialCertificates : [],
     };
   }, []);
 
@@ -802,6 +832,10 @@ export default function WeldTrackerApp() {
       setLines(normalized.lines);
       setProjectSettings(normalized.projectSettings);
       setProjectMeta(normalized.projectMeta);
+      setDocuments(normalized.documents);
+      setDatabookConfig(normalized.databookConfig);
+      setWpsLibrary(normalized.wpsLibrary);
+      setMaterialCertificates(normalized.materialCertificates);
       setFormWeld(null);
       setSelectedWeldId(null);
       setSelectedSpoolMarkerId(null);
@@ -940,6 +974,10 @@ export default function WeldTrackerApp() {
       lines,
       projectSettings,
       projectMeta,
+      documents,
+      databookConfig,
+      wpsLibrary,
+      materialCertificates,
     };
     if (projectId) {
       try {
@@ -969,6 +1007,10 @@ export default function WeldTrackerApp() {
     lines,
     projectSettings,
     projectMeta,
+    documents,
+    databookConfig,
+    wpsLibrary,
+    materialCertificates,
     pdfToBase64,
   ]);
 
@@ -1013,6 +1055,10 @@ export default function WeldTrackerApp() {
         lines,
         projectSettings,
         projectMeta,
+        documents,
+        databookConfig,
+        wpsLibrary,
+        materialCertificates,
       });
     }, 500);
     return () => {
@@ -1038,6 +1084,10 @@ export default function WeldTrackerApp() {
     lines,
     projectSettings,
     projectMeta,
+    documents,
+    databookConfig,
+    wpsLibrary,
+    materialCertificates,
     pdfToBase64,
   ]);
 
@@ -1229,6 +1279,7 @@ export default function WeldTrackerApp() {
           onSaveProject={handleSaveProject}
           onExportExcel={handleExportExcel}
           onOpenParameters={() => setShowParameters(true)}
+          onOpenDatabook={() => setShowDatabookBuilder(true)}
           onOpenProjects={() => setShowProjects(true)}
           onOpenNdt={() => setShowNdtPanel(true)}
           onOpenStatus={() => setShowStatusPage(true)}
@@ -1790,6 +1841,15 @@ export default function WeldTrackerApp() {
         isOpen={showProjects}
         onClose={() => setShowProjects(false)}
         onOpenProject={handleOpenProjectFromStorage}
+      />
+
+      <ModalDatabookBuilder
+        isOpen={showDatabookBuilder}
+        onClose={() => setShowDatabookBuilder(false)}
+        documents={documents}
+        databookConfig={databookConfig}
+        onSaveDocuments={setDocuments}
+        onSaveDatabookConfig={setDatabookConfig}
       />
 
       <ModalPrintDynamic
