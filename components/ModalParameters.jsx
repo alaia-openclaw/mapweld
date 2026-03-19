@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { NDT_METHODS, NDT_METHOD_LABELS } from "@/lib/constants";
+import { NDT_METHODS, NDT_METHOD_LABELS, sortNdtMethods } from "@/lib/constants";
 
 function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -20,8 +20,11 @@ function ModalParameters({
   onClose,
   settings = { ndtRequirements: [], weldingSpec: "" },
   personnel = { fitters: [], welders: [], wqrs: [] },
+  systems = [],
   projectSettings = { steps: [] },
   projectMeta = { projectName: "", client: "", spec: "", revision: "", date: "" },
+  wpsLibrary = [],
+  documents = [],
   onSave,
 }) {
   const [activeTab, setActiveTab] = useState("default");
@@ -29,6 +32,7 @@ function ModalParameters({
   // Default NDT state
   const [ndtRequirements, setNdtRequirements] = useState([]);
   const [weldingSpec, setWeldingSpec] = useState("");
+  const [customNdtMethod, setCustomNdtMethod] = useState("");
 
   // ITP state
   const [itpSteps, setItpSteps] = useState([]);
@@ -40,6 +44,12 @@ function ModalParameters({
   const [metaSpec, setMetaSpec] = useState("");
   const [metaRevision, setMetaRevision] = useState("");
   const [metaDate, setMetaDate] = useState("");
+  const [projectSystems, setProjectSystems] = useState([]);
+  const [newSystemName, setNewSystemName] = useState("");
+  const [newSystemDesc, setNewSystemDesc] = useState("");
+  const [projectWpsLibrary, setProjectWpsLibrary] = useState([]);
+  const [newWpsCode, setNewWpsCode] = useState("");
+  const [newWpsTitle, setNewWpsTitle] = useState("");
 
   // Personnel state
   const [fitterName, setFitterName] = useState("");
@@ -50,6 +60,8 @@ function ModalParameters({
   const fitters = personnel.fitters || [];
   const welders = personnel.welders || [];
   const wqrs = personnel.wqrs || [];
+  const wqrDocuments = (documents || []).filter((doc) => doc?.category === "wqr");
+  const wpsDocuments = (documents || []).filter((doc) => doc?.category === "wps");
 
   useEffect(() => {
     if (settings && isOpen) {
@@ -63,15 +75,24 @@ function ModalParameters({
       setMetaSpec(projectMeta?.spec || "");
       setMetaRevision(projectMeta?.revision || "");
       setMetaDate(projectMeta?.date || "");
+      setProjectSystems(Array.isArray(systems) ? systems : []);
+      setProjectWpsLibrary(Array.isArray(wpsLibrary) ? wpsLibrary : []);
+      setCustomNdtMethod("");
+      setNewSystemName("");
+      setNewSystemDesc("");
+      setNewWpsCode("");
+      setNewWpsTitle("");
     }
-  }, [settings, isOpen, projectSettings, projectMeta]);
+  }, [settings, isOpen, projectSettings, projectMeta, systems, wpsLibrary]);
 
   function addNdtRow(method, pct = 100) {
+    const normalizedMethod = String(method || "").trim().toUpperCase();
+    if (!normalizedMethod) return;
     setNdtRequirements((prev) => {
-      const filtered = prev.filter((r) => r.method !== method);
-      return [...filtered, { method, pct: Math.min(100, Math.max(0, pct)) }].sort(
-        (a, b) => NDT_METHODS.indexOf(a.method) - NDT_METHODS.indexOf(b.method)
-      );
+      const filtered = prev.filter((r) => r.method !== normalizedMethod);
+      const merged = [...filtered, { method: normalizedMethod, pct: Math.min(100, Math.max(0, pct)) }];
+      const orderedMethods = sortNdtMethods(merged.map((r) => r.method));
+      return merged.sort((a, b) => orderedMethods.indexOf(a.method) - orderedMethods.indexOf(b.method));
     });
   }
 
@@ -94,14 +115,21 @@ function ModalParameters({
         if (clamped == null || clamped === (prevReq.pct ?? 100)) delete next.pctField;
         else next.pctField = clamped;
       }
-      return prev.map((r) => (r.method === method ? next : r)).sort(
-        (a, b) => NDT_METHODS.indexOf(a.method) - NDT_METHODS.indexOf(b.method)
-      );
+      const updated = prev.map((r) => (r.method === method ? next : r));
+      const orderedMethods = sortNdtMethods(updated.map((r) => r.method));
+      return updated.sort((a, b) => orderedMethods.indexOf(a.method) - orderedMethods.indexOf(b.method));
     });
   }
 
   function removeNdtRow(method) {
     setNdtRequirements((prev) => prev.filter((r) => r.method !== method));
+  }
+
+  function handleAddCustomNdtMethod(e) {
+    e.preventDefault();
+    if (!customNdtMethod.trim()) return;
+    addNdtRow(customNdtMethod.trim(), 100);
+    setCustomNdtMethod("");
   }
 
   // Personnel
@@ -149,7 +177,7 @@ function ModalParameters({
   function handleAddWqr(e) {
     e.preventDefault();
     if (!wqrCode.trim() || !editingWelderId) return;
-    const newWqr = { id: generateId(), code: wqrCode.trim() };
+    const newWqr = { id: generateId(), code: wqrCode.trim(), documentId: null };
     const welder = welders.find((w) => w.id === editingWelderId);
     if (!welder) return;
     onSave?.({
@@ -167,6 +195,18 @@ function ModalParameters({
     setWqrCode("");
   }
 
+  function handleUpdateWqrDocument(wqrId, documentId) {
+    onSave?.({
+      drawingSettings: { ndtRequirements, weldingSpec },
+      personnel: {
+        ...personnel,
+        wqrs: wqrs.map((wqr) =>
+          wqr.id === wqrId ? { ...wqr, documentId: documentId || null } : wqr
+        ),
+      },
+    });
+  }
+
   function handleRemoveWqrFromWelder(welderId, wqrId) {
     onSave?.({
       drawingSettings: { ndtRequirements, weldingSpec },
@@ -181,6 +221,50 @@ function ModalParameters({
     });
   }
 
+  function handleAddSystem(e) {
+    e.preventDefault();
+    if (!newSystemName.trim()) return;
+    setProjectSystems((prev) => [
+      ...prev,
+      { id: generateId(), name: newSystemName.trim(), description: newSystemDesc.trim() },
+    ]);
+    setNewSystemName("");
+    setNewSystemDesc("");
+  }
+
+  function handleRemoveSystem(systemId) {
+    setProjectSystems((prev) => prev.filter((system) => system.id !== systemId));
+  }
+
+  function handleUpdateSystem(systemId, updates) {
+    setProjectSystems((prev) =>
+      prev.map((system) => (system.id === systemId ? { ...system, ...updates } : system))
+    );
+  }
+
+  function handleAddWps(e) {
+    e.preventDefault();
+    const code = newWpsCode.trim();
+    if (!code) return;
+    if (projectWpsLibrary.some((entry) => entry.code === code)) return;
+    setProjectWpsLibrary((prev) => [
+      ...prev,
+      { id: generateId(), code, title: newWpsTitle.trim(), documentId: null },
+    ]);
+    setNewWpsCode("");
+    setNewWpsTitle("");
+  }
+
+  function handleRemoveWps(wpsId) {
+    setProjectWpsLibrary((prev) => prev.filter((entry) => entry.id !== wpsId));
+  }
+
+  function handleUpdateWps(wpsId, updates) {
+    setProjectWpsLibrary((prev) =>
+      prev.map((entry) => (entry.id === wpsId ? { ...entry, ...updates } : entry))
+    );
+  }
+
   const autoSaveTimeoutRef = useRef(null);
   useEffect(() => {
     if (!isOpen) return;
@@ -191,12 +275,14 @@ function ModalParameters({
         personnel,
         projectSettings: { steps: itpSteps },
         projectMeta: { projectName: metaProjectName, client: metaClient, spec: metaSpec, revision: metaRevision, date: metaDate },
+        systems: projectSystems,
+        wpsLibrary: projectWpsLibrary,
       });
     }, 500);
     return () => {
       if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
     };
-  }, [isOpen, ndtRequirements, weldingSpec, personnel, itpSteps, metaProjectName, metaClient, metaSpec, metaRevision, metaDate, onSave]);
+  }, [isOpen, ndtRequirements, weldingSpec, personnel, itpSteps, metaProjectName, metaClient, metaSpec, metaRevision, metaDate, projectSystems, projectWpsLibrary, onSave]);
 
   if (!isOpen) return null;
 
@@ -233,7 +319,8 @@ function ModalParameters({
                 <span className="label-text">NDT / QC checks</span>
               </label>
               <p className="text-xs text-base-content/60 mb-2">
-                Add methods with % required (VT, MPI, RT, UT). Shop % / Field % apply by weld location.
+                Add methods with % required. Default methods are VT, MPI, RT, UT and you can add custom tests (e.g. PWHT).
+                Shop % / Field % apply by weld location.
               </p>
               <div className="mt-2 space-y-2">
                 {ndtRequirements.map((r) => (
@@ -298,6 +385,18 @@ function ModalParameters({
                   </button>
                 ))}
               </div>
+              <form className="mt-2 flex gap-2" onSubmit={handleAddCustomNdtMethod}>
+                <input
+                  type="text"
+                  className="input input-bordered input-sm flex-1"
+                  value={customNdtMethod}
+                  onChange={(e) => setCustomNdtMethod(e.target.value.toUpperCase())}
+                  placeholder="Custom test code (e.g. PWHT)"
+                />
+                <button type="submit" className="btn btn-ghost btn-sm">
+                  + Add custom
+                </button>
+              </form>
             </div>
             <div className="form-control mt-4">
               <label className="label" htmlFor="weldingSpec">
@@ -438,16 +537,35 @@ function ModalParameters({
                         return wqr ? (
                           <li
                             key={wqr.id}
-                            className="flex items-center justify-between gap-2 p-2 bg-base-200 rounded text-sm"
+                            className="p-2 bg-base-200 rounded text-sm space-y-1"
                           >
-                            <span>{wqr.code}</span>
-                            <button
-                              type="button"
-                              className="btn btn-ghost btn-xs text-error"
-                              onClick={() => handleRemoveWqrFromWelder(editingWelderId, wqr.id)}
-                            >
-                              Remove
-                            </button>
+                            <div className="flex items-center justify-between gap-2">
+                              <span>{wqr.code}</span>
+                              <button
+                                type="button"
+                                className="btn btn-ghost btn-xs text-error"
+                                onClick={() => handleRemoveWqrFromWelder(editingWelderId, wqr.id)}
+                              >
+                                Remove
+                              </button>
+                            </div>
+                            <div className="form-control">
+                              <label className="label py-0">
+                                <span className="label-text text-xs">Linked WQR PDF</span>
+                              </label>
+                              <select
+                                className="select select-bordered select-xs"
+                                value={wqr.documentId || ""}
+                                onChange={(e) => handleUpdateWqrDocument(wqr.id, e.target.value)}
+                              >
+                                <option value="">No PDF linked</option>
+                                {wqrDocuments.map((doc) => (
+                                  <option key={doc.id} value={doc.id}>
+                                    {doc.title || doc.fileName}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
                           </li>
                         ) : null;
                       })}
@@ -594,6 +712,127 @@ function ModalParameters({
                 <input type="date" className="input input-bordered" value={metaDate} onChange={(e) => setMetaDate(e.target.value)} />
               </div>
             </div>
+
+            <div className="divider my-1">Systems</div>
+            <form className="grid grid-cols-1 md:grid-cols-3 gap-2" onSubmit={handleAddSystem}>
+              <input
+                type="text"
+                className="input input-bordered input-sm"
+                value={newSystemName}
+                onChange={(e) => setNewSystemName(e.target.value)}
+                placeholder="System name"
+              />
+              <input
+                type="text"
+                className="input input-bordered input-sm"
+                value={newSystemDesc}
+                onChange={(e) => setNewSystemDesc(e.target.value)}
+                placeholder="Description"
+              />
+              <button type="submit" className="btn btn-ghost btn-sm">
+                + Add system
+              </button>
+            </form>
+            <ul className="space-y-2">
+              {projectSystems.map((system) => (
+                <li key={system.id} className="p-2 bg-base-200 rounded-lg space-y-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      className="input input-bordered input-sm"
+                      value={system.name || ""}
+                      onChange={(e) => handleUpdateSystem(system.id, { name: e.target.value })}
+                      placeholder="System name"
+                    />
+                    <input
+                      type="text"
+                      className="input input-bordered input-sm"
+                      value={system.description || ""}
+                      onChange={(e) => handleUpdateSystem(system.id, { description: e.target.value })}
+                      placeholder="Description"
+                    />
+                  </div>
+                  <div className="flex justify-end">
+                    <button type="button" className="btn btn-ghost btn-xs text-error" onClick={() => handleRemoveSystem(system.id)}>
+                      Remove
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            {projectSystems.length === 0 && (
+              <p className="text-sm text-base-content/50">No systems yet.</p>
+            )}
+
+            <div className="divider my-1">WPS Library</div>
+            <form className="grid grid-cols-1 md:grid-cols-3 gap-2" onSubmit={handleAddWps}>
+              <input
+                type="text"
+                className="input input-bordered input-sm"
+                value={newWpsCode}
+                onChange={(e) => setNewWpsCode(e.target.value.toUpperCase())}
+                placeholder="WPS code (e.g. WPS-001)"
+              />
+              <input
+                type="text"
+                className="input input-bordered input-sm"
+                value={newWpsTitle}
+                onChange={(e) => setNewWpsTitle(e.target.value)}
+                placeholder="WPS title (optional)"
+              />
+              <button type="submit" className="btn btn-ghost btn-sm">
+                + Add WPS
+              </button>
+            </form>
+            <ul className="space-y-2">
+              {projectWpsLibrary.map((entry) => (
+                <li key={entry.id} className="p-2 bg-base-200 rounded-lg space-y-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      className="input input-bordered input-sm"
+                      value={entry.code || ""}
+                      onChange={(e) => handleUpdateWps(entry.id, { code: e.target.value.toUpperCase() })}
+                      placeholder="WPS code"
+                    />
+                    <input
+                      type="text"
+                      className="input input-bordered input-sm"
+                      value={entry.title || ""}
+                      onChange={(e) => handleUpdateWps(entry.id, { title: e.target.value })}
+                      placeholder="WPS title"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 items-end">
+                    <div className="form-control">
+                      <label className="label py-0">
+                        <span className="label-text text-xs">Linked WPS PDF</span>
+                      </label>
+                      <select
+                        className="select select-bordered select-sm"
+                        value={entry.documentId || ""}
+                        onChange={(e) => handleUpdateWps(entry.id, { documentId: e.target.value || null })}
+                      >
+                        <option value="">No PDF linked</option>
+                        {wpsDocuments.map((doc) => (
+                          <option key={doc.id} value={doc.id}>
+                            {doc.title || doc.fileName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex justify-end">
+                      <button type="button" className="btn btn-ghost btn-xs text-error" onClick={() => handleRemoveWps(entry.id)}>
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            {projectWpsLibrary.length === 0 && (
+              <p className="text-sm text-base-content/50">No WPS entries yet.</p>
+            )}
             <div className="modal-action mt-4">
               <button type="button" className="btn btn-ghost" onClick={onClose}>Close</button>
             </div>

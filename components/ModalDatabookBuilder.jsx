@@ -5,7 +5,7 @@ import {
   DATABOOK_SECTIONS,
   createDefaultDatabookConfig,
   normalizeDatabookConfig,
-  buildDatabookValidation,
+  buildDatabookValidationWithContext,
 } from "@/lib/databook-sections";
 
 const DOCUMENT_CATEGORIES = [
@@ -47,6 +47,11 @@ function ModalDatabookBuilder({
   onClose,
   documents = [],
   databookConfig = null,
+  weldPoints = [],
+  parts = [],
+  personnel = { welders: [], wqrs: [] },
+  wpsLibrary = [],
+  materialCertificates = [],
   onSaveDocuments,
   onSaveDatabookConfig,
 }) {
@@ -67,8 +72,17 @@ function ModalDatabookBuilder({
   }, [isOpen, documents, databookConfig]);
 
   const validation = useMemo(
-    () => buildDatabookValidation({ documents: localDocuments, databookConfig: localConfig }),
-    [localDocuments, localConfig]
+    () =>
+      buildDatabookValidationWithContext({
+        documents: localDocuments,
+        databookConfig: localConfig,
+        weldPoints,
+        parts,
+        personnel,
+        wpsLibrary,
+        materialCertificates,
+      }),
+    [localDocuments, localConfig, weldPoints, parts, personnel, wpsLibrary, materialCertificates]
   );
 
   const documentsByCategory = useMemo(() => {
@@ -136,6 +150,16 @@ function ModalDatabookBuilder({
         }))
       );
       setLocalDocuments((prev) => [...prev, ...uploads]);
+      setLocalConfig((prev) => {
+        const sectionDocumentIds = { ...(prev.sectionDocumentIds || {}) };
+        DATABOOK_SECTIONS.filter((section) => section.type === "uploaded").forEach((section) => {
+          const relevant = uploads.filter((doc) => doc.category === section.documentCategory);
+          if (relevant.length === 0) return;
+          const latest = relevant[relevant.length - 1];
+          sectionDocumentIds[section.id] = latest.id;
+        });
+        return { ...prev, sectionDocumentIds };
+      });
       setUploadTitle("");
     } finally {
       setIsUploading(false);
@@ -153,6 +177,36 @@ function ModalDatabookBuilder({
       return { ...prev, sectionDocumentIds: nextLinks };
     });
   }
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setLocalConfig((prev) => {
+      const sectionDocumentIds = { ...(prev.sectionDocumentIds || {}) };
+      let changed = false;
+      DATABOOK_SECTIONS.filter((section) => section.type === "uploaded").forEach((section) => {
+        const existing = sectionDocumentIds[section.id];
+        const existingStillPresent = existing && localDocuments.some((doc) => doc.id === existing);
+        if (existingStillPresent) return;
+        const candidates = localDocuments.filter((doc) => doc.category === section.documentCategory);
+        if (candidates.length === 0) {
+          if (existing) {
+            delete sectionDocumentIds[section.id];
+            changed = true;
+          }
+          return;
+        }
+        const latest = candidates
+          .slice()
+          .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))[0];
+        if (latest && latest.id !== existing) {
+          sectionDocumentIds[section.id] = latest.id;
+          changed = true;
+        }
+      });
+      if (!changed) return prev;
+      return { ...prev, sectionDocumentIds };
+    });
+  }, [isOpen, localDocuments]);
 
   function handleSave() {
     onSaveDocuments?.(localDocuments);

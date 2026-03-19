@@ -5,8 +5,8 @@ import { useState, useEffect, useRef } from "react";
 function SidePanelLines({
   systems = [],
   lines = [],
-  onSaveSystems,
   onSaveLines,
+  systemsManagedExternally = false,
   isOpen,
   onToggle,
   isStacked = false,
@@ -15,9 +15,6 @@ function SidePanelLines({
   const [expandedSystemId, setExpandedSystemId] = useState(null);
   const [expandedLineId, setExpandedLineId] = useState(null);
 
-  const [editSystemName, setEditSystemName] = useState("");
-  const [editSystemDesc, setEditSystemDesc] = useState("");
-
   const [editLineName, setEditLineName] = useState("");
   const [editFluidType, setEditFluidType] = useState("");
   const [editPressure, setEditPressure] = useState("");
@@ -25,19 +22,7 @@ function SidePanelLines({
   const [editThickness, setEditThickness] = useState("");
   const [editMaterial, setEditMaterial] = useState("");
 
-  const prevExpandedSystemRef = useRef(null);
   const prevExpandedLineRef = useRef(null);
-
-  useEffect(() => {
-    if (!expandedSystemId) { prevExpandedSystemRef.current = null; return; }
-    if (prevExpandedSystemRef.current === expandedSystemId) return;
-    prevExpandedSystemRef.current = expandedSystemId;
-    const sys = systems.find((s) => s.id === expandedSystemId);
-    if (sys) {
-      setEditSystemName(sys.name ?? "");
-      setEditSystemDesc(sys.description ?? "");
-    }
-  }, [expandedSystemId, systems]);
 
   useEffect(() => {
     if (!expandedLineId) { prevExpandedLineRef.current = null; return; }
@@ -53,28 +38,6 @@ function SidePanelLines({
       setEditMaterial(line.material ?? "");
     }
   }, [expandedLineId, lines]);
-
-  function handleAddSystem() {
-    const id = `sys-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-    const num = systems.length + 1;
-    onSaveSystems?.([...systems, { id, name: `System ${num}`, description: "" }]);
-    setExpandedSystemId(id);
-  }
-
-  function handleUpdateSystem(id) {
-    onSaveSystems?.(
-      systems.map((s) =>
-        s.id === id ? { ...s, name: editSystemName.trim() || s.name, description: editSystemDesc.trim() } : s
-      )
-    );
-  }
-
-  function handleDeleteSystem(id) {
-    if (!confirm("Delete this system? Lines under it will become unlinked.")) return;
-    onSaveSystems?.(systems.filter((s) => s.id !== id));
-    onSaveLines?.(lines.map((l) => (l.systemId === id ? { ...l, systemId: null } : l)));
-    if (expandedSystemId === id) setExpandedSystemId(null);
-  }
 
   function handleAddLine(systemId) {
     const id = `line-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -155,7 +118,9 @@ function SidePanelLines({
             {systems.length === 0 && orphanLines.length === 0 ? (
               <div className="text-center py-6 text-base-content/60 text-sm">
                 <p>No systems or lines</p>
-                <p className="mt-1">Add a system to group piping lines</p>
+                <p className="mt-1">
+                  {systemsManagedExternally ? "Add systems in Parameters > Project tab" : "Add a system to group piping lines"}
+                </p>
               </div>
             ) : (
               <ul className="space-y-2">
@@ -185,27 +150,9 @@ function SidePanelLines({
                       </div>
                       {isExpandedSys && (
                         <div className="border-t border-base-300 px-2 py-2 space-y-2">
-                          <div className="form-control">
-                            <label className="label py-0 min-h-0"><span className="label-text text-xs">System name</span></label>
-                            <input
-                              type="text"
-                              className="input input-sm input-bordered w-full min-w-0"
-                              value={editSystemName}
-                              onChange={(e) => setEditSystemName(e.target.value)}
-                              onBlur={() => handleUpdateSystem(sys.id)}
-                            />
-                          </div>
-                          <div className="form-control">
-                            <label className="label py-0 min-h-0"><span className="label-text text-xs">Description</span></label>
-                            <input
-                              type="text"
-                              className="input input-sm input-bordered w-full min-w-0"
-                              value={editSystemDesc}
-                              onChange={(e) => setEditSystemDesc(e.target.value)}
-                              onBlur={() => handleUpdateSystem(sys.id)}
-                              placeholder="e.g. Fire protection, High pressure mud"
-                            />
-                          </div>
+                          {sys.description ? (
+                            <p className="text-xs text-base-content/60">{sys.description}</p>
+                          ) : null}
 
                           <div className="space-y-1 pt-1">
                             <div className="flex items-center justify-between">
@@ -245,12 +192,6 @@ function SidePanelLines({
                               </ul>
                             )}
                           </div>
-
-                          <div className="flex flex-wrap gap-1 pt-2 border-t border-base-300">
-                            <button type="button" className="btn btn-error btn-outline btn-sm" onClick={() => handleDeleteSystem(sys.id)}>
-                              Delete system
-                            </button>
-                          </div>
                         </div>
                       )}
                     </li>
@@ -281,11 +222,11 @@ function SidePanelLines({
                 )}
               </ul>
             )}
-            <div className="mt-3">
-              <button type="button" className="btn btn-ghost btn-sm w-full gap-1" onClick={handleAddSystem}>
-                + Add system
-              </button>
-            </div>
+            {systemsManagedExternally && (
+              <p className="text-xs text-base-content/60 mt-3">
+                Systems are managed in Parameters &gt; Project tab.
+              </p>
+            )}
           </div>
         </div>
       )}

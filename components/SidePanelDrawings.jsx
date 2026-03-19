@@ -35,14 +35,6 @@ function SidePanelDrawings({
     onUpdateDrawing?.(id, { revision: editRevision.trim() });
   }
 
-  function toggleLineLink(lineId) {
-    const next = editLineIds.includes(lineId)
-      ? editLineIds.filter((x) => x !== lineId)
-      : [...editLineIds, lineId];
-    setEditLineIds(next);
-    onUpdateDrawing?.(expandedId, { lineIds: next });
-  }
-
   function addLineLink(lineId) {
     if (!expandedId || editLineIds.includes(lineId)) return;
     const next = [...editLineIds, lineId];
@@ -225,23 +217,6 @@ function SidePanelDrawings({
                                   );
                                 })}
                               </ul>
-                            )}
-                            {lines.length > 0 && (
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                {lines.map((line) => {
-                                  const linked = editLineIds.includes(line.id);
-                                  return (
-                                    <button
-                                      key={line.id}
-                                      type="button"
-                                      className={`badge badge-sm cursor-pointer ${linked ? "badge-primary" : "badge-ghost"}`}
-                                      onClick={() => toggleLineLink(line.id)}
-                                    >
-                                      {line.name || line.id}
-                                    </button>
-                                  );
-                                })}
-                              </div>
                             )}
                           </div>
                           <div className="flex flex-wrap gap-1 pt-2 border-t border-base-300">

@@ -148,6 +148,19 @@ export default function WeldTrackerApp() {
   const emptyStatePdfInputRef = useRef(null);
   const emptyStateProjectInputRef = useRef(null);
 
+  const handleManualPageSelect = useCallback((nextPageOrUpdater) => {
+    setPdfPage((prev) => {
+      const nextValue =
+        typeof nextPageOrUpdater === "function" ? nextPageOrUpdater(prev) : nextPageOrUpdater;
+      return Math.max(1, nextValue || 1);
+    });
+    // Manual page navigation should not be blocked by selection-based auto-focus.
+    setSelectedWeldId(null);
+    setSelectedSpoolMarkerId(null);
+    setSelectedPartMarkerId(null);
+    setFormWeld(null);
+  }, []);
+
   useEffect(() => {
     const move = (e) => {
       if (!sidePanelResizeRef.current) return;
@@ -1388,7 +1401,7 @@ export default function WeldTrackerApp() {
                             <button
                               type="button"
                               className="btn btn-xs btn-ghost h-7 min-h-7 w-7 p-0"
-                              onClick={() => setPdfPage((p) => Math.max(1, p - 1))}
+                              onClick={() => handleManualPageSelect((p) => Math.max(1, p - 1))}
                               disabled={pdfPage <= 1}
                               aria-label="Previous page"
                             >
@@ -1400,7 +1413,7 @@ export default function WeldTrackerApp() {
                             <button
                               type="button"
                               className="btn btn-xs btn-ghost h-7 min-h-7 w-7 p-0"
-                              onClick={() => setPdfPage((p) => Math.min(numPdfPages, p + 1))}
+                              onClick={() => handleManualPageSelect((p) => Math.min(numPdfPages, p + 1))}
                               disabled={pdfPage >= numPdfPages}
                               aria-label="Next page"
                             >
@@ -1428,7 +1441,7 @@ export default function WeldTrackerApp() {
                     pdfBlob={pdfBlob}
                     numPages={numPdfPages}
                     currentPage={pdfPage}
-                    onPageSelect={setPdfPage}
+                    onPageSelect={handleManualPageSelect}
                     weldPoints={weldPointsOnActiveDrawing}
                     spoolMarkers={spoolMarkersOnActiveDrawing}
                     partMarkers={partMarkersOnActiveDrawing}
@@ -1552,8 +1565,8 @@ export default function WeldTrackerApp() {
                       setShowPartPanel(false);
                       setShowLinePanel((v) => !v);
                     }}
-                    onSaveSystems={setSystems}
                     onSaveLines={setLines}
+                    systemsManagedExternally
                     isStacked={!showDrawingPanel && !showLinePanel && !showWeldPanel && !showSpoolPanel && !showPartPanel}
                   />
                   <SidePanelSpools
@@ -1603,6 +1616,7 @@ export default function WeldTrackerApp() {
                     parts={partsOnCurrentPage}
                     onUpdatePartHeat={handleUpdatePartHeat}
                     personnel={personnel}
+                    wpsLibrary={wpsLibrary}
                     ndtAutoLabel={formatNdtRequirements(drawingSettings.ndtRequirements)}
                     drawingSettings={drawingSettings}
                     isStacked={!showDrawingPanel && !showLinePanel && !showWeldPanel && !showSpoolPanel && !showPartPanel}
@@ -1751,8 +1765,8 @@ export default function WeldTrackerApp() {
                 lines={lines}
                 isOpen={true}
                 onToggle={() => {}}
-                onSaveSystems={setSystems}
                 onSaveLines={setLines}
+                systemsManagedExternally
                 isStacked={false}
                 hideHeader
               />
@@ -1796,6 +1810,7 @@ export default function WeldTrackerApp() {
                 parts={partsOnCurrentPage}
                 onUpdatePartHeat={handleUpdatePartHeat}
                 personnel={personnel}
+                wpsLibrary={wpsLibrary}
                 ndtAutoLabel={formatNdtRequirements(drawingSettings.ndtRequirements)}
                 drawingSettings={drawingSettings}
                 isStacked={false}
@@ -1827,13 +1842,18 @@ export default function WeldTrackerApp() {
         onClose={() => setShowParameters(false)}
         settings={drawingSettings}
         personnel={personnel}
+        systems={systems}
         projectSettings={projectSettings}
         projectMeta={projectMeta}
-        onSave={({ drawingSettings: s, personnel: p, projectSettings: ps, projectMeta: pm }) => {
+        wpsLibrary={wpsLibrary}
+        documents={documents}
+        onSave={({ drawingSettings: s, personnel: p, projectSettings: ps, projectMeta: pm, systems: sys, wpsLibrary: wps }) => {
           if (s != null) setDrawingSettings(s);
           if (p != null) setPersonnel(p);
           if (ps != null) setProjectSettings(ps);
           if (pm != null) setProjectMeta(pm);
+          if (sys != null) setSystems(sys);
+          if (wps != null) setWpsLibrary(wps);
         }}
       />
 
@@ -1848,6 +1868,11 @@ export default function WeldTrackerApp() {
         onClose={() => setShowDatabookBuilder(false)}
         documents={documents}
         databookConfig={databookConfig}
+        weldPoints={weldPoints}
+        parts={parts}
+        personnel={personnel}
+        wpsLibrary={wpsLibrary}
+        materialCertificates={materialCertificates}
         onSaveDocuments={setDocuments}
         onSaveDatabookConfig={setDatabookConfig}
       />
