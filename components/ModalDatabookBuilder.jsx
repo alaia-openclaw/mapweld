@@ -43,6 +43,25 @@ function getCategoryLabel(category) {
   return DOCUMENT_CATEGORIES.find((item) => item.id === category)?.label || category || "Uncategorized";
 }
 
+function getNdtAttachmentDocuments(ndtReports = []) {
+  return (ndtReports || []).flatMap((report) => {
+    const reportDate = report?.reportDate || "NDT";
+    const method = report?.method || "NDT";
+    return (report?.attachments || [])
+      .filter((attachment) => attachment?.base64)
+      .map((attachment) => ({
+        id: `ndt-att-${report.id || "report"}-${attachment.id || attachment.name || Math.random().toString(36).slice(2, 7)}`,
+        title: attachment.name?.replace(/\.pdf$/i, "") || `${method} ${reportDate}`,
+        category: "ndt_report_attachment",
+        fileName: attachment.name || `${method}-${reportDate}.pdf`,
+        mimeType: "application/pdf",
+        base64: attachment.base64,
+        createdAt: report?.createdAt || new Date().toISOString(),
+        isReadOnlyFromNdt: true,
+      }));
+  });
+}
+
 function ModalDatabookBuilder({
   isOpen,
   onClose,
@@ -53,6 +72,7 @@ function ModalDatabookBuilder({
   personnel = { welders: [], wqrs: [] },
   wpsLibrary = [],
   materialCertificates = [],
+  ndtReports = [],
   onSaveDocuments,
   onSaveDatabookConfig,
 }) {
@@ -68,7 +88,14 @@ function ModalDatabookBuilder({
 
   useEffect(() => {
     if (!isOpen) return;
-    setLocalDocuments(Array.isArray(documents) ? documents : []);
+    const providedDocuments = Array.isArray(documents) ? documents : [];
+    const ndtAttachmentDocuments = getNdtAttachmentDocuments(ndtReports);
+    const mergedById = new Map();
+    [...providedDocuments, ...ndtAttachmentDocuments].forEach((doc) => {
+      if (!doc?.id) return;
+      mergedById.set(doc.id, doc);
+    });
+    setLocalDocuments([...mergedById.values()]);
     setLocalConfig(normalizeDatabookConfig(databookConfig));
     setUploadCategory("other");
     setUploadTitle("");
@@ -76,7 +103,7 @@ function ModalDatabookBuilder({
     setSectionUploadTarget(null);
     setSectionFilter("all");
     setVaultCategoryFilter("all");
-  }, [isOpen, documents, databookConfig]);
+  }, [isOpen, documents, databookConfig, ndtReports]);
 
   const validation = useMemo(
     () =>
@@ -88,8 +115,9 @@ function ModalDatabookBuilder({
         personnel,
         wpsLibrary,
         materialCertificates,
+        ndtReports,
       }),
-    [localDocuments, localConfig, weldPoints, parts, personnel, wpsLibrary, materialCertificates]
+    [localDocuments, localConfig, weldPoints, parts, personnel, wpsLibrary, materialCertificates, ndtReports]
   );
 
   const documentsByCategory = useMemo(() => {
@@ -196,6 +224,8 @@ function ModalDatabookBuilder({
   }, [uploadCategory, uploadTitle]);
 
   function removeDocument(documentId) {
+    const doc = localDocuments.find((item) => item.id === documentId);
+    if (doc?.isReadOnlyFromNdt) return;
     setLocalDocuments((prev) => prev.filter((doc) => doc.id !== documentId));
     setLocalConfig((prev) => {
       const nextLinks = { ...(prev.sectionDocumentIds || {}) };
@@ -262,7 +292,7 @@ function ModalDatabookBuilder({
   }, [isOpen, localDocuments]);
 
   function handleSave() {
-    onSaveDocuments?.(localDocuments);
+    onSaveDocuments?.(localDocuments.filter((doc) => !doc?.isReadOnlyFromNdt));
     onSaveDatabookConfig?.(localConfig);
     onClose?.();
   }
@@ -502,13 +532,17 @@ function ModalDatabookBuilder({
                               {getCategoryLabel(doc.category)} · {doc.fileName}
                             </p>
                           </div>
-                          <button
-                            type="button"
-                            className="btn btn-ghost btn-xs text-error"
-                            onClick={() => removeDocument(doc.id)}
-                          >
-                            Remove
-                          </button>
+                          {doc.isReadOnlyFromNdt ? (
+                            <span className="badge badge-ghost badge-sm">From NDT report</span>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-xs text-error"
+                              onClick={() => removeDocument(doc.id)}
+                            >
+                              Remove
+                            </button>
+                          )}
                         </div>
                       </li>
                     ))}

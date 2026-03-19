@@ -62,6 +62,7 @@ function ModalParameters({
   const [projectElectrodeLibrary, setProjectElectrodeLibrary] = useState([]);
 
   // Personnel state
+  const [personnelSubtab, setPersonnelSubtab] = useState("fitters");
   const [fitterName, setFitterName] = useState("");
   const [welderName, setWelderName] = useState("");
   const [editingWelderId, setEditingWelderId] = useState(null);
@@ -69,9 +70,9 @@ function ModalParameters({
   const wqrUploadInputRef = useRef(null);
   const wpsUploadInputRef = useRef(null);
   const electrodeUploadInputRef = useRef(null);
-  const [wqrUploadTargetId, setWqrUploadTargetId] = useState(null);
-  const [wpsUploadTargetId, setWpsUploadTargetId] = useState(null);
-  const [electrodeUploadTargetId, setElectrodeUploadTargetId] = useState(null);
+  const wqrUploadTargetRef = useRef(null);
+  const wpsUploadTargetRef = useRef(null);
+  const electrodeUploadTargetRef = useRef(null);
 
   const fitters = personnel.fitters || [];
   const welders = personnel.welders || [];
@@ -96,9 +97,11 @@ function ModalParameters({
       setProjectWpsLibrary(Array.isArray(wpsLibrary) ? wpsLibrary : []);
       setProjectElectrodeLibrary(Array.isArray(electrodeLibrary) ? electrodeLibrary : []);
       setCustomNdtMethod("");
-      setWqrUploadTargetId(null);
-      setWpsUploadTargetId(null);
-      setElectrodeUploadTargetId(null);
+      setPersonnelSubtab("fitters");
+      setEditingWelderId(null);
+      wqrUploadTargetRef.current = null;
+      wpsUploadTargetRef.current = null;
+      electrodeUploadTargetRef.current = null;
     }
   }, [settings, isOpen, projectSettings, projectMeta, systems, wpsLibrary, electrodeLibrary]);
 
@@ -357,8 +360,9 @@ function ModalParameters({
   async function handleUploadWqrDocument(wqrId, event) {
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (!file || !wqrId) return;
-    const wqr = wqrs.find((item) => item.id === wqrId);
+    const resolvedWqrId = wqrId || wqrUploadTargetRef.current;
+    if (!file || !resolvedWqrId) return;
+    const wqr = wqrs.find((item) => item.id === resolvedWqrId);
     if (!wqr) return;
     const newDoc = await uploadLinkedDocument(file, "wqr", wqr.code || "WQR");
     onSave?.({
@@ -366,7 +370,7 @@ function ModalParameters({
       personnel: {
         ...personnel,
         wqrs: wqrs.map((item) =>
-          item.id === wqrId ? { ...item, documentId: newDoc.id } : item
+          item.id === resolvedWqrId ? { ...item, documentId: newDoc.id } : item
         ),
       },
       systems: projectSystems,
@@ -374,17 +378,19 @@ function ModalParameters({
       electrodeLibrary: projectElectrodeLibrary,
       documents: [...documents, newDoc],
     });
+    wqrUploadTargetRef.current = null;
   }
 
   async function handleUploadWpsDocument(wpsId, event) {
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (!file || !wpsId) return;
-    const wpsEntry = projectWpsLibrary.find((entry) => entry.id === wpsId);
+    const resolvedWpsId = wpsId || wpsUploadTargetRef.current;
+    if (!file || !resolvedWpsId) return;
+    const wpsEntry = projectWpsLibrary.find((entry) => entry.id === resolvedWpsId);
     if (!wpsEntry) return;
     const newDoc = await uploadLinkedDocument(file, "wps", wpsEntry.code || "WPS");
     const nextWpsLibrary = projectWpsLibrary.map((entry) =>
-      entry.id === wpsId ? { ...entry, documentId: newDoc.id } : entry
+      entry.id === resolvedWpsId ? { ...entry, documentId: newDoc.id } : entry
     );
     setProjectWpsLibrary(nextWpsLibrary);
     onSave?.({
@@ -395,17 +401,19 @@ function ModalParameters({
       electrodeLibrary: projectElectrodeLibrary,
       documents: [...documents, newDoc],
     });
+    wpsUploadTargetRef.current = null;
   }
 
   async function handleUploadElectrodeDocument(electrodeId, event) {
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (!file || !electrodeId) return;
-    const entry = projectElectrodeLibrary.find((item) => item.id === electrodeId);
+    const resolvedElectrodeId = electrodeId || electrodeUploadTargetRef.current;
+    if (!file || !resolvedElectrodeId) return;
+    const entry = projectElectrodeLibrary.find((item) => item.id === resolvedElectrodeId);
     if (!entry) return;
     const newDoc = await uploadLinkedDocument(file, "electrode", entry.code || "Electrode");
     const nextLibrary = projectElectrodeLibrary.map((item) =>
-      item.id === electrodeId ? { ...item, documentId: newDoc.id } : item
+      item.id === resolvedElectrodeId ? { ...item, documentId: newDoc.id } : item
     );
     setProjectElectrodeLibrary(nextLibrary);
     onSave?.({
@@ -416,6 +424,7 @@ function ModalParameters({
       electrodeLibrary: nextLibrary,
       documents: [...documents, newDoc],
     });
+    electrodeUploadTargetRef.current = null;
   }
 
   const autoSaveTimeoutRef = useRef(null);
@@ -576,172 +585,218 @@ function ModalParameters({
         {activeTab === "personnel" && (
           <div className="mt-4 space-y-4">
             <p className="text-sm text-base-content/70">
-              Manage fitters, welders, and welder qualifications (WQR)
+              Manage fitters, welders, and welder qualifications (WQR).
             </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <h4 className="font-medium text-sm mb-2">Fitters</h4>
-                <form onSubmit={handleAddFitter} className="flex gap-2 mb-2">
-                  <input
-                    type="text"
-                    className="input input-bordered input-sm flex-1"
-                    value={fitterName}
-                    onChange={(e) => setFitterName(e.target.value)}
-                    placeholder="Fitter name"
-                  />
-                  <button type="submit" className="btn btn-primary btn-sm">
-                    Add
-                  </button>
-                </form>
-                <ul className="space-y-1">
-                  {fitters.map((f) => (
-                    <li
-                      key={f.id}
-                      className="flex items-center justify-between gap-2 p-2 bg-base-200 rounded-lg text-sm"
+            <div className="grid grid-cols-1 md:grid-cols-[14rem_minmax(0,1fr)] gap-3">
+              <aside className="border border-base-300 rounded-lg bg-base-100 p-2 h-fit">
+                <ul className="menu menu-sm">
+                  <li>
+                    <button
+                      type="button"
+                      className={personnelSubtab === "fitters" ? "active" : ""}
+                      onClick={() => setPersonnelSubtab("fitters")}
                     >
-                      <span>{f.name}</span>
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-xs text-error"
-                        onClick={() => handleRemoveFitter(f.id)}
-                      >
-                        Remove
-                      </button>
-                    </li>
-                  ))}
-                  {fitters.length === 0 && (
-                    <p className="text-sm text-base-content/50">No fitters yet.</p>
-                  )}
-                </ul>
-              </div>
-
-              <div>
-                <h4 className="font-medium text-sm mb-2">Welders</h4>
-                <form onSubmit={handleAddWelder} className="flex gap-2 mb-2">
-                  <input
-                    type="text"
-                    className="input input-bordered input-sm flex-1"
-                    value={welderName}
-                    onChange={(e) => setWelderName(e.target.value)}
-                    placeholder="Welder name"
-                  />
-                  <button type="submit" className="btn btn-primary btn-sm">
-                    Add
-                  </button>
-                </form>
-                <ul className="space-y-1">
-                  {welders.map((w) => (
-                    <li
-                      key={w.id}
-                      className="flex items-center justify-between gap-2 p-2 bg-base-200 rounded-lg text-sm"
+                      Fitters
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      className={personnelSubtab === "welders" ? "active" : ""}
+                      onClick={() => setPersonnelSubtab("welders")}
                     >
-                      <span>{w.name}</span>
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-xs text-error"
-                        onClick={() => handleRemoveWelder(w.id)}
-                      >
-                        Remove
-                      </button>
-                    </li>
-                  ))}
-                  {welders.length === 0 && (
-                    <p className="text-sm text-base-content/50">No welders yet.</p>
-                  )}
+                      Welders & WQR
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      className={personnelSubtab === "ndt" ? "active" : ""}
+                      onClick={() => setPersonnelSubtab("ndt")}
+                    >
+                      NDT personnel
+                    </button>
+                  </li>
                 </ul>
-              </div>
+              </aside>
 
-              <div>
-                <h4 className="font-medium text-sm mb-2">WQR per welder</h4>
-                <div className="form-control">
-                  <label className="label py-0">
-                    <span className="label-text text-xs">Select welder</span>
-                  </label>
-                  <select
-                    className="select select-bordered select-sm"
-                    value={editingWelderId || ""}
-                    onChange={(e) => setEditingWelderId(e.target.value || null)}
-                  >
-                    <option value="">Choose welder</option>
-                    {welders.map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                {editingWelderId && (
-                  <>
-                    <form onSubmit={handleAddWqr} className="flex gap-2 mt-2">
+              <div className="min-w-0">
+                {personnelSubtab === "fitters" && (
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-sm">Fitters</h4>
+                    <form onSubmit={handleAddFitter} className="flex gap-2">
                       <input
                         type="text"
                         className="input input-bordered input-sm flex-1"
-                        value={wqrCode}
-                        onChange={(e) => setWqrCode(e.target.value)}
-                        placeholder="WQR code"
+                        value={fitterName}
+                        onChange={(e) => setFitterName(e.target.value)}
+                        placeholder="Fitter name"
                       />
                       <button type="submit" className="btn btn-primary btn-sm">
                         Add
                       </button>
                     </form>
-                    <ul className="space-y-1 mt-2">
-                      {(welders.find((w) => w.id === editingWelderId)?.wqrIds || []).map((wqrId) => {
-                        const wqr = wqrs.find((q) => q.id === wqrId);
-                        return wqr ? (
-                          <li
-                            key={wqr.id}
-                            className="p-2 bg-base-200 rounded text-sm space-y-1"
+                    <ul className="space-y-1">
+                      {fitters.map((f) => (
+                        <li
+                          key={f.id}
+                          className="flex items-center justify-between gap-2 p-2 bg-base-200 rounded-lg text-sm"
+                        >
+                          <span>{f.name}</span>
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-xs text-error"
+                            onClick={() => handleRemoveFitter(f.id)}
                           >
-                            <div className="flex items-center justify-between gap-2">
-                              <span>{wqr.code}</span>
-                              <button
-                                type="button"
-                                className="btn btn-ghost btn-xs text-error"
-                                onClick={() => handleRemoveWqrFromWelder(editingWelderId, wqr.id)}
-                              >
-                                Remove
-                              </button>
-                            </div>
-                            <div className="form-control">
-                              <label className="label py-0">
-                                <span className="label-text text-xs">Linked WQR PDF</span>
-                              </label>
-                              <div className="flex gap-1">
-                                <select
-                                  className="select select-bordered select-xs flex-1"
-                                  value={wqr.documentId || ""}
-                                  onChange={(e) => handleUpdateWqrDocument(wqr.id, e.target.value)}
-                                >
-                                  <option value="">No PDF linked</option>
-                                  {wqrDocuments.map((doc) => (
-                                    <option key={doc.id} value={doc.id}>
-                                      {doc.title || doc.fileName}
-                                    </option>
-                                  ))}
-                                </select>
-                                {!wqr.documentId && (
-                                  <button
-                                    type="button"
-                                    className="btn btn-ghost btn-xs"
-                                    onClick={() => {
-                                      setWqrUploadTargetId(wqr.id);
-                                      wqrUploadInputRef.current?.click();
-                                    }}
-                                  >
-                                    Load
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          </li>
-                        ) : null;
-                      })}
+                            Remove
+                          </button>
+                        </li>
+                      ))}
+                      {fitters.length === 0 && (
+                        <p className="text-sm text-base-content/50">No fitters yet.</p>
+                      )}
                     </ul>
-                    {(welders.find((w) => w.id === editingWelderId)?.wqrIds || []).length === 0 && (
-                      <p className="text-sm text-base-content/50 mt-1">No WQR for this welder.</p>
-                    )}
-                  </>
+                  </div>
+                )}
+
+                {personnelSubtab === "welders" && (
+                  <div className="space-y-3">
+                    <div>
+                      <h4 className="font-medium text-sm mb-2">Welders</h4>
+                      <form onSubmit={handleAddWelder} className="flex gap-2 mb-2">
+                        <input
+                          type="text"
+                          className="input input-bordered input-sm flex-1"
+                          value={welderName}
+                          onChange={(e) => setWelderName(e.target.value)}
+                          placeholder="Welder name"
+                        />
+                        <button type="submit" className="btn btn-primary btn-sm">
+                          Add
+                        </button>
+                      </form>
+                      <ul className="space-y-1">
+                        {welders.map((w) => (
+                          <li
+                            key={w.id}
+                            className="flex items-center justify-between gap-2 p-2 bg-base-200 rounded-lg text-sm"
+                          >
+                            <span>{w.name}</span>
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-xs text-error"
+                              onClick={() => handleRemoveWelder(w.id)}
+                            >
+                              Remove
+                            </button>
+                          </li>
+                        ))}
+                        {welders.length === 0 && (
+                          <p className="text-sm text-base-content/50">No welders yet.</p>
+                        )}
+                      </ul>
+                    </div>
+
+                    <div>
+                      <h4 className="font-medium text-sm mb-2">WQR per welder</h4>
+                      <div className="form-control">
+                        <label className="label py-0">
+                          <span className="label-text text-xs">Select welder</span>
+                        </label>
+                        <select
+                          className="select select-bordered select-sm"
+                          value={editingWelderId || ""}
+                          onChange={(e) => setEditingWelderId(e.target.value || null)}
+                        >
+                          <option value="">Choose welder</option>
+                          {welders.map((w) => (
+                            <option key={w.id} value={w.id}>
+                              {w.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      {editingWelderId && (
+                        <>
+                          <form onSubmit={handleAddWqr} className="flex gap-2 mt-2">
+                            <input
+                              type="text"
+                              className="input input-bordered input-sm flex-1"
+                              value={wqrCode}
+                              onChange={(e) => setWqrCode(e.target.value)}
+                              placeholder="WQR code"
+                            />
+                            <button type="submit" className="btn btn-primary btn-sm">
+                              Add
+                            </button>
+                          </form>
+                          <ul className="space-y-1 mt-2">
+                            {(welders.find((w) => w.id === editingWelderId)?.wqrIds || []).map((wqrId) => {
+                              const wqr = wqrs.find((q) => q.id === wqrId);
+                              return wqr ? (
+                                <li key={wqr.id} className="p-2 bg-base-200 rounded text-sm space-y-1">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span>{wqr.code}</span>
+                                    <button
+                                      type="button"
+                                      className="btn btn-ghost btn-xs text-error"
+                                      onClick={() => handleRemoveWqrFromWelder(editingWelderId, wqr.id)}
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                  <div className="form-control">
+                                    <label className="label py-0">
+                                      <span className="label-text text-xs">Linked WQR PDF</span>
+                                    </label>
+                                    <div className="flex gap-1">
+                                      <select
+                                        className="select select-bordered select-xs flex-1"
+                                        value={wqr.documentId || ""}
+                                        onChange={(e) => handleUpdateWqrDocument(wqr.id, e.target.value)}
+                                      >
+                                        <option value="">No PDF linked</option>
+                                        {wqrDocuments.map((doc) => (
+                                          <option key={doc.id} value={doc.id}>
+                                            {doc.title || doc.fileName}
+                                          </option>
+                                        ))}
+                                      </select>
+                                      {!wqr.documentId && (
+                                        <button
+                                          type="button"
+                                          className="btn btn-ghost btn-xs"
+                                          onClick={() => {
+                                            wqrUploadTargetRef.current = wqr.id;
+                                            wqrUploadInputRef.current?.click();
+                                          }}
+                                        >
+                                          Load
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                </li>
+                              ) : null;
+                            })}
+                          </ul>
+                          {(welders.find((w) => w.id === editingWelderId)?.wqrIds || []).length === 0 && (
+                            <p className="text-sm text-base-content/50 mt-1">No WQR for this welder.</p>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {personnelSubtab === "ndt" && (
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-sm">NDT personnel</h4>
+                    <p className="text-sm text-base-content/60">
+                      Placeholder submenu reserved for future NDT operator / inspector qualification management.
+                    </p>
+                  </div>
                 )}
               </div>
             </div>
@@ -964,7 +1019,7 @@ function ModalParameters({
                             type="button"
                             className="btn btn-ghost btn-sm"
                             onClick={() => {
-                              setWpsUploadTargetId(entry.id);
+                              wpsUploadTargetRef.current = entry.id;
                               wpsUploadInputRef.current?.click();
                             }}
                           >
@@ -1032,7 +1087,7 @@ function ModalParameters({
                             type="button"
                             className="btn btn-ghost btn-sm"
                             onClick={() => {
-                              setElectrodeUploadTargetId(entry.id);
+                              electrodeUploadTargetRef.current = entry.id;
                               electrodeUploadInputRef.current?.click();
                             }}
                           >
@@ -1063,21 +1118,21 @@ function ModalParameters({
           type="file"
           accept=".pdf,application/pdf"
           className="hidden"
-          onChange={(e) => handleUploadWqrDocument(wqrUploadTargetId, e)}
+          onChange={(e) => handleUploadWqrDocument(wqrUploadTargetRef.current, e)}
         />
         <input
           ref={wpsUploadInputRef}
           type="file"
           accept=".pdf,application/pdf"
           className="hidden"
-          onChange={(e) => handleUploadWpsDocument(wpsUploadTargetId, e)}
+          onChange={(e) => handleUploadWpsDocument(wpsUploadTargetRef.current, e)}
         />
         <input
           ref={electrodeUploadInputRef}
           type="file"
           accept=".pdf,application/pdf"
           className="hidden"
-          onChange={(e) => handleUploadElectrodeDocument(electrodeUploadTargetId, e)}
+          onChange={(e) => handleUploadElectrodeDocument(electrodeUploadTargetRef.current, e)}
         />
       </div>
       <form method="dialog" className="modal-backdrop">

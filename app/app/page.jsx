@@ -2001,6 +2001,7 @@ export default function WeldTrackerApp() {
         personnel={personnel}
         wpsLibrary={wpsLibrary}
         materialCertificates={materialCertificates}
+        ndtReports={ndtReports}
         onSaveDocuments={setDocuments}
         onSaveDatabookConfig={setDatabookConfig}
       />
