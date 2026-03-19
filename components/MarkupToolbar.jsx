@@ -94,6 +94,19 @@ function MarkupToolbar({
         </svg>
         <span className="hidden sm:inline text-xs">Part</span>
       </button>
+      <button
+        type="button"
+        className={`${buttonClass} ${markupTool === "addLine" ? activeClass : ""} ${!isEdition ? "opacity-40 pointer-events-none" : ""}`}
+        onClick={() => onToolChange?.("addLine")}
+        title="Add line marker – click on drawing to place line on current page"
+        aria-pressed={markupTool === "addLine"}
+        disabled={!isEdition}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12h18M8 8l-4 4 4 4m8-8l4 4-4 4" />
+        </svg>
+        <span className="hidden sm:inline text-xs">Line</span>
+      </button>
     </div>
   );
 }

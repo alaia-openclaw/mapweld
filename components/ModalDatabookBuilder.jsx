@@ -68,9 +68,15 @@ function ModalDatabookBuilder({
   onClose,
   documents = [],
   databookConfig = null,
+  projectMeta = {},
+  drawings = [],
+  systems = [],
+  lines = [],
   weldPoints = [],
+  spools = [],
   parts = [],
   personnel = { welders: [], wqrs: [] },
+  drawingSettings = {},
   wpsLibrary = [],
   materialCertificates = [],
   onSaveMaterialCertificates,
@@ -85,6 +91,7 @@ function ModalDatabookBuilder({
   const [uploadCategory, setUploadCategory] = useState("other");
   const [uploadTitle, setUploadTitle] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+  const [isCompiling, setIsCompiling] = useState(false);
   const [sectionUploadTarget, setSectionUploadTarget] = useState(null);
   const [sectionFilter, setSectionFilter] = useState("all");
   const [vaultCategoryFilter, setVaultCategoryFilter] = useState("all");
@@ -320,6 +327,46 @@ function ModalDatabookBuilder({
     onSaveDatabookConfig?.(localConfig);
     onClose?.();
   }
+
+  const handleCompile = useCallback(async () => {
+    setIsCompiling(true);
+    try {
+      const { compileDatabookPdf } = await import("@/lib/databook-pdf");
+      compileDatabookPdf({
+        databookConfig: localConfig,
+        documents: localDocuments,
+        projectMeta,
+        drawings,
+        systems,
+        lines,
+        weldPoints,
+        spools,
+        parts,
+        personnel,
+        drawingSettings,
+        wpsLibrary,
+        materialCertificates: localMaterialCertificates,
+        ndtReports,
+      });
+    } finally {
+      setIsCompiling(false);
+    }
+  }, [
+    localConfig,
+    localDocuments,
+    projectMeta,
+    drawings,
+    systems,
+    lines,
+    weldPoints,
+    spools,
+    parts,
+    personnel,
+    drawingSettings,
+    wpsLibrary,
+    localMaterialCertificates,
+    ndtReports,
+  ]);
 
   function updateMtcHeatDocument(heatNumber, documentId) {
     const heat = (heatNumber || "").trim();
@@ -735,6 +782,9 @@ function ModalDatabookBuilder({
         <div className="modal-action mt-4">
           <button type="button" className="btn btn-ghost" onClick={onClose}>
             Cancel
+          </button>
+          <button type="button" className="btn btn-outline" onClick={handleCompile} disabled={isCompiling}>
+            {isCompiling ? "Compiling…" : "Compile PDF"}
           </button>
           <button type="button" className="btn btn-primary" onClick={handleSave}>
             Save databook setup

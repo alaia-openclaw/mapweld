@@ -5,6 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import WeldOverlay from "./WeldOverlay";
 import SpoolMarker from "./SpoolMarker";
 import PartMarker from "./PartMarker";
+import LineMarker from "./LineMarker";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 
@@ -31,6 +32,12 @@ function PDFViewer({
   onMoveIndicator,
   onResizeLabel,
   onMoveLineBend,
+  lineMarkers = [],
+  lines = [],
+  selectedLineMarkerId,
+  onLineMarkerClick,
+  onMoveLineMarker,
+  onMoveLineIndicator,
   spoolMarkers = [],
   spools = [],
   selectedSpoolMarkerId,
@@ -120,7 +127,7 @@ function PDFViewer({
       if (pinchRef.current) return;
       if (e.target.closest("button, [role='button']")) return;
       if (pendingLabelId) return;
-      if (markupTool === "add" || markupTool === "addSpool" || markupTool === "addPart") return;
+      if (markupTool === "add" || markupTool === "addSpool" || markupTool === "addPart" || markupTool === "addLine") return;
       const el = containerRef?.current;
       if (!el) return;
       panStartRef.current = {
@@ -276,6 +283,9 @@ function PDFViewer({
   const spoolMarkersOnPage = spoolMarkers.filter(
     (m) => (m.pageNumber ?? 0) === currentPage - 1
   );
+  const lineMarkersOnPage = lineMarkers.filter(
+    (m) => (m.pageNumber ?? 0) === currentPage - 1
+  );
   const partMarkersOnPage = partMarkers.filter(
     (m) => (m.pageNumber ?? 0) === currentPage - 1
   );
@@ -299,11 +309,14 @@ function PDFViewer({
     } else if (pending.type === "part") {
       const m = partMarkers.find((p) => p.id === pending.id);
       ix = m?.indicatorXPercent; iy = m?.indicatorYPercent;
+    } else if (pending.type === "line") {
+      const m = lineMarkers.find((p) => p.id === pending.id);
+      ix = m?.indicatorXPercent; iy = m?.indicatorYPercent;
     }
     if (ix != null && iy != null) {
       setPlacingIndicatorPos((prev) => prev ?? { x: ix, y: iy });
     }
-  }, [isPlacingLabel, pendingLabelId, weldPoints, spoolMarkers, partMarkers]);
+  }, [isPlacingLabel, pendingLabelId, weldPoints, spoolMarkers, partMarkers, lineMarkers]);
 
   useLayoutEffect(() => {
     if (!isPlacingLabel || !onPendingLabelMove) return;
@@ -405,7 +418,7 @@ function PDFViewer({
   const cursorClass =
     isPlacingLabel
       ? "cursor-crosshair"
-      : appMode === "edition" && (markupTool === "add" || markupTool === "addSpool" || markupTool === "addPart")
+      : appMode === "edition" && (markupTool === "add" || markupTool === "addSpool" || markupTool === "addPart" || markupTool === "addLine")
         ? "cursor-crosshair"
         : "cursor-default";
 
@@ -477,6 +490,9 @@ function PDFViewer({
             } else if (pending.type === "part") {
               const m = partMarkers.find((p) => p.id === pending.id);
               ix = m?.indicatorXPercent; iy = m?.indicatorYPercent;
+            } else if (pending.type === "line") {
+              const m = lineMarkers.find((p) => p.id === pending.id);
+              ix = m?.indicatorXPercent; iy = m?.indicatorYPercent;
             }
             if (ix == null || iy == null) return null;
             return (
@@ -529,6 +545,24 @@ function PDFViewer({
                     indicatorPositionOverride={pendingLabelId?.type === "spool" && pendingLabelId?.id === m.id && placingIndicatorPos ? { xPercent: placingIndicatorPos.x, yPercent: placingIndicatorPos.y } : null}
                   />
                 ))}
+                {lineMarkersOnPage.map((m) => {
+                  const line = lines.find((item) => item.id === m.lineId);
+                  return (
+                    <LineMarker
+                      key={m.id}
+                      marker={m}
+                      lineName={line?.name || "Line"}
+                      isSelected={m.id === selectedLineMarkerId}
+                      onClick={onLineMarkerClick}
+                      canDrag={appMode === "edition"}
+                      onMoveLineMarker={onMoveLineMarker}
+                      onMoveLineIndicator={onMoveLineIndicator}
+                      pageWrapperRef={pageWrapperRef}
+                      scale={scale}
+                      indicatorPositionOverride={pendingLabelId?.type === "line" && pendingLabelId?.id === m.id && placingIndicatorPos ? { xPercent: placingIndicatorPos.x, yPercent: placingIndicatorPos.y } : null}
+                    />
+                  );
+                })}
                 {partMarkersOnPage.map((m) => {
                   const part = parts.find((p) => p.id === m.partId);
                   return (

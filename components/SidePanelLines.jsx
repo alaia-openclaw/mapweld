@@ -5,6 +5,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 function SidePanelLines({
   systems = [],
   lines = [],
+  selectedLineId = null,
   allLines = [],
   onSaveLines,
   onCreateLineOnCurrentPage,
@@ -46,6 +47,13 @@ function SidePanelLines({
       setEditMaterial(line.material ?? "");
     }
   }, [expandedLineId, lines]);
+
+  useEffect(() => {
+    if (!selectedLineId) return;
+    if ((lines || []).some((line) => line.id === selectedLineId)) {
+      setExpandedLineId(selectedLineId);
+    }
+  }, [selectedLineId, lines]);
 
   function handleAddLine(systemId) {
     if (typeof onCreateLineOnCurrentPage === "function") {

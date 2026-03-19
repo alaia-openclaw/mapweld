@@ -101,8 +101,10 @@ export default function WeldTrackerApp() {
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [projectId, setProjectId] = useState(null);
   const [spoolMarkers, setSpoolMarkers] = useState([]);
+  const [lineMarkers, setLineMarkers] = useState([]);
   const [parts, setParts] = useState([]);
   const [partMarkers, setPartMarkers] = useState([]);
+  const [selectedLineMarkerId, setSelectedLineMarkerId] = useState(null);
   const [selectedPartMarkerId, setSelectedPartMarkerId] = useState(null);
   const [showPartPanel, setShowPartPanel] = useState(false);
   const [showDrawingPanel, setShowDrawingPanel] = useState(false);
@@ -124,6 +126,8 @@ export default function WeldTrackerApp() {
   const [addDefaults, setAddDefaults] = useState({
     spoolId: null,
     weldLocation: "shop",
+    lineId: "__new__",
+    lineSystemId: null,
     catalogCategory: "",
     hierarchyState: {},
     partType: "",
@@ -162,6 +166,7 @@ export default function WeldTrackerApp() {
     setSelectedWeldId(null);
     setSelectedSpoolMarkerId(null);
     setSelectedPartMarkerId(null);
+    setSelectedLineMarkerId(null);
     setFormWeld(null);
   }, []);
 
@@ -235,6 +240,7 @@ export default function WeldTrackerApp() {
       setWeldPoints([]);
       setSpools([]);
       setSpoolMarkers([]);
+      setLineMarkers([]);
       setParts([]);
       setPartMarkers([]);
       setSelectedPartMarkerId(null);
@@ -252,6 +258,7 @@ export default function WeldTrackerApp() {
     setSelectedWeldId(null);
     setSelectedSpoolMarkerId(null);
     setSelectedPartMarkerId(null);
+    setSelectedLineMarkerId(null);
     setFormWeld(null);
   }, [pdfBlob, drawings]);
 
@@ -368,6 +375,7 @@ export default function WeldTrackerApp() {
     setSelectedSpoolMarkerId(marker.id);
     setSelectedWeldId(null);
     setSelectedPartMarkerId(null);
+    setSelectedLineMarkerId(null);
     if (window.innerWidth < 768) {
       setMobileSheetTab("spools");
       setMobileSheetOpen(true);
@@ -445,10 +453,105 @@ export default function WeldTrackerApp() {
     [parts, addDefaults, activeDrawingId, setPendingLabelId]
   );
 
+  const handleAddLineMarker = useCallback(
+    ({ xPercent, yPercent, pageNumber }) => {
+      const chosenLineId = addDefaults?.lineId;
+      const selectedSystemId = addDefaults?.lineSystemId ?? null;
+      let targetLineId = chosenLineId;
+      if (!targetLineId || targetLineId === "__new__") {
+        const id = `line-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+        targetLineId = id;
+        setLines((prev) => {
+          const scopedCount = prev.filter((line) => (line.systemId || null) === (selectedSystemId || null)).length;
+          return [
+            ...prev,
+            {
+              id,
+              systemId: selectedSystemId || null,
+              name: `Line ${scopedCount + 1}`,
+              fluidType: "",
+              pressure: "",
+              diameterRange: "",
+              thickness: "",
+              material: "",
+              drawingIds: activeDrawingId ? [activeDrawingId] : [],
+            },
+          ];
+        });
+      } else if (activeDrawingId) {
+        setLines((prev) =>
+          prev.map((line) =>
+            line.id === targetLineId
+              ? {
+                  ...line,
+                  drawingIds: Array.isArray(line.drawingIds)
+                    ? line.drawingIds.includes(activeDrawingId)
+                      ? line.drawingIds
+                      : [...line.drawingIds, activeDrawingId]
+                    : [activeDrawingId],
+                }
+              : line
+          )
+        );
+      }
+
+      if (!targetLineId) return;
+
+      if (activeDrawingId) {
+        setDrawings((prev) =>
+          prev.map((drawing) => {
+            if (drawing.id !== activeDrawingId) return drawing;
+            const currentLineIds = Array.isArray(drawing.lineIds) ? drawing.lineIds : [];
+            if (currentLineIds.includes(targetLineId)) return drawing;
+            return { ...drawing, lineIds: [...currentLineIds, targetLineId] };
+          })
+        );
+      }
+
+      const page = pageNumber ?? 0;
+      let markerId = null;
+      setLineMarkers((prev) => {
+        const existing = prev.find(
+          (marker) =>
+            marker.lineId === targetLineId &&
+            marker.drawingId === (activeDrawingId ?? null) &&
+            (marker.pageNumber ?? 0) === page
+        );
+        if (existing) {
+          markerId = existing.id;
+          return prev.map((marker) =>
+            marker.id === existing.id
+              ? {
+                  ...marker,
+                  xPercent,
+                  yPercent,
+                }
+              : marker
+          );
+        }
+        markerId = `lpm-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+        const newMarker = {
+          id: markerId,
+          lineId: targetLineId,
+          drawingId: activeDrawingId ?? null,
+          xPercent,
+          yPercent,
+          indicatorXPercent: Math.min(100, Math.max(0, xPercent + 4)),
+          indicatorYPercent: Math.min(100, Math.max(0, yPercent - 4)),
+          pageNumber: page,
+        };
+        return [...prev, newMarker];
+      });
+      if (markerId) setPendingLabelId({ type: "line", id: markerId });
+    },
+    [addDefaults, activeDrawingId, setPendingLabelId]
+  );
+
   const handlePartMarkerClick = useCallback((marker) => {
     setSelectedPartMarkerId(marker.id);
     setSelectedWeldId(null);
     setSelectedSpoolMarkerId(null);
+    setSelectedLineMarkerId(null);
     if (window.innerWidth < 768) {
       setMobileSheetTab("parts");
       setMobileSheetOpen(true);
@@ -475,6 +578,33 @@ export default function WeldTrackerApp() {
     },
     []
   );
+
+  const handleLineMarkerClick = useCallback((marker) => {
+    setSelectedLineMarkerId(marker.id);
+    setSelectedWeldId(null);
+    setSelectedSpoolMarkerId(null);
+    setSelectedPartMarkerId(null);
+    if (window.innerWidth < 768) {
+      setMobileSheetTab("lines");
+      setMobileSheetOpen(true);
+    } else {
+      setShowLinePanel(true);
+    }
+  }, []);
+
+  const handleMoveLineMarker = useCallback((markerId, { xPercent, yPercent }) => {
+    setLineMarkers((prev) =>
+      prev.map((marker) => (marker.id === markerId ? { ...marker, xPercent, yPercent } : marker))
+    );
+  }, []);
+
+  const handleMoveLineIndicator = useCallback((markerId, { indicatorXPercent, indicatorYPercent }) => {
+    setLineMarkers((prev) =>
+      prev.map((marker) =>
+        marker.id === markerId ? { ...marker, indicatorXPercent, indicatorYPercent } : marker
+      )
+    );
+  }, []);
 
   const handleSavePart = useCallback((updatedPart) => {
     setParts((prev) =>
@@ -537,6 +667,12 @@ export default function WeldTrackerApp() {
             m.id === id ? { ...m, indicatorXPercent: xPercent, indicatorYPercent: yPercent } : m
           )
         );
+      } else if (type === "line") {
+        setLineMarkers((prev) =>
+          prev.map((m) =>
+            m.id === id ? { ...m, indicatorXPercent: xPercent, indicatorYPercent: yPercent } : m
+          )
+        );
       }
     },
     []
@@ -553,22 +689,26 @@ export default function WeldTrackerApp() {
         handleAddSpoolMarker({ xPercent, yPercent, pageNumber });
       } else if (appMode === "edition" && markupTool === "addPart") {
         handleAddPartMarker({ xPercent, yPercent, pageNumber });
+      } else if (appMode === "edition" && markupTool === "addLine") {
+        handleAddLineMarker({ xPercent, yPercent, pageNumber });
       } else if (appMode === "edition" && markupTool === "add") {
         handleAddWeld({ xPercent, yPercent, pageNumber });
       } else if (markupTool === "select") {
         setSelectedWeldId(null);
         setSelectedSpoolMarkerId(null);
         setSelectedPartMarkerId(null);
+        setSelectedLineMarkerId(null);
         setFormWeld(null);
       }
     },
-    [handleAddSpoolMarker, handleAddPartMarker, handleAddWeld, handlePendingLabelMove, appMode, markupTool, setPendingLabelId]
+    [handleAddSpoolMarker, handleAddPartMarker, handleAddLineMarker, handleAddWeld, handlePendingLabelMove, appMode, markupTool, setPendingLabelId]
   );
 
   const handleWeldClick = useCallback((weld) => {
     setSelectedWeldId(weld.id);
     setSelectedSpoolMarkerId(null);
     setSelectedPartMarkerId(null);
+    setSelectedLineMarkerId(null);
     if (window.innerWidth < 768) {
       setFormWeld(weld);
       setMobileSheetTab("welds");
@@ -579,6 +719,7 @@ export default function WeldTrackerApp() {
   const handleWeldDoubleClick = useCallback((weld) => {
     setFormWeld(weld);
     setSelectedWeldId(weld.id);
+    setSelectedLineMarkerId(null);
     if (window.innerWidth < 768) {
       setMobileSheetTab("welds");
       setMobileSheetOpen(true);
@@ -597,12 +738,14 @@ export default function WeldTrackerApp() {
   const handleClosePanel = useCallback(() => {
     setFormWeld(null);
     setSelectedWeldId(null);
+    setSelectedLineMarkerId(null);
     setShowWeldPanel(false);
   }, []);
 
   const handleBackToList = useCallback(() => {
     setFormWeld(null);
     setSelectedWeldId(null);
+    setSelectedLineMarkerId(null);
   }, []);
 
   const handleAssignWeldToSpool = useCallback((weldId, spoolId) => {
@@ -655,6 +798,7 @@ export default function WeldTrackerApp() {
     setWeldPoints((prev) => prev.filter((w) => w.id !== weld.id));
     setFormWeld(null);
     setSelectedWeldId(null);
+    setSelectedLineMarkerId(null);
     setShowWeldPanel(false);
   }, []);
 
@@ -714,6 +858,21 @@ export default function WeldTrackerApp() {
           }))
       : [];
 
+    const lineIdSet = new Set(
+      (Array.isArray(data.lines) ? data.lines : [])
+        .filter((line) => line && typeof line === "object")
+        .map((line) => line.id)
+        .filter(Boolean)
+    );
+    const normalizedLineMarkers = Array.isArray(data.lineMarkers)
+      ? data.lineMarkers
+          .filter((marker) => marker && typeof marker === "object" && (!marker.lineId || lineIdSet.has(marker.lineId)))
+          .map((marker) => ({
+            ...marker,
+            drawingId: normalizeDrawingId(marker.drawingId),
+          }))
+      : [];
+
     const normalizedPartMarkers = Array.isArray(data.partMarkers)
       ? data.partMarkers
           .filter((m) => m && typeof m === "object" && (!m.partId || partIdSet.has(m.partId)))
@@ -743,6 +902,7 @@ export default function WeldTrackerApp() {
       weldPoints: normalizedWelds,
       spools: normalizedSpools,
       spoolMarkers: normalizedSpoolMarkers,
+      lineMarkers: normalizedLineMarkers,
       parts: normalizedParts,
       partMarkers: normalizedPartMarkers,
       personnel: data.personnel || { fitters: [], welders: [], wqrs: [] },
@@ -754,6 +914,8 @@ export default function WeldTrackerApp() {
           ? {
               spoolId: null,
               weldLocation: "shop",
+              lineId: "__new__",
+              lineSystemId: null,
               catalogCategory: "",
               hierarchyState: {},
               partType: "",
@@ -765,6 +927,8 @@ export default function WeldTrackerApp() {
           : {
               spoolId: null,
               weldLocation: "shop",
+              lineId: "__new__",
+              lineSystemId: null,
               catalogCategory: "",
               hierarchyState: {},
               partType: "",
@@ -860,6 +1024,7 @@ export default function WeldTrackerApp() {
       setWeldPoints(applyCompletedReportsToWelds(normalized.weldPoints, loadedReports));
       setSpools(normalized.spools);
       setSpoolMarkers(normalized.spoolMarkers);
+      setLineMarkers(normalized.lineMarkers);
       setParts(normalized.parts);
       setPartMarkers(normalized.partMarkers);
       setPersonnel(normalized.personnel);
@@ -900,6 +1065,7 @@ export default function WeldTrackerApp() {
     setSelectedWeldId(null);
     setSelectedSpoolMarkerId(null);
     setSelectedPartMarkerId(null);
+      setSelectedLineMarkerId(null);
     setFormWeld(null);
   }, [drawings]);
 
@@ -937,6 +1103,7 @@ export default function WeldTrackerApp() {
     );
 
     setSpoolMarkers((prev) => prev.filter((m) => m.drawingId !== dwgId));
+    setLineMarkers((prev) => prev.filter((m) => m.drawingId !== dwgId));
     setPartMarkers((prev) => prev.filter((m) => m.drawingId !== dwgId));
     setSpools((prev) => prev.filter((s) => !spoolIdsToRemove.has(s.id)));
     setParts((prev) =>
@@ -960,6 +1127,7 @@ export default function WeldTrackerApp() {
     setSelectedWeldId(null);
     setSelectedSpoolMarkerId(null);
     setSelectedPartMarkerId(null);
+    setSelectedLineMarkerId(null);
 
     setDrawings((prev) => {
       const toDelete = prev.find((d) => d.id === dwgId);
@@ -1003,6 +1171,7 @@ export default function WeldTrackerApp() {
       weldPoints,
       spools,
       spoolMarkers,
+      lineMarkers,
       parts,
       partMarkers,
       personnel,
@@ -1037,6 +1206,7 @@ export default function WeldTrackerApp() {
     weldPoints,
     spools,
     spoolMarkers,
+    lineMarkers,
     parts,
     partMarkers,
     personnel,
@@ -1086,6 +1256,7 @@ export default function WeldTrackerApp() {
         weldPoints,
         spools,
         spoolMarkers,
+        lineMarkers,
         parts,
         partMarkers,
         personnel,
@@ -1116,6 +1287,7 @@ export default function WeldTrackerApp() {
     weldPoints,
     spools,
     spoolMarkers,
+    lineMarkers,
     parts,
     partMarkers,
     personnel,
@@ -1235,6 +1407,11 @@ export default function WeldTrackerApp() {
     [partMarkers, isOnActiveDrawing]
   );
 
+  const lineMarkersOnActiveDrawing = useMemo(
+    () => lineMarkers.filter((marker) => isOnActiveDrawing(marker.drawingId)),
+    [lineMarkers, isOnActiveDrawing]
+  );
+
   const weldsOnCurrentPage = useMemo(
     () => weldPointsOnActiveDrawing.filter((w) => (w.pageNumber ?? 0) === currentPage0),
     [weldPointsOnActiveDrawing, currentPage0]
@@ -1248,6 +1425,11 @@ export default function WeldTrackerApp() {
   const partMarkersOnCurrentPage = useMemo(
     () => partMarkersOnActiveDrawing.filter((m) => (m.pageNumber ?? 0) === currentPage0),
     [partMarkersOnActiveDrawing, currentPage0]
+  );
+
+  const lineMarkersOnCurrentPage = useMemo(
+    () => lineMarkersOnActiveDrawing.filter((marker) => (marker.pageNumber ?? 0) === currentPage0),
+    [lineMarkersOnActiveDrawing, currentPage0]
   );
 
   const spoolIdsOnCurrentPage = useMemo(
@@ -1266,33 +1448,28 @@ export default function WeldTrackerApp() {
   );
 
   const lineIdsOnCurrentPage = useMemo(
-    () => [...new Set(spoolsOnCurrentPage.map((spool) => spool.lineId).filter(Boolean))],
-    [spoolsOnCurrentPage]
+    () =>
+      [...new Set([
+        ...lineMarkersOnCurrentPage.map((marker) => marker.lineId),
+        ...spoolsOnCurrentPage.map((spool) => spool.lineId),
+      ].filter(Boolean))],
+    [lineMarkersOnCurrentPage, spoolsOnCurrentPage]
   );
 
-  const lineIdsOnActiveDrawing = useMemo(() => {
-    const activeDrawing = drawings.find((drawing) => drawing.id === activeDrawingId);
-    return Array.isArray(activeDrawing?.lineIds) ? activeDrawing.lineIds.filter(Boolean) : [];
-  }, [drawings, activeDrawingId]);
-
   const linesOnCurrentPage = useMemo(
-    () => {
-      const byId = new Map();
-      lines
-        .filter((line) => lineIdsOnCurrentPage.includes(line.id))
-        .forEach((line) => byId.set(line.id, line));
-      lines
-        .filter((line) => lineIdsOnActiveDrawing.includes(line.id))
-        .forEach((line) => byId.set(line.id, line));
-      return [...byId.values()];
-    },
-    [lines, lineIdsOnCurrentPage, lineIdsOnActiveDrawing]
+    () => lines.filter((line) => lineIdsOnCurrentPage.includes(line.id)),
+    [lines, lineIdsOnCurrentPage]
   );
 
   const partsOnCurrentPage = useMemo(
     () => parts.filter((p) => partIdsOnCurrentPage.includes(p.id)),
     [parts, partIdsOnCurrentPage]
   );
+
+  const selectedLineIdFromMarker = useMemo(() => {
+    if (!selectedLineMarkerId) return null;
+    return lineMarkers.find((marker) => marker.id === selectedLineMarkerId)?.lineId || null;
+  }, [selectedLineMarkerId, lineMarkers]);
 
   const handleSaveVisibleSpools = useCallback((newSpools) => {
     const existingVisibleIds = new Set(spoolsOnCurrentPage.map((s) => s.id));
@@ -1331,6 +1508,7 @@ export default function WeldTrackerApp() {
 
     if (deletedLineIds.length === 0) return;
     const deletedSet = new Set(deletedLineIds);
+    setLineMarkers((prev) => prev.filter((marker) => !deletedSet.has(marker.lineId)));
     setSpools((prev) =>
       prev.map((spool) => (deletedSet.has(spool.lineId) ? { ...spool, lineId: null } : spool))
     );
@@ -1348,7 +1526,7 @@ export default function WeldTrackerApp() {
     setDrawings((prev) => prev.map((drawing) => (drawing.id === dwgId ? { ...drawing, ...updates } : drawing)));
   }, []);
 
-  const handleLinkLineToCurrentDrawing = useCallback((lineId) => {
+  const ensureLineLinkedToCurrentDrawing = useCallback((lineId) => {
     if (!activeDrawingId || !lineId) return;
     setDrawings((prev) =>
       prev.map((drawing) => {
@@ -1374,6 +1552,56 @@ export default function WeldTrackerApp() {
     );
   }, [activeDrawingId]);
 
+  const addOrMoveLineMarkerOnCurrentPage = useCallback((lineId, coords = null) => {
+    if (!lineId) return null;
+    const xPercent = coords?.xPercent ?? 50;
+    const yPercent = coords?.yPercent ?? 50;
+    const pageNumber = currentPage0;
+    let markerId = null;
+    setLineMarkers((prev) => {
+      const existing = prev.find(
+        (marker) =>
+          marker.lineId === lineId &&
+          marker.drawingId === (activeDrawingId ?? null) &&
+          (marker.pageNumber ?? 0) === pageNumber
+      );
+      if (existing) {
+        markerId = existing.id;
+        return prev.map((marker) =>
+          marker.id === existing.id
+            ? {
+                ...marker,
+                xPercent,
+                yPercent,
+              }
+            : marker
+        );
+      }
+      markerId = `lpm-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      return [
+        ...prev,
+        {
+          id: markerId,
+          lineId,
+          drawingId: activeDrawingId ?? null,
+          xPercent,
+          yPercent,
+          indicatorXPercent: Math.min(100, Math.max(0, xPercent + 4)),
+          indicatorYPercent: Math.min(100, Math.max(0, yPercent - 4)),
+          pageNumber,
+        },
+      ];
+    });
+    if (markerId) setPendingLabelId({ type: "line", id: markerId });
+    return markerId;
+  }, [activeDrawingId, currentPage0, setPendingLabelId]);
+
+  const handleLinkLineToCurrentDrawing = useCallback((lineId) => {
+    if (!lineId) return;
+    ensureLineLinkedToCurrentDrawing(lineId);
+    addOrMoveLineMarkerOnCurrentPage(lineId, null);
+  }, [ensureLineLinkedToCurrentDrawing, addOrMoveLineMarkerOnCurrentPage]);
+
   const handleCreateLineOnCurrentDrawing = useCallback((systemId = null) => {
     if (!activeDrawingId) return null;
     const id = `line-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -1394,15 +1622,10 @@ export default function WeldTrackerApp() {
         },
       ];
     });
-    setDrawings((prev) =>
-      prev.map((drawing) => {
-        if (drawing.id !== activeDrawingId) return drawing;
-        const existing = Array.isArray(drawing.lineIds) ? drawing.lineIds : [];
-        return existing.includes(id) ? drawing : { ...drawing, lineIds: [...existing, id] };
-      })
-    );
+    ensureLineLinkedToCurrentDrawing(id);
+    addOrMoveLineMarkerOnCurrentPage(id, null);
     return id;
-  }, [activeDrawingId]);
+  }, [activeDrawingId, ensureLineLinkedToCurrentDrawing, addOrMoveLineMarkerOnCurrentPage]);
 
   const scrollToTarget = useMemo(() => {
     if (selectedWeldId) {
@@ -1417,8 +1640,12 @@ export default function WeldTrackerApp() {
       const m = partMarkers.find((x) => x.id === selectedPartMarkerId);
       if (m && m.pageNumber != null) return { pageNumber: m.pageNumber, xPercent: m.xPercent ?? 50, yPercent: m.yPercent ?? 50 };
     }
+    if (selectedLineMarkerId) {
+      const marker = lineMarkers.find((item) => item.id === selectedLineMarkerId);
+      if (marker && marker.pageNumber != null) return { pageNumber: marker.pageNumber, xPercent: marker.xPercent ?? 50, yPercent: marker.yPercent ?? 50 };
+    }
     return null;
-  }, [selectedWeldId, selectedSpoolMarkerId, selectedPartMarkerId, weldPoints, spoolMarkers, partMarkers]);
+  }, [selectedWeldId, selectedSpoolMarkerId, selectedPartMarkerId, selectedLineMarkerId, weldPoints, spoolMarkers, partMarkers, lineMarkers]);
 
   return (
     <div className="md:container md:mx-auto p-0 md:p-4">
@@ -1452,6 +1679,7 @@ export default function WeldTrackerApp() {
               setSelectedWeldId(weldId);
               setSelectedSpoolMarkerId(null);
               setSelectedPartMarkerId(null);
+              setSelectedLineMarkerId(null);
               setFormWeld(weldPoints.find((w) => w.id === weldId) ?? null);
               setShowWeldPanel(true);
               setShowStatusPage(false);
@@ -1613,6 +1841,8 @@ export default function WeldTrackerApp() {
                           addDefaults={addDefaults}
                           onAddDefaultsChange={setAddDefaults}
                           spools={spoolsOnCurrentPage}
+                          lines={lines}
+                          systems={systems}
                           className="shadow-lg"
                         />
                       </div>
@@ -1653,6 +1883,12 @@ export default function WeldTrackerApp() {
                     onMoveIndicator={handleMoveIndicator}
                     onResizeLabel={handleResizeLabel}
                     onMoveLineBend={handleMoveLineBend}
+                    lineMarkers={lineMarkersOnActiveDrawing}
+                    lines={lines}
+                    selectedLineMarkerId={selectedLineMarkerId}
+                    onLineMarkerClick={handleLineMarkerClick}
+                    onMoveLineMarker={handleMoveLineMarker}
+                    onMoveLineIndicator={handleMoveLineIndicator}
                     spoolMarkers={spoolMarkersOnActiveDrawing}
                     spools={spools}
                     selectedSpoolMarkerId={selectedSpoolMarkerId}
@@ -1738,6 +1974,7 @@ export default function WeldTrackerApp() {
                   <SidePanelLines
                     systems={systems}
                     lines={linesOnCurrentPage}
+                    selectedLineId={selectedLineIdFromMarker}
                     allLines={lines}
                     spools={spoolsOnCurrentPage}
                     isOpen={showLinePanel}
@@ -1953,6 +2190,7 @@ export default function WeldTrackerApp() {
               <SidePanelLines
                 systems={systems}
                 lines={linesOnCurrentPage}
+                selectedLineId={selectedLineIdFromMarker}
                 allLines={lines}
                 spools={spoolsOnCurrentPage}
                 isOpen={true}
@@ -2072,9 +2310,15 @@ export default function WeldTrackerApp() {
         onClose={() => setShowDatabookBuilder(false)}
         documents={documents}
         databookConfig={databookConfig}
+        projectMeta={projectMeta}
+        drawings={drawings}
+        systems={systems}
+        lines={lines}
         weldPoints={weldPoints}
+        spools={spools}
         parts={parts}
         personnel={personnel}
+        drawingSettings={drawingSettings}
         wpsLibrary={wpsLibrary}
         materialCertificates={materialCertificates}
         ndtReports={ndtReports}

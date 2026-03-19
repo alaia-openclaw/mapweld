@@ -13,6 +13,8 @@ function AddDefaultsBar({
   addDefaults,
   onAddDefaultsChange,
   spools = [],
+  lines = [],
+  systems = [],
   className = "",
 }) {
   const catalogCategory = addDefaults?.catalogCategory ?? "";
@@ -34,6 +36,7 @@ function AddDefaultsBar({
   const showWeld = markupTool === "add";
   const showSpool = markupTool === "add";
   const showPart = markupTool === "addPart";
+  const showLine = markupTool === "addLine";
 
   function handleCatalogCategoryChange(value) {
     onAddDefaultsChange?.({
@@ -197,6 +200,48 @@ function AddDefaultsBar({
               onChange={(e) => onAddDefaultsChange?.({ ...addDefaults, materialGrade: e.target.value })}
             />
           </div>
+        </>
+      )}
+      {showLine && (
+        <>
+          <div className="flex items-center gap-1">
+            <label htmlFor="default-lineId" className="text-[11px] text-base-content/60 whitespace-nowrap">
+              Line
+            </label>
+            <select
+              id="default-lineId"
+              className="select select-bordered select-xs h-7 min-h-7 py-0.5 w-24 max-w-full text-xs"
+              value={addDefaults?.lineId ?? "__new__"}
+              onChange={(e) => onAddDefaultsChange?.({ ...addDefaults, lineId: e.target.value })}
+            >
+              <option value="__new__">New line</option>
+              {lines.map((line) => (
+                <option key={line.id} value={line.id}>
+                  {line.name || line.id}
+                </option>
+              ))}
+            </select>
+          </div>
+          {(addDefaults?.lineId ?? "__new__") === "__new__" && (
+            <div className="flex items-center gap-1">
+              <label htmlFor="default-lineSystemId" className="text-[11px] text-base-content/60 whitespace-nowrap">
+                System
+              </label>
+              <select
+                id="default-lineSystemId"
+                className="select select-bordered select-xs h-7 min-h-7 py-0.5 w-24 max-w-full text-xs"
+                value={addDefaults?.lineSystemId ?? ""}
+                onChange={(e) => onAddDefaultsChange?.({ ...addDefaults, lineSystemId: e.target.value || null })}
+              >
+                <option value="">No system</option>
+                {systems.map((system) => (
+                  <option key={system.id} value={system.id}>
+                    {system.name || "Unnamed system"}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </>
       )}
     </div>
