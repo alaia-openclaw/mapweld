@@ -76,6 +76,22 @@ function createPdfBlobUrlFromBase64(base64) {
   }
 }
 
+function SidePanelTabButton({ label, title, active, onClick }) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-pressed={active}
+      onClick={onClick}
+      className={`btn btn-ghost btn-sm shrink-0 min-h-0 h-auto rounded-none border-0 shadow-none py-2 px-0.5 w-full text-[10px] font-semibold uppercase leading-tight tracking-tight ${
+        active ? "bg-primary/20 text-primary" : "text-base-content/65 hover:bg-base-200"
+      }`}
+    >
+      <span className="block text-center [overflow-wrap:anywhere]">{label}</span>
+    </button>
+  );
+}
+
 export default function WeldTrackerApp() {
   const containerRef = useRef(null);
   const [pdfBlob, setPdfBlob] = useState(null);
@@ -109,6 +125,8 @@ export default function WeldTrackerApp() {
   const [showPartPanel, setShowPartPanel] = useState(false);
   const [showDrawingPanel, setShowDrawingPanel] = useState(false);
   const [showLinePanel, setShowLinePanel] = useState(false);
+  const anySidePanelOpen =
+    showDrawingPanel || showLinePanel || showWeldPanel || showSpoolPanel || showPartPanel;
   const [personnel, setPersonnel] = useState({ fitters: [], welders: [], wqrs: [] });
   const [ndtRequests, setNdtRequests] = useState([]);
   const [ndtReports, setNdtReports] = useState([]);
@@ -1912,7 +1930,7 @@ export default function WeldTrackerApp() {
                   />
                 </div>
                 {/* Resize handle - visible splitter between content and side panel */}
-                {(!showDrawingPanel && !showLinePanel && !showWeldPanel && !showSpoolPanel && !showPartPanel) ? null : (
+                {!anySidePanelOpen ? null : (
                   <div
                     className="hidden md:flex w-3 flex-shrink-0 cursor-col-resize flex-col items-center justify-center bg-base-300 hover:bg-primary/40 active:bg-primary/60 transition-colors select-none border-l border-base-300"
                     onMouseDown={(e) => {
@@ -1943,132 +1961,183 @@ export default function WeldTrackerApp() {
                   className="hidden md:flex flex-shrink-0 flex-col h-full min-h-0 overflow-hidden transition-[width] duration-200 ease-out border-l border-base-300"
                   data-print-hide
                   style={{
-                    width: !showDrawingPanel && !showLinePanel && !showWeldPanel && !showSpoolPanel && !showPartPanel ? 56 : sidePanelWidth,
-                    minWidth: !showDrawingPanel && !showLinePanel && !showWeldPanel && !showSpoolPanel && !showPartPanel ? 56 : undefined,
+                    width: anySidePanelOpen ? sidePanelWidth : 56,
+                    minWidth: anySidePanelOpen ? undefined : 56,
                   }}
                 >
                   <div
                     className={`flex flex-1 min-w-0 min-h-0 h-full overflow-hidden transition-all duration-300 ease-out ${
-                      !showDrawingPanel && !showLinePanel && !showWeldPanel && !showSpoolPanel && !showPartPanel ? "flex-col" : "flex-row items-stretch"
+                      anySidePanelOpen ? "flex-row items-stretch" : "flex-col"
                     }`}
                     style={{ minHeight: 0 }}
                   >
-                  <SidePanelDrawings
-                    drawings={drawings}
-                    activeDrawingId={activeDrawingId}
-                    lines={lines}
-                    isOpen={showDrawingPanel}
-                    onToggle={() => {
-                      setShowLinePanel(false);
-                      setShowWeldPanel(false);
-                      setShowSpoolPanel(false);
-                      setShowPartPanel(false);
-                      setShowDrawingPanel((v) => !v);
-                    }}
-                    onSwitchDrawing={handleSwitchDrawing}
-                    onAddDrawing={loadPdfFile}
-                    onUpdateDrawing={handleUpdateDrawing}
-                    onDeleteDrawing={handleDeleteDrawing}
-                    isStacked={!showDrawingPanel && !showLinePanel && !showWeldPanel && !showSpoolPanel && !showPartPanel}
-                  />
-                  <SidePanelLines
-                    systems={systems}
-                    lines={linesOnCurrentPage}
-                    selectedLineId={selectedLineIdFromMarker}
-                    allLines={lines}
-                    spools={spoolsOnCurrentPage}
-                    isOpen={showLinePanel}
-                    onToggle={() => {
-                      setShowDrawingPanel(false);
-                      setShowWeldPanel(false);
-                      setShowSpoolPanel(false);
-                      setShowPartPanel(false);
-                      setShowLinePanel((v) => !v);
-                    }}
-                    onSaveLines={handleSaveVisibleLines}
-                    onCreateLineOnCurrentPage={handleCreateLineOnCurrentDrawing}
-                    onLinkLineToCurrentPage={handleLinkLineToCurrentDrawing}
-                    onSaveSpools={handleSaveVisibleSpools}
-                    appMode={appMode}
-                    systemsManagedExternally
-                    isStacked={!showDrawingPanel && !showLinePanel && !showWeldPanel && !showSpoolPanel && !showPartPanel}
-                  />
-                  <SidePanelSpools
-                    spools={spoolsOnCurrentPage}
-                    isOpen={showSpoolPanel}
-                    onToggle={() => {
-                      setShowDrawingPanel(false);
-                      setShowLinePanel(false);
-                      setShowWeldPanel(false);
-                      setShowPartPanel(false);
-                      setShowSpoolPanel((v) => !v);
-                    }}
-                    isStacked={!showDrawingPanel && !showLinePanel && !showWeldPanel && !showSpoolPanel && !showPartPanel}
-                    onSave={handleSaveVisibleSpools}
-                    onAssignWeldToSpool={handleAssignWeldToSpool}
-                    onAssignPartToSpool={handleAssignPartToSpool}
-                    parts={partsOnCurrentPage}
-                    spoolMarkers={spoolMarkersOnCurrentPage}
-                    appMode={appMode}
-                    weldPoints={weldsOnCurrentPage}
-                    weldStatusByWeldId={weldStatusByWeldId}
-                    getWeldName={getWeldName}
-                    lines={linesOnCurrentPage}
-                  />
-                  <SidePanelWeldForm
-                    weldPoints={weldsOnCurrentPage}
-                    weldStatusByWeldId={weldStatusByWeldId}
-                    weld={formWeld}
-                    selectedWeldId={selectedWeldId}
-                    isOpen={showWeldPanel}
-                    onToggle={() => {
-                      setShowDrawingPanel(false);
-                      setShowLinePanel(false);
-                      setShowSpoolPanel(false);
-                      setShowPartPanel(false);
-                      setShowWeldPanel((v) => !v);
-                    }}
-                    onSelectWeld={(w) => {
-                      setFormWeld(w);
-                      setSelectedWeldId(w.id);
-                    }}
-                    onBackToList={handleBackToList}
-                    onSave={handleSaveWeld}
-                    onDelete={handleDeleteWeld}
-                    appMode={appMode}
-                    spools={spoolsOnCurrentPage}
-                    parts={partsOnCurrentPage}
-                    onUpdatePartHeat={handleUpdatePartHeat}
-                    personnel={personnel}
-                    wpsLibrary={wpsLibrary}
-                    electrodeLibrary={electrodeLibrary}
-                    ndtAutoLabel={formatNdtRequirements(drawingSettings.ndtRequirements)}
-                    drawingSettings={drawingSettings}
-                    isStacked={!showDrawingPanel && !showLinePanel && !showWeldPanel && !showSpoolPanel && !showPartPanel}
-                  />
-                  <SidePanelPartForm
-                    parts={partsOnCurrentPage}
-                    partMarkers={partMarkersOnCurrentPage}
-                    spools={spoolsOnCurrentPage}
-                    documents={documents}
-                    materialCertificates={materialCertificates}
-                    selectedPartMarkerId={selectedPartMarkerId}
-                    isOpen={showPartPanel}
-                    onToggle={() => {
-                      setShowDrawingPanel(false);
-                      setShowLinePanel(false);
-                      setShowWeldPanel(false);
-                      setShowSpoolPanel(false);
-                      setShowPartPanel((v) => !v);
-                    }}
-                    onSelectPartMarker={setSelectedPartMarkerId}
-                    onSavePart={handleSavePart}
-                    onSaveDocuments={setDocuments}
-                    onSaveMaterialCertificates={setMaterialCertificates}
-                    onDeletePart={handleDeletePart}
-                    appMode={appMode}
-                    isStacked={!showDrawingPanel && !showLinePanel && !showWeldPanel && !showSpoolPanel && !showPartPanel}
-                  />
+                    <nav
+                      className={`flex flex-col shrink-0 border-r border-base-300 bg-base-100 divide-y divide-base-300/60 overflow-y-auto overflow-x-hidden ${
+                        anySidePanelOpen ? "w-11" : "w-full"
+                      }`}
+                      aria-label="Side panels"
+                    >
+                      <SidePanelTabButton
+                        label="Dwg"
+                        title="Drawings"
+                        active={showDrawingPanel}
+                        onClick={() => {
+                          setShowLinePanel(false);
+                          setShowWeldPanel(false);
+                          setShowSpoolPanel(false);
+                          setShowPartPanel(false);
+                          setShowDrawingPanel((v) => !v);
+                        }}
+                      />
+                      <SidePanelTabButton
+                        label="Line"
+                        title="Lines"
+                        active={showLinePanel}
+                        onClick={() => {
+                          setShowDrawingPanel(false);
+                          setShowWeldPanel(false);
+                          setShowSpoolPanel(false);
+                          setShowPartPanel(false);
+                          setShowLinePanel((v) => !v);
+                        }}
+                      />
+                      <SidePanelTabButton
+                        label="Spool"
+                        title="Spools"
+                        active={showSpoolPanel}
+                        onClick={() => {
+                          setShowDrawingPanel(false);
+                          setShowLinePanel(false);
+                          setShowWeldPanel(false);
+                          setShowPartPanel(false);
+                          setShowSpoolPanel((v) => !v);
+                        }}
+                      />
+                      <SidePanelTabButton
+                        label="Weld"
+                        title="Welds"
+                        active={showWeldPanel}
+                        onClick={() => {
+                          setShowDrawingPanel(false);
+                          setShowLinePanel(false);
+                          setShowSpoolPanel(false);
+                          setShowPartPanel(false);
+                          setShowWeldPanel((v) => !v);
+                        }}
+                      />
+                      <SidePanelTabButton
+                        label="Part"
+                        title="Parts"
+                        active={showPartPanel}
+                        onClick={() => {
+                          setShowDrawingPanel(false);
+                          setShowLinePanel(false);
+                          setShowWeldPanel(false);
+                          setShowSpoolPanel(false);
+                          setShowPartPanel((v) => !v);
+                        }}
+                      />
+                    </nav>
+                    {anySidePanelOpen ? (
+                      <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden bg-base-200">
+                        {showDrawingPanel ? (
+                          <SidePanelDrawings
+                            hideHeader
+                            drawings={drawings}
+                            activeDrawingId={activeDrawingId}
+                            lines={lines}
+                            isOpen
+                            onToggle={() => {}}
+                            onSwitchDrawing={handleSwitchDrawing}
+                            onAddDrawing={loadPdfFile}
+                            onUpdateDrawing={handleUpdateDrawing}
+                            onDeleteDrawing={handleDeleteDrawing}
+                          />
+                        ) : null}
+                        {showLinePanel ? (
+                          <SidePanelLines
+                            hideHeader
+                            systems={systems}
+                            lines={linesOnCurrentPage}
+                            selectedLineId={selectedLineIdFromMarker}
+                            allLines={lines}
+                            spools={spoolsOnCurrentPage}
+                            isOpen
+                            onToggle={() => {}}
+                            onSaveLines={handleSaveVisibleLines}
+                            onCreateLineOnCurrentPage={handleCreateLineOnCurrentDrawing}
+                            onLinkLineToCurrentPage={handleLinkLineToCurrentDrawing}
+                            onSaveSpools={handleSaveVisibleSpools}
+                            appMode={appMode}
+                            systemsManagedExternally
+                          />
+                        ) : null}
+                        {showSpoolPanel ? (
+                          <SidePanelSpools
+                            hideHeader
+                            spools={spoolsOnCurrentPage}
+                            isOpen
+                            onToggle={() => {}}
+                            onSave={handleSaveVisibleSpools}
+                            onAssignWeldToSpool={handleAssignWeldToSpool}
+                            onAssignPartToSpool={handleAssignPartToSpool}
+                            parts={partsOnCurrentPage}
+                            spoolMarkers={spoolMarkersOnCurrentPage}
+                            appMode={appMode}
+                            weldPoints={weldsOnCurrentPage}
+                            weldStatusByWeldId={weldStatusByWeldId}
+                            getWeldName={getWeldName}
+                            lines={linesOnCurrentPage}
+                          />
+                        ) : null}
+                        {showWeldPanel ? (
+                          <SidePanelWeldForm
+                            hideHeader
+                            weldPoints={weldsOnCurrentPage}
+                            weldStatusByWeldId={weldStatusByWeldId}
+                            weld={formWeld}
+                            selectedWeldId={selectedWeldId}
+                            isOpen
+                            onToggle={() => {}}
+                            onSelectWeld={(w) => {
+                              setFormWeld(w);
+                              setSelectedWeldId(w.id);
+                            }}
+                            onBackToList={handleBackToList}
+                            onSave={handleSaveWeld}
+                            onDelete={handleDeleteWeld}
+                            appMode={appMode}
+                            spools={spoolsOnCurrentPage}
+                            parts={partsOnCurrentPage}
+                            onUpdatePartHeat={handleUpdatePartHeat}
+                            personnel={personnel}
+                            wpsLibrary={wpsLibrary}
+                            electrodeLibrary={electrodeLibrary}
+                            ndtAutoLabel={formatNdtRequirements(drawingSettings.ndtRequirements)}
+                            drawingSettings={drawingSettings}
+                          />
+                        ) : null}
+                        {showPartPanel ? (
+                          <SidePanelPartForm
+                            hideHeader
+                            parts={partsOnCurrentPage}
+                            partMarkers={partMarkersOnCurrentPage}
+                            spools={spoolsOnCurrentPage}
+                            documents={documents}
+                            materialCertificates={materialCertificates}
+                            selectedPartMarkerId={selectedPartMarkerId}
+                            isOpen
+                            onToggle={() => {}}
+                            onSelectPartMarker={setSelectedPartMarkerId}
+                            onSavePart={handleSavePart}
+                            onSaveDocuments={setDocuments}
+                            onSaveMaterialCertificates={setMaterialCertificates}
+                            onDeletePart={handleDeletePart}
+                            appMode={appMode}
+                          />
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               </>
@@ -2320,9 +2389,11 @@ export default function WeldTrackerApp() {
         personnel={personnel}
         drawingSettings={drawingSettings}
         wpsLibrary={wpsLibrary}
+        electrodeLibrary={electrodeLibrary}
         materialCertificates={materialCertificates}
         ndtReports={ndtReports}
         onSaveDocuments={setDocuments}
+        onSaveElectrodeLibrary={setElectrodeLibrary}
         onSaveMaterialCertificates={setMaterialCertificates}
         onSaveDatabookConfig={setDatabookConfig}
       />

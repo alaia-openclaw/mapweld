@@ -21,8 +21,8 @@ function SidePanelLines({
 }) {
   const [expandedLineId, setExpandedLineId] = useState(null);
   const [spoolMenuLineId, setSpoolMenuLineId] = useState(null);
+  const [lineMenuGroupId, setLineMenuGroupId] = useState(null);
   const [quickSystemId, setQuickSystemId] = useState("");
-  const [existingLineIdToLink, setExistingLineIdToLink] = useState("");
 
   const [editLineName, setEditLineName] = useState("");
   const [editFluidType, setEditFluidType] = useState("");
@@ -124,6 +124,7 @@ function SidePanelLines({
       lines: [],
     }));
     const byId = new Map(groups.map((group) => [group.id, group]));
+    const sysIdSet = new Set((systems || []).map((s) => s.id));
     const orphan = { id: "__none__", label: "No system", description: "", lines: [] };
 
     (lines || []).forEach((line) => {
@@ -136,15 +137,29 @@ function SidePanelLines({
     );
     orphan.lines.sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
 
-    const all = groups;
-    if (orphan.lines.length > 0) all.push(orphan);
-    return all;
-  }, [systems, lines]);
+    const visibleIds = new Set((lines || []).map((l) => l.id));
+    const hasOrphanLinkable = (allLines || []).some(
+      (line) =>
+        !visibleIds.has(line.id) &&
+        (!line.systemId || !sysIdSet.has(line.systemId))
+    );
 
-  const availableExistingLines = useMemo(() => {
-    const visibleIds = new Set((lines || []).map((line) => line.id));
-    return (allLines || []).filter((line) => !visibleIds.has(line.id));
-  }, [allLines, lines]);
+    const all = [...groups];
+    if (orphan.lines.length > 0 || hasOrphanLinkable) all.push(orphan);
+    return all;
+  }, [systems, lines, allLines]);
+
+  const visibleLineIds = useMemo(() => new Set((lines || []).map((line) => line.id)), [lines]);
+
+  const systemIdSet = useMemo(() => new Set((systems || []).map((s) => s.id)), [systems]);
+
+  function getLinkableLinesForGroup(group) {
+    return (allLines || []).filter((line) => {
+      if (visibleLineIds.has(line.id)) return false;
+      if (group.id === "__none__") return !line.systemId || !systemIdSet.has(line.systemId);
+      return line.systemId === group.id;
+    });
+  }
 
   return (
     <div
@@ -209,50 +224,16 @@ function SidePanelLines({
                     + Add new line
                   </button>
                 </div>
-                {availableExistingLines.length > 0 && (
-                  <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] gap-2 items-end">
-                    <div className="form-control">
-                      <label className="label py-0 min-h-0">
-                        <span className="label-text text-xs">Link existing line to this page</span>
-                      </label>
-                      <select
-                        className="select select-bordered select-xs w-full"
-                        value={existingLineIdToLink}
-                        onChange={(e) => setExistingLineIdToLink(e.target.value)}
-                      >
-                        <option value="">Choose line…</option>
-                        {availableExistingLines.map((line) => (
-                          <option key={line.id} value={line.id}>
-                            {line.name || line.id}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-xs"
-                      disabled={!existingLineIdToLink}
-                      onClick={() => {
-                        onLinkLineToCurrentPage?.(existingLineIdToLink);
-                        setExistingLineIdToLink("");
-                      }}
-                    >
-                      Link existing
-                    </button>
-                  </div>
-                )}
               </div>
             )}
-            {lines.length === 0 ? (
-              <div className="text-center py-6 text-base-content/60 text-sm">
-                <p>No lines on this page</p>
-                <p className="mt-1">
-                  Lines are filtered to the current page.
-                </p>
-              </div>
-            ) : (
-              <ul className="space-y-3">
+            {lines.length === 0 && (
+              <p className="text-xs text-base-content/60 mb-2">
+                No lines on this page yet. Use <strong>+ Link line</strong> under a system to place an existing line, or create a new one above.
+              </p>
+            )}
+            <ul className="space-y-3">
                 {groupedLines.map((group) => {
+                  const linkable = getLinkableLinesForGroup(group);
                   return (
                     <li key={group.id} className="space-y-1">
                       <div className="flex items-center justify-between gap-2">
@@ -264,13 +245,41 @@ function SidePanelLines({
                             <p className="text-xs text-base-content/55 truncate">{group.description}</p>
                           ) : null}
                         </div>
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-xs gap-0.5"
-                          onClick={() => handleAddLine(group.id === "__none__" ? null : group.id)}
-                        >
-                          + Add line
-                        </button>
+                        {appMode === "edition" && typeof onLinkLineToCurrentPage === "function" && (
+                          <div className={`dropdown dropdown-end shrink-0 ${lineMenuGroupId === group.id ? "dropdown-open" : ""}`}>
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-xs gap-0.5"
+                              onClick={() => setLineMenuGroupId((prev) => (prev === group.id ? null : group.id))}
+                            >
+                              + Link line
+                            </button>
+                            <ul className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-56 max-h-56 overflow-y-auto border border-base-300">
+                              {linkable.length === 0 ? (
+                                <li>
+                                  <span className="text-xs text-base-content/50 px-2">
+                                    No other lines in this group
+                                  </span>
+                                </li>
+                              ) : (
+                                linkable.map((line) => (
+                                  <li key={line.id}>
+                                    <button
+                                      type="button"
+                                      className="text-left text-sm"
+                                      onClick={() => {
+                                        onLinkLineToCurrentPage(line.id);
+                                        setLineMenuGroupId(null);
+                                      }}
+                                    >
+                                      {line.name || line.id}
+                                    </button>
+                                  </li>
+                                ))
+                              )}
+                            </ul>
+                          </div>
+                        )}
                       </div>
                       {group.lines.length === 0 ? (
                         <p className="text-xs text-base-content/50">No lines in this group</p>
@@ -305,8 +314,7 @@ function SidePanelLines({
                     </li>
                   );
                 })}
-              </ul>
-            )}
+            </ul>
             {systemsManagedExternally && (
               <p className="text-xs text-base-content/60 mt-3">
                 Systems are managed in Parameters &gt; Project tab.

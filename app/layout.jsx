@@ -1,5 +1,6 @@
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import DevServiceWorkerCleanup from "@/components/DevServiceWorkerCleanup";
 
 export const metadata = {
@@ -63,6 +64,7 @@ export default function RootLayout({ children }) {
         {process.env.NODE_ENV === "development" && <DevServiceWorkerCleanup />}
         {children}
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );

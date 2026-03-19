@@ -19,14 +19,6 @@ function fileToBase64(file) {
   });
 }
 
-const ITP_CATEGORIES = [
-  { id: "general", label: "General" },
-  { id: "fitup", label: "Fit-up" },
-  { id: "cuttings", label: "Cuttings" },
-  { id: "welding", label: "Welding" },
-  { id: "final_inspection", label: "Final inspection" },
-];
-
 function ModalParameters({
   isOpen,
   onClose,
@@ -47,10 +39,6 @@ function ModalParameters({
   const [weldingSpec, setWeldingSpec] = useState("");
   const [customNdtMethod, setCustomNdtMethod] = useState("");
 
-  // ITP state
-  const [itpSteps, setItpSteps] = useState([]);
-  const [itpOpenCategory, setItpOpenCategory] = useState("general");
-
   // Project meta state
   const [metaProjectName, setMetaProjectName] = useState("");
   const [metaClient, setMetaClient] = useState("");
@@ -59,7 +47,6 @@ function ModalParameters({
   const [metaDate, setMetaDate] = useState("");
   const [projectSystems, setProjectSystems] = useState([]);
   const [projectWpsLibrary, setProjectWpsLibrary] = useState([]);
-  const [projectElectrodeLibrary, setProjectElectrodeLibrary] = useState([]);
 
   // Personnel state
   const [personnelSubtab, setPersonnelSubtab] = useState("fitters");
@@ -69,41 +56,47 @@ function ModalParameters({
   const [wqrCode, setWqrCode] = useState("");
   const wqrUploadInputRef = useRef(null);
   const wpsUploadInputRef = useRef(null);
-  const electrodeUploadInputRef = useRef(null);
   const wqrUploadTargetRef = useRef(null);
   const wpsUploadTargetRef = useRef(null);
-  const electrodeUploadTargetRef = useRef(null);
+  /** Avoid resetting Personnel sidebar when parent props refresh while modal stays open (e.g. auto-save). */
+  const parametersModalWasOpenRef = useRef(false);
 
   const fitters = personnel.fitters || [];
   const welders = personnel.welders || [];
   const wqrs = personnel.wqrs || [];
   const wqrDocuments = (documents || []).filter((doc) => doc?.category === "wqr");
   const wpsDocuments = (documents || []).filter((doc) => doc?.category === "wps");
-  const electrodeDocuments = (documents || []).filter((doc) => doc?.category === "electrode");
+  const safeElectrodeLibrary = Array.isArray(electrodeLibrary) ? electrodeLibrary : [];
 
   useEffect(() => {
-    if (settings && isOpen) {
+    if (!isOpen) {
+      parametersModalWasOpenRef.current = false;
+      return;
+    }
+
+    const justOpened = !parametersModalWasOpenRef.current;
+    parametersModalWasOpenRef.current = true;
+
+    if (settings) {
       setNdtRequirements(settings.ndtRequirements || []);
       setWeldingSpec(settings.weldingSpec || "");
     }
-    if (isOpen) {
-      setItpSteps(projectSettings?.steps || []);
-      setMetaProjectName(projectMeta?.projectName || "");
-      setMetaClient(projectMeta?.client || "");
-      setMetaSpec(projectMeta?.spec || "");
-      setMetaRevision(projectMeta?.revision || "");
-      setMetaDate(projectMeta?.date || "");
-      setProjectSystems(Array.isArray(systems) ? systems : []);
-      setProjectWpsLibrary(Array.isArray(wpsLibrary) ? wpsLibrary : []);
-      setProjectElectrodeLibrary(Array.isArray(electrodeLibrary) ? electrodeLibrary : []);
-      setCustomNdtMethod("");
+    setMetaProjectName(projectMeta?.projectName || "");
+    setMetaClient(projectMeta?.client || "");
+    setMetaSpec(projectMeta?.spec || "");
+    setMetaRevision(projectMeta?.revision || "");
+    setMetaDate(projectMeta?.date || "");
+    setProjectSystems(Array.isArray(systems) ? systems : []);
+    setProjectWpsLibrary(Array.isArray(wpsLibrary) ? wpsLibrary : []);
+    setCustomNdtMethod("");
+
+    if (justOpened) {
       setPersonnelSubtab("fitters");
       setEditingWelderId(null);
       wqrUploadTargetRef.current = null;
       wpsUploadTargetRef.current = null;
-      electrodeUploadTargetRef.current = null;
     }
-  }, [settings, isOpen, projectSettings, projectMeta, systems, wpsLibrary, electrodeLibrary]);
+  }, [settings, isOpen, projectMeta, systems, wpsLibrary]);
 
   function addNdtRow(method, pct = 100) {
     const normalizedMethod = String(method || "").trim().toUpperCase();
@@ -251,7 +244,7 @@ function ModalParameters({
       personnel,
       systems: nextSystems,
       wpsLibrary: projectWpsLibrary,
-      electrodeLibrary: projectElectrodeLibrary,
+      electrodeLibrary: safeElectrodeLibrary,
     });
   }
 
@@ -263,7 +256,7 @@ function ModalParameters({
       personnel,
       systems: nextSystems,
       wpsLibrary: projectWpsLibrary,
-      electrodeLibrary: projectElectrodeLibrary,
+      electrodeLibrary: safeElectrodeLibrary,
     });
   }
 
@@ -286,7 +279,7 @@ function ModalParameters({
       personnel,
       systems: projectSystems,
       wpsLibrary: nextWpsLibrary,
-      electrodeLibrary: projectElectrodeLibrary,
+      electrodeLibrary: safeElectrodeLibrary,
     });
   }
 
@@ -298,7 +291,7 @@ function ModalParameters({
       personnel,
       systems: projectSystems,
       wpsLibrary: nextWpsLibrary,
-      electrodeLibrary: projectElectrodeLibrary,
+      electrodeLibrary: safeElectrodeLibrary,
     });
   }
 
@@ -307,41 +300,6 @@ function ModalParameters({
       entry.id === wpsId ? { ...entry, ...updates } : entry
     );
     setProjectWpsLibrary(nextWpsLibrary);
-  }
-
-  function handleAddElectrode() {
-    const nextCode = `ELEC-${String(projectElectrodeLibrary.length + 1).padStart(3, "0")}`;
-    const nextElectrodeLibrary = [
-      ...projectElectrodeLibrary,
-      { id: generateId(), code: nextCode, title: "", documentId: null },
-    ];
-    setProjectElectrodeLibrary(nextElectrodeLibrary);
-    onSave?.({
-      drawingSettings: { ndtRequirements, weldingSpec },
-      personnel,
-      systems: projectSystems,
-      wpsLibrary: projectWpsLibrary,
-      electrodeLibrary: nextElectrodeLibrary,
-    });
-  }
-
-  function handleRemoveElectrode(electrodeId) {
-    const nextElectrodeLibrary = projectElectrodeLibrary.filter((entry) => entry.id !== electrodeId);
-    setProjectElectrodeLibrary(nextElectrodeLibrary);
-    onSave?.({
-      drawingSettings: { ndtRequirements, weldingSpec },
-      personnel,
-      systems: projectSystems,
-      wpsLibrary: projectWpsLibrary,
-      electrodeLibrary: nextElectrodeLibrary,
-    });
-  }
-
-  function handleUpdateElectrode(electrodeId, updates) {
-    const nextElectrodeLibrary = projectElectrodeLibrary.map((entry) =>
-      entry.id === electrodeId ? { ...entry, ...updates } : entry
-    );
-    setProjectElectrodeLibrary(nextElectrodeLibrary);
   }
 
   async function uploadLinkedDocument(file, category, fallbackTitle) {
@@ -375,7 +333,7 @@ function ModalParameters({
       },
       systems: projectSystems,
       wpsLibrary: projectWpsLibrary,
-      electrodeLibrary: projectElectrodeLibrary,
+      electrodeLibrary: safeElectrodeLibrary,
       documents: [...documents, newDoc],
     });
     wqrUploadTargetRef.current = null;
@@ -398,33 +356,10 @@ function ModalParameters({
       personnel,
       systems: projectSystems,
       wpsLibrary: nextWpsLibrary,
-      electrodeLibrary: projectElectrodeLibrary,
+      electrodeLibrary: safeElectrodeLibrary,
       documents: [...documents, newDoc],
     });
     wpsUploadTargetRef.current = null;
-  }
-
-  async function handleUploadElectrodeDocument(electrodeId, event) {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    const resolvedElectrodeId = electrodeId || electrodeUploadTargetRef.current;
-    if (!file || !resolvedElectrodeId) return;
-    const entry = projectElectrodeLibrary.find((item) => item.id === resolvedElectrodeId);
-    if (!entry) return;
-    const newDoc = await uploadLinkedDocument(file, "electrode", entry.code || "Electrode");
-    const nextLibrary = projectElectrodeLibrary.map((item) =>
-      item.id === resolvedElectrodeId ? { ...item, documentId: newDoc.id } : item
-    );
-    setProjectElectrodeLibrary(nextLibrary);
-    onSave?.({
-      drawingSettings: { ndtRequirements, weldingSpec },
-      personnel,
-      systems: projectSystems,
-      wpsLibrary: projectWpsLibrary,
-      electrodeLibrary: nextLibrary,
-      documents: [...documents, newDoc],
-    });
-    electrodeUploadTargetRef.current = null;
   }
 
   const autoSaveTimeoutRef = useRef(null);
@@ -432,27 +367,30 @@ function ModalParameters({
     if (!isOpen) return;
     if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
     autoSaveTimeoutRef.current = setTimeout(() => {
+      const elib = Array.isArray(electrodeLibrary) ? electrodeLibrary : [];
       onSave?.({
         drawingSettings: { ndtRequirements, weldingSpec },
         personnel,
-        projectSettings: { steps: itpSteps },
+        projectSettings:
+          projectSettings && typeof projectSettings === "object"
+            ? projectSettings
+            : { steps: [] },
         projectMeta: { projectName: metaProjectName, client: metaClient, spec: metaSpec, revision: metaRevision, date: metaDate },
         systems: projectSystems,
         wpsLibrary: projectWpsLibrary,
-        electrodeLibrary: projectElectrodeLibrary,
+        electrodeLibrary: elib,
       });
     }, 500);
     return () => {
       if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
     };
-  }, [isOpen, ndtRequirements, weldingSpec, personnel, itpSteps, metaProjectName, metaClient, metaSpec, metaRevision, metaDate, projectSystems, projectWpsLibrary, projectElectrodeLibrary, onSave]);
+  }, [isOpen, ndtRequirements, weldingSpec, personnel, projectSettings, metaProjectName, metaClient, metaSpec, metaRevision, metaDate, projectSystems, projectWpsLibrary, electrodeLibrary, onSave]);
 
   if (!isOpen) return null;
 
   const tabs = [
     { key: "default", label: "Default NDT" },
     { key: "personnel", label: "Personnel" },
-    { key: "itp", label: "ITP" },
     { key: "project", label: "Project" },
   ];
 
@@ -809,105 +747,6 @@ function ModalParameters({
           </div>
         )}
 
-        {activeTab === "itp" && (
-          <div className="mt-4 space-y-3">
-            <p className="text-sm text-base-content/70">
-              Define fabrication and inspection steps for this project. Steps are grouped by category.
-            </p>
-            <div className="space-y-2">
-              {ITP_CATEGORIES.map((cat) => {
-                const isOpenCat = itpOpenCategory === cat.id;
-                const catSteps = itpSteps.filter((s) => s.category === cat.id);
-                return (
-                  <div key={cat.id} className="bg-base-200 rounded-lg overflow-hidden">
-                    <button
-                      type="button"
-                      className="w-full text-left text-sm font-medium px-3 py-2 flex items-center justify-between hover:bg-base-300/50 transition-colors"
-                      onClick={() => setItpOpenCategory(isOpenCat ? null : cat.id)}
-                    >
-                      <span>{cat.label} ({catSteps.length})</span>
-                      <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 transition-transform ${isOpenCat ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-                    {isOpenCat && (
-                      <div className="px-3 pb-3 space-y-2">
-                        {catSteps.length === 0 && (
-                          <p className="text-xs text-base-content/50 py-1">No steps in this category.</p>
-                        )}
-                        {catSteps.map((step) => (
-                          <div key={step.id} className="bg-base-100 rounded-lg p-2 space-y-1.5 border border-base-300/60">
-                            <input
-                              type="text"
-                              className="input input-sm input-bordered w-full"
-                              value={step.label}
-                              onChange={(e) => {
-                                setItpSteps((prev) => prev.map((s) => s.id === step.id ? { ...s, label: e.target.value } : s));
-                              }}
-                              placeholder="Step description"
-                            />
-                            <div className="flex flex-wrap gap-3 text-xs">
-                              <label className="flex items-center gap-1 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  className="checkbox checkbox-xs checkbox-primary"
-                                  checked={step.required}
-                                  onChange={(e) => setItpSteps((prev) => prev.map((s) => s.id === step.id ? { ...s, required: e.target.checked } : s))}
-                                />
-                                Required
-                              </label>
-                              <label className="flex items-center gap-1 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  className="checkbox checkbox-xs"
-                                  checked={step.clientSignOff}
-                                  onChange={(e) => setItpSteps((prev) => prev.map((s) => s.id === step.id ? { ...s, clientSignOff: e.target.checked } : s))}
-                                />
-                                Client sign-off
-                              </label>
-                              <label className="flex items-center gap-1 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  className="checkbox checkbox-xs"
-                                  checked={step.requestInspection}
-                                  onChange={(e) => setItpSteps((prev) => prev.map((s) => s.id === step.id ? { ...s, requestInspection: e.target.checked } : s))}
-                                />
-                                Request inspection
-                              </label>
-                              <button
-                                type="button"
-                                className="btn btn-ghost btn-xs text-error ml-auto"
-                                onClick={() => setItpSteps((prev) => prev.filter((s) => s.id !== step.id))}
-                              >
-                                Remove
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-xs gap-0.5"
-                          onClick={() => {
-                            setItpSteps((prev) => [
-                              ...prev,
-                              { id: generateId(), category: cat.id, label: "", required: true, clientSignOff: false, requestInspection: false },
-                            ]);
-                          }}
-                        >
-                          + Add step
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            <div className="modal-action mt-4">
-              <button type="button" className="btn btn-ghost" onClick={onClose}>Close</button>
-            </div>
-          </div>
-        )}
-
         {activeTab === "project" && (
           <div className="mt-4 space-y-4">
             <p className="text-sm text-base-content/70">
@@ -1039,75 +878,9 @@ function ModalParameters({
             </ul>
             {projectWpsLibrary.length === 0 && <p className="text-sm text-base-content/50">No WPS entries yet.</p>}
 
-            <div className="divider my-1">Electrode Register</div>
-            <div className="flex justify-end">
-              <button type="button" className="btn btn-ghost btn-sm" onClick={handleAddElectrode}>
-                + Add electrode
-              </button>
-            </div>
-            <ul className="space-y-2">
-              {projectElectrodeLibrary.map((entry) => (
-                <li key={entry.id} className="p-2 bg-base-200 rounded-lg space-y-2">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    <input
-                      type="text"
-                      className="input input-bordered input-sm"
-                      value={entry.code || ""}
-                      onChange={(e) => handleUpdateElectrode(entry.id, { code: e.target.value.toUpperCase() })}
-                      placeholder="Electrode code"
-                    />
-                    <input
-                      type="text"
-                      className="input input-bordered input-sm"
-                      value={entry.title || ""}
-                      onChange={(e) => handleUpdateElectrode(entry.id, { title: e.target.value })}
-                      placeholder="Description"
-                    />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 items-end">
-                    <div className="form-control">
-                      <label className="label py-0">
-                        <span className="label-text text-xs">Linked electrode PDF</span>
-                      </label>
-                      <div className="flex gap-1">
-                        <select
-                          className="select select-bordered select-sm flex-1"
-                          value={entry.documentId || ""}
-                          onChange={(e) => handleUpdateElectrode(entry.id, { documentId: e.target.value || null })}
-                        >
-                          <option value="">No PDF linked</option>
-                          {electrodeDocuments.map((doc) => (
-                            <option key={doc.id} value={doc.id}>
-                              {doc.title || doc.fileName}
-                            </option>
-                          ))}
-                        </select>
-                        {!entry.documentId && (
-                          <button
-                            type="button"
-                            className="btn btn-ghost btn-sm"
-                            onClick={() => {
-                              electrodeUploadTargetRef.current = entry.id;
-                              electrodeUploadInputRef.current?.click();
-                            }}
-                          >
-                            Load
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex justify-end">
-                      <button type="button" className="btn btn-ghost btn-xs text-error" onClick={() => handleRemoveElectrode(entry.id)}>
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-            {projectElectrodeLibrary.length === 0 && (
-              <p className="text-sm text-base-content/50">No electrode entries yet.</p>
-            )}
+            <p className="text-sm text-base-content/60 mt-4">
+              Manage electrode certificates and register entries in <strong>Document Vault</strong> (Databook builder).
+            </p>
             <div className="modal-action mt-4">
               <button type="button" className="btn btn-ghost" onClick={onClose}>Close</button>
             </div>
@@ -1126,13 +899,6 @@ function ModalParameters({
           accept=".pdf,application/pdf"
           className="hidden"
           onChange={(e) => handleUploadWpsDocument(wpsUploadTargetRef.current, e)}
-        />
-        <input
-          ref={electrodeUploadInputRef}
-          type="file"
-          accept=".pdf,application/pdf"
-          className="hidden"
-          onChange={(e) => handleUploadElectrodeDocument(electrodeUploadTargetRef.current, e)}
         />
       </div>
       <form method="dialog" className="modal-backdrop">

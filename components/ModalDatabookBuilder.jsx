@@ -78,10 +78,12 @@ function ModalDatabookBuilder({
   personnel = { welders: [], wqrs: [] },
   drawingSettings = {},
   wpsLibrary = [],
+  electrodeLibrary = [],
   materialCertificates = [],
   onSaveMaterialCertificates,
   ndtReports = [],
   onSaveDocuments,
+  onSaveElectrodeLibrary,
   onSaveDatabookConfig,
 }) {
   const [activeTab, setActiveTab] = useState("sections");
@@ -95,8 +97,11 @@ function ModalDatabookBuilder({
   const [sectionUploadTarget, setSectionUploadTarget] = useState(null);
   const [sectionFilter, setSectionFilter] = useState("all");
   const [vaultCategoryFilter, setVaultCategoryFilter] = useState("all");
+  const [localElectrodeLibrary, setLocalElectrodeLibrary] = useState([]);
   const mtcUploadInputRef = useRef(null);
   const mtcUploadHeatRef = useRef("");
+  const electrodeUploadInputRef = useRef(null);
+  const electrodeUploadTargetRef = useRef(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -116,7 +121,8 @@ function ModalDatabookBuilder({
     setSectionUploadTarget(null);
     setSectionFilter("all");
     setVaultCategoryFilter("all");
-  }, [isOpen, documents, databookConfig, ndtReports, materialCertificates]);
+    setLocalElectrodeLibrary(Array.isArray(electrodeLibrary) ? electrodeLibrary.map((e) => ({ ...e })) : []);
+  }, [isOpen, documents, databookConfig, ndtReports, materialCertificates, electrodeLibrary]);
 
   const validation = useMemo(
     () =>
@@ -167,6 +173,11 @@ function ModalDatabookBuilder({
       return section.type === sectionFilter;
     });
   }, [localConfig.sectionOrder, sectionFilter, validation.sections]);
+
+  const electrodeVaultDocuments = useMemo(
+    () => localDocuments.filter((doc) => doc?.category === "electrode" && !doc?.isReadOnlyFromNdt),
+    [localDocuments]
+  );
 
   const filteredVaultDocuments = useMemo(() => {
     const sorted = localDocuments
@@ -257,6 +268,9 @@ function ModalDatabookBuilder({
     const doc = localDocuments.find((item) => item.id === documentId);
     if (doc?.isReadOnlyFromNdt) return;
     setLocalDocuments((prev) => prev.filter((doc) => doc.id !== documentId));
+    setLocalElectrodeLibrary((prev) =>
+      prev.map((e) => (e.documentId === documentId ? { ...e, documentId: null } : e))
+    );
     setLocalConfig((prev) => {
       const nextLinks = { ...(prev.sectionDocumentIds || {}) };
       Object.entries(nextLinks).forEach(([sectionId, linkedDocumentId]) => {
@@ -321,9 +335,51 @@ function ModalDatabookBuilder({
     });
   }, [isOpen, localDocuments]);
 
+  function handleAddElectrode() {
+    const nextCode = `ELEC-${String(localElectrodeLibrary.length + 1).padStart(3, "0")}`;
+    setLocalElectrodeLibrary((prev) => [
+      ...prev,
+      { id: generateId("elec"), code: nextCode, title: "", documentId: null },
+    ]);
+  }
+
+  function handleRemoveElectrode(electrodeId) {
+    setLocalElectrodeLibrary((prev) => prev.filter((entry) => entry.id !== electrodeId));
+  }
+
+  function handleUpdateElectrode(electrodeId, updates) {
+    setLocalElectrodeLibrary((prev) =>
+      prev.map((entry) => (entry.id === electrodeId ? { ...entry, ...updates } : entry))
+    );
+  }
+
+  async function handleUploadElectrodeCertificate(electrodeId, event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    const resolvedId = electrodeId || electrodeUploadTargetRef.current;
+    if (!file || !resolvedId) return;
+    const entry = localElectrodeLibrary.find((item) => item.id === resolvedId);
+    if (!entry) return;
+    const uploaded = {
+      id: generateId("doc"),
+      title: (entry.code || file.name || "Electrode").replace(/\.pdf$/i, ""),
+      category: "electrode",
+      fileName: file.name,
+      mimeType: file.type || "application/pdf",
+      base64: await fileToBase64(file),
+      createdAt: new Date().toISOString(),
+    };
+    setLocalDocuments((prev) => [...prev, uploaded]);
+    setLocalElectrodeLibrary((prev) =>
+      prev.map((item) => (item.id === resolvedId ? { ...item, documentId: uploaded.id } : item))
+    );
+    electrodeUploadTargetRef.current = null;
+  }
+
   function handleSave() {
     onSaveDocuments?.(localDocuments.filter((doc) => !doc?.isReadOnlyFromNdt));
     onSaveMaterialCertificates?.(localMaterialCertificates);
+    onSaveElectrodeLibrary?.(localElectrodeLibrary);
     onSaveDatabookConfig?.(localConfig);
     onClose?.();
   }
@@ -692,6 +748,87 @@ function ModalDatabookBuilder({
                   {isUploading && <p className="text-xs text-base-content/60 mt-2">Uploading…</p>}
                 </div>
 
+                {(vaultCategoryFilter === "all" || vaultCategoryFilter === "electrode") && (
+                  <div className="border border-base-300 rounded-lg p-3 bg-base-100 space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <h4 className="font-medium text-sm">Electrode register</h4>
+                        <p className="text-xs text-base-content/60 mt-0.5">
+                          Codes appear in weld records. Link a certificate PDF from the vault or upload one here.
+                        </p>
+                      </div>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={handleAddElectrode}>
+                        + Add electrode
+                      </button>
+                    </div>
+                    <ul className="space-y-2">
+                      {localElectrodeLibrary.map((entry) => (
+                        <li key={entry.id} className="p-2 bg-base-200 rounded-lg space-y-2">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            <input
+                              type="text"
+                              className="input input-bordered input-sm"
+                              value={entry.code || ""}
+                              onChange={(e) => handleUpdateElectrode(entry.id, { code: e.target.value.toUpperCase() })}
+                              placeholder="Electrode code"
+                            />
+                            <input
+                              type="text"
+                              className="input input-bordered input-sm"
+                              value={entry.title || ""}
+                              onChange={(e) => handleUpdateElectrode(entry.id, { title: e.target.value })}
+                              placeholder="Description"
+                            />
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 items-end">
+                            <div className="form-control">
+                              <label className="label py-0">
+                                <span className="label-text text-xs">Linked electrode PDF</span>
+                              </label>
+                              <div className="flex gap-1">
+                                <select
+                                  className="select select-bordered select-sm flex-1"
+                                  value={entry.documentId || ""}
+                                  onChange={(e) => handleUpdateElectrode(entry.id, { documentId: e.target.value || null })}
+                                >
+                                  <option value="">No PDF linked</option>
+                                  {electrodeVaultDocuments.map((d) => (
+                                    <option key={d.id} value={d.id}>
+                                      {d.title || d.fileName}
+                                    </option>
+                                  ))}
+                                </select>
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost btn-sm"
+                                  onClick={() => {
+                                    electrodeUploadTargetRef.current = entry.id;
+                                    electrodeUploadInputRef.current?.click();
+                                  }}
+                                >
+                                  Load
+                                </button>
+                              </div>
+                            </div>
+                            <div className="flex justify-end">
+                              <button
+                                type="button"
+                                className="btn btn-ghost btn-xs text-error"
+                                onClick={() => handleRemoveElectrode(entry.id)}
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                    {localElectrodeLibrary.length === 0 && (
+                      <p className="text-sm text-base-content/50">No electrode entries yet.</p>
+                    )}
+                  </div>
+                )}
+
                 {filteredVaultDocuments.length === 0 ? (
                   <p className="text-sm text-base-content/60">No documents in this category.</p>
                 ) : (
@@ -777,6 +914,13 @@ function ModalDatabookBuilder({
           accept=".pdf,application/pdf"
           className="hidden"
           onChange={handleMtcHeatUpload}
+        />
+        <input
+          ref={electrodeUploadInputRef}
+          type="file"
+          accept=".pdf,application/pdf"
+          className="hidden"
+          onChange={(e) => handleUploadElectrodeCertificate(electrodeUploadTargetRef.current, e)}
         />
 
         <div className="modal-action mt-4">
