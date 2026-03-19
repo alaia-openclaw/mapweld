@@ -18,6 +18,7 @@ function SidePanelDrawings({
   const [expandedId, setExpandedId] = useState(null);
   const [editRevision, setEditRevision] = useState("");
   const [editLineIds, setEditLineIds] = useState([]);
+  const [lineMenuDrawingId, setLineMenuDrawingId] = useState(null);
   const fileInputRef = useRef(null);
 
   function handleExpand(dwg) {
@@ -38,6 +39,20 @@ function SidePanelDrawings({
     const next = editLineIds.includes(lineId)
       ? editLineIds.filter((x) => x !== lineId)
       : [...editLineIds, lineId];
+    setEditLineIds(next);
+    onUpdateDrawing?.(expandedId, { lineIds: next });
+  }
+
+  function addLineLink(lineId) {
+    if (!expandedId || editLineIds.includes(lineId)) return;
+    const next = [...editLineIds, lineId];
+    setEditLineIds(next);
+    onUpdateDrawing?.(expandedId, { lineIds: next });
+  }
+
+  function removeLineLink(lineId) {
+    if (!expandedId) return;
+    const next = editLineIds.filter((x) => x !== lineId);
     setEditLineIds(next);
     onUpdateDrawing?.(expandedId, { lineIds: next });
   }
@@ -142,11 +157,76 @@ function SidePanelDrawings({
                               placeholder="e.g. A, B, C"
                             />
                           </div>
-                          {lines.length > 0 && (
-                            <div className="form-control">
-                              <label className="label py-0 min-h-0">
-                                <span className="label-text text-xs">Linked lines</span>
-                              </label>
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="label-text text-xs font-medium">
+                                Linked lines ({editLineIds.length})
+                              </span>
+                              {lines.length > 0 && (
+                                <div className={`dropdown dropdown-end ${lineMenuDrawingId === dwg.id ? "dropdown-open" : ""}`}>
+                                  <button
+                                    type="button"
+                                    className="btn btn-ghost btn-xs gap-0.5"
+                                    onClick={() => setLineMenuDrawingId((prev) => (prev === dwg.id ? null : dwg.id))}
+                                  >
+                                    + Add line
+                                  </button>
+                                  <ul className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-56 max-h-56 overflow-y-auto border border-base-300">
+                                    {lines.filter((line) => !editLineIds.includes(line.id)).length === 0 ? (
+                                      <li>
+                                        <span className="text-xs text-base-content/50">All lines linked</span>
+                                      </li>
+                                    ) : (
+                                      lines
+                                        .filter((line) => !editLineIds.includes(line.id))
+                                        .map((line) => (
+                                          <li key={line.id}>
+                                            <button
+                                              type="button"
+                                              className="text-left text-sm"
+                                              onClick={() => {
+                                                addLineLink(line.id);
+                                                setLineMenuDrawingId(null);
+                                              }}
+                                            >
+                                              {line.name || line.id}
+                                            </button>
+                                          </li>
+                                        ))
+                                    )}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                            {editLineIds.length === 0 ? (
+                              <p className="text-xs text-base-content/50">None linked</p>
+                            ) : (
+                              <ul className="space-y-0.5">
+                                {editLineIds.map((lineId) => {
+                                  const linkedLine = lines.find((line) => line.id === lineId);
+                                  return (
+                                    <li
+                                      key={lineId}
+                                      className="flex items-center justify-between gap-1 text-xs py-1 px-1.5 bg-base-200 rounded min-w-0"
+                                    >
+                                      <span className="truncate" title={linkedLine?.name || lineId}>
+                                        {linkedLine?.name || lineId}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        className="btn btn-ghost btn-xs text-error px-0.5 min-h-6"
+                                        onClick={() => removeLineLink(lineId)}
+                                        aria-label="Unlink line"
+                                        title="Unlink line"
+                                      >
+                                        ×
+                                      </button>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            )}
+                            {lines.length > 0 && (
                               <div className="flex flex-wrap gap-1 mt-1">
                                 {lines.map((line) => {
                                   const linked = editLineIds.includes(line.id);
@@ -162,8 +242,8 @@ function SidePanelDrawings({
                                   );
                                 })}
                               </div>
-                            </div>
-                          )}
+                            )}
+                          </div>
                           <div className="flex flex-wrap gap-1 pt-2 border-t border-base-300">
                             {!isActive && (
                               <button
@@ -178,7 +258,7 @@ function SidePanelDrawings({
                               type="button"
                               className="btn btn-error btn-outline btn-sm"
                               onClick={() => {
-                                if (confirm("Delete this drawing? Markers on it will remain in the project data.")) {
+                                if (confirm("Delete this drawing? Linked welds, spools, parts, and markers on this drawing will be removed.")) {
                                   onDeleteDrawing?.(dwg.id);
                                   if (expandedId === dwg.id) setExpandedId(null);
                                 }

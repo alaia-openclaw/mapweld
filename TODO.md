@@ -15,6 +15,13 @@ Use this file to add comments for review and app updates.
 <!-- Add items for code review or design feedback -->
 > part/weld/spool submenu are filtered on the current page only
 >Add sheet number on export to excel
+> Harmonize linking UX across entities with one pattern:
+>   - Drawing -> Lines
+>   - Spool -> Welds
+>   - Spool -> Parts
+>   Use: linked list + add-link picker + unlink action
+> Keep panel/tab order consistent on desktop and mobile:
+>   Drawings -> Lines -> Spools -> Welds -> Parts
 
 ---
 
@@ -25,6 +32,11 @@ Use this file to add comments for review and app updates.
 > cutting list, welding parameter and gap
 > spool management, weight and feature
 > NDT and other basic setting under a preset per standard type (i.e. low pressure ASME B31.3)
+> New proposal: **Traceability Graph + Integrity Checker**
+>   - Visual tree: Drawing -> Line -> Spool -> Welds/Parts
+>   - Detects orphans and broken links (missing spool/part/drawing references)
+>   - One-click fixes (relink, unlink, cleanup)
+>   - Export integrity summary alongside Excel report
 ---
 
 ## In Progress
