@@ -473,6 +473,7 @@ function PanelNdtManagement({
               weldPoints={weldPoints}
               ndtRequests={ndtRequests}
               methodOptions={methodOptions}
+              drawingSettings={drawingSettings}
               request={requestToEdit}
               onSubmit={handleRequestSubmit}
               onCancel={handleCloseRequestForm}

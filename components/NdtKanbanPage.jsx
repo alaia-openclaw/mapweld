@@ -724,6 +724,7 @@ function NdtKanbanPage({
             <FormNdtRequest
               weldPoints={weldPoints}
               ndtRequests={ndtRequests}
+              drawingSettings={drawingSettings}
               request={requestToEdit || { method, weldIds: [], status: NDT_REQUEST_STATUS.DRAFT }}
               methodOptions={[method]}
               hideMethodSelect

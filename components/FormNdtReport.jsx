@@ -51,18 +51,24 @@ function FormNdtReport({
   drawingSettings = {},
 }) {
   const getWeldNameLocal = getWeldNameProp || ((w) => getWeldName(w, weldPoints));
-  const availableMethods = useMemo(
-    () =>
-      sortNdtMethods([
-        ...(methodOptions || []),
-        ...NDT_METHODS,
-        ...(drawingSettings?.ndtRequirements || []).map((item) => item?.method),
-        ...(ndtRequests || []).map((request) => request?.method),
+  const availableMethods = useMemo(() => {
+    // In locked contexts (e.g. Kanban tab), methodOptions should define allowed values.
+    if (hideMethodSelect && Array.isArray(methodOptions) && methodOptions.length > 0) {
+      return sortNdtMethods([
+        ...methodOptions,
         initialRequest?.method,
         initialReport?.method,
-      ]),
-    [methodOptions, drawingSettings, ndtRequests, initialRequest?.method, initialReport?.method]
-  );
+      ]);
+    }
+    return sortNdtMethods([
+      ...(methodOptions || []),
+      ...NDT_METHODS,
+      ...(drawingSettings?.ndtRequirements || []).map((item) => item?.method),
+      ...(ndtRequests || []).map((request) => request?.method),
+      initialRequest?.method,
+      initialReport?.method,
+    ]);
+  }, [hideMethodSelect, methodOptions, drawingSettings, ndtRequests, initialRequest?.method, initialReport?.method]);
 
   const [method, setMethod] = useState(
     initialReport?.method || initialRequest?.method || availableMethods[0] || NDT_METHODS[0]
