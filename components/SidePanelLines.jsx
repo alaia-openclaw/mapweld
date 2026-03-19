@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
+import { getNextUniqueLineName } from "@/lib/line-utils";
 
 function SidePanelLines({
   systems = [],
@@ -62,11 +63,10 @@ function SidePanelLines({
       return;
     }
     const id = `line-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-    const sysLines = lines.filter((l) => l.systemId === systemId);
-    const num = sysLines.length + 1;
+    const name = getNextUniqueLineName(allLines || lines);
     onSaveLines?.([
       ...lines,
-      { id, systemId, name: `Line ${num}`, fluidType: "", pressure: "", diameterRange: "", thickness: "", material: "", drawingIds: [] },
+      { id, systemId, name, fluidType: "", pressure: "", diameterRange: "", thickness: "", material: "", drawingIds: [] },
     ]);
     setExpandedLineId(id);
   }

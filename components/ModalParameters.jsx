@@ -88,9 +88,9 @@ function ModalParameters({
     setMetaDate(projectMeta?.date || "");
     setProjectSystems(Array.isArray(systems) ? systems : []);
     setProjectWpsLibrary(Array.isArray(wpsLibrary) ? wpsLibrary : []);
-    setCustomNdtMethod("");
 
     if (justOpened) {
+      setCustomNdtMethod("");
       setPersonnelSubtab("fitters");
       setEditingWelderId(null);
       wqrUploadTargetRef.current = null;

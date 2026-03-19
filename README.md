@@ -24,6 +24,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Usage
 
+0. **Open `/app`** – If nothing is restored from the tab session, you’ll see **Project setup**: open a `.weldproject` file, pick a **saved project** (this device), run **New project** (guided steps: project info → personnel → default NDT & welding spec → systems → WPS), or **Skip** and use the toolbar. After a wizard, use **Load PDF** or **Continue without PDF**; you can reopen setup from the empty workspace link.
 1. **Load PDF** – Upload a PDF drawing
 2. **Add weld points** – Click on the drawing where welds are located
 3. **Edit weld info** – Click a weld marker to open the form (welder name, date, part numbers)

@@ -38,8 +38,11 @@ import { getWeldName, getWeldOverallStatus, computeNdtSelection } from "@/lib/we
 import { formatNdtRequirements, NDT_REPORT_STATUS } from "@/lib/constants";
 import { exportWeldsToExcel } from "@/lib/excel-export";
 import { applyReportToWelds } from "@/lib/ndt-utils";
-import { saveDraftToSession, loadDraftFromSession } from "@/lib/session-draft";
+import { saveDraftToSession, loadDraftFromSession, clearDraftFromSession } from "@/lib/session-draft";
+import ProjectSetupHub from "@/components/ProjectSetupHub";
+import ProjectSetupWizard from "@/components/ProjectSetupWizard";
 import { createDefaultDatabookConfig, normalizeDatabookConfig } from "@/lib/databook-sections";
+import { getNextUniqueLineName } from "@/lib/line-utils";
 
 const PDFViewerDynamic = dynamic(() => import("@/components/PDFViewer"), {
   ssr: false,
@@ -122,6 +125,9 @@ export default function WeldTrackerApp() {
   const [showStatusPage, setShowStatusPage] = useState(false);
   const [showHealthPage, setShowHealthPage] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [appReady, setAppReady] = useState(false);
+  const [showProjectHub, setShowProjectHub] = useState(false);
+  const [showSetupWizard, setShowSetupWizard] = useState(false);
   const [projectId, setProjectId] = useState(null);
   const [spoolMarkers, setSpoolMarkers] = useState([]);
   const [lineMarkers, setLineMarkers] = useState([]);
@@ -173,6 +179,7 @@ export default function WeldTrackerApp() {
   const sidePanelResizeRef = useRef(null);
   const emptyStatePdfInputRef = useRef(null);
   const emptyStateProjectInputRef = useRef(null);
+  const hubProjectFileInputRef = useRef(null);
   const [floatingToolbarPos, setFloatingToolbarPos] = useState({ x: 8, y: 8 });
   const [isFloatingToolbarCollapsed, setIsFloatingToolbarCollapsed] = useState(false);
   const floatingToolbarDragRef = useRef(null);
@@ -483,13 +490,13 @@ export default function WeldTrackerApp() {
         const id = `line-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
         targetLineId = id;
         setLines((prev) => {
-          const scopedCount = prev.filter((line) => (line.systemId || null) === (selectedSystemId || null)).length;
+          const name = getNextUniqueLineName(prev);
           return [
             ...prev,
             {
               id,
               systemId: selectedSystemId || null,
-              name: `Line ${scopedCount + 1}`,
+              name,
               fluidType: "",
               pressure: "",
               diameterRange: "",
@@ -1074,6 +1081,7 @@ export default function WeldTrackerApp() {
 
   const handleOpenProjectFromStorage = useCallback((data) => {
     applyLoadedProjectData(data, { forcedProjectId: data?.id || generateProjectId() });
+    setShowProjectHub(false);
   }, [applyLoadedProjectData]);
 
   const handleSwitchDrawing = useCallback((dwgId) => {
@@ -1358,9 +1366,15 @@ export default function WeldTrackerApp() {
 
   useEffect(() => {
     const draft = loadDraftFromSession();
-    const hasDraftDrawings = Array.isArray(draft?.drawings) && draft.drawings.length > 0;
-    if (!hasDraftDrawings && !draft?.pdfBase64) return;
-    applyLoadedProjectData(draft, { forcedProjectId: draft.id || generateProjectId() });
+    const canRestoreSession =
+      (Array.isArray(draft?.drawings) && draft.drawings.length > 0) || !!draft?.pdfBase64;
+    if (canRestoreSession && draft) {
+      applyLoadedProjectData(draft, { forcedProjectId: draft.id || generateProjectId() });
+      setShowProjectHub(false);
+    } else {
+      setShowProjectHub(true);
+    }
+    setAppReady(true);
   }, [applyLoadedProjectData]);
 
   useEffect(() => {
@@ -1389,10 +1403,44 @@ export default function WeldTrackerApp() {
       const hasDrawings = Array.isArray(data.drawings) && data.drawings.length > 0;
       if (!hasDrawings && !data.pdfBase64) throw new Error("No PDF in project file");
       applyLoadedProjectData(data, { forcedProjectId: generateProjectId() });
+      setShowProjectHub(false);
     } catch (err) {
       alert(err.message || "Failed to load project");
     }
   }, [applyLoadedProjectData]);
+
+  const handleBeginNewProject = useCallback(() => {
+    if (pdfBlob || weldPoints.length > 0) {
+      if (
+        !confirm(
+          "Discard the current project in this tab and start fresh? Unsaved work in this session may be lost."
+        )
+      )
+        return;
+    }
+    clearDraftFromSession();
+    applyLoadedProjectData({}, { forcedProjectId: generateProjectId() });
+    setShowProjectHub(false);
+    setShowSetupWizard(true);
+  }, [applyLoadedProjectData, pdfBlob, weldPoints.length]);
+
+  const handleWizardComplete = useCallback((payload) => {
+    if (payload?.projectMeta != null) setProjectMeta(payload.projectMeta);
+    if (payload?.personnel != null) setPersonnel(payload.personnel);
+    if (payload?.drawingSettings != null) setDrawingSettings(migrateDrawingSettings(payload.drawingSettings));
+    if (payload?.systems != null) setSystems(payload.systems);
+    if (payload?.wpsLibrary != null) setWpsLibrary(payload.wpsLibrary);
+    setShowSetupWizard(false);
+  }, []);
+
+  const handleWizardClose = useCallback(() => {
+    setShowSetupWizard(false);
+    setShowProjectHub(true);
+  }, []);
+
+  const handleRequestWizardLoadPdf = useCallback(() => {
+    requestAnimationFrame(() => emptyStatePdfInputRef.current?.click());
+  }, []);
 
   const handleExportExcel = useCallback(() => {
     exportWeldsToExcel(weldPoints, {
@@ -1682,13 +1730,13 @@ export default function WeldTrackerApp() {
     if (!activeDrawingId) return null;
     const id = `line-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     setLines((prev) => {
-      const scopedCount = prev.filter((line) => (line.systemId || null) === (systemId || null)).length;
+      const name = getNextUniqueLineName(prev);
       return [
         ...prev,
         {
           id,
           systemId: systemId || null,
-          name: `Line ${scopedCount + 1}`,
+          name,
           fluidType: "",
           pressure: "",
           diameterRange: "",
@@ -1789,7 +1837,11 @@ export default function WeldTrackerApp() {
         />
       </>
 
-      {showStatusPage ? (
+      {!appReady ? (
+        <div className="flex min-h-[50vh] w-full items-center justify-center rounded-lg border border-base-300/50 bg-base-100">
+          <span className="loading loading-lg loading-spinner text-primary" aria-label="Loading" />
+        </div>
+      ) : showStatusPage ? (
         <div className="flex-1 min-h-0 flex flex-col rounded-lg overflow-hidden shadow bg-base-100">
           <StatusPage
             weldPoints={weldPoints}
@@ -1868,7 +1920,15 @@ export default function WeldTrackerApp() {
           )}
 
           <div className="relative flex gap-0 items-stretch md:rounded-lg overflow-hidden md:shadow bg-base-100 h-[calc(100dvh-3.5rem)] md:h-[calc(100dvh-10rem)] min-h-0">
-            {pdfBlob ? (
+            {showProjectHub && !pdfBlob ? (
+              <ProjectSetupHub
+                onNewProject={handleBeginNewProject}
+                onOpenSavedProjects={() => setShowProjects(true)}
+                onLoadProjectFile={handleLoadProject}
+                onSkipToWorkspace={() => setShowProjectHub(false)}
+                projectFileInputRef={hubProjectFileInputRef}
+              />
+            ) : pdfBlob ? (
               <>
                 {pdfBlob && (
                   <div
@@ -2290,11 +2350,20 @@ export default function WeldTrackerApp() {
                   </div>
                   <div className="space-y-2">
                     <h2 className="text-xl font-bold text-base-content">
-                      No drawing loaded
+                      {projectMeta?.projectName?.trim()
+                        ? `${projectMeta.projectName.trim()} — load a drawing`
+                        : "No drawing loaded"}
                     </h2>
                     <p className="text-base-content/70 text-sm leading-relaxed">
                       Load a PDF drawing or open a saved project to start marking weld points and recording details.
                     </p>
+                    <button
+                      type="button"
+                      className="link link-hover text-sm text-primary/90"
+                      onClick={() => setShowProjectHub(true)}
+                    >
+                      Project setup — open file, saved projects, or new wizard
+                    </button>
                   </div>
                   <div className="flex flex-col sm:flex-row gap-3 justify-center">
                     <button
@@ -2521,6 +2590,13 @@ export default function WeldTrackerApp() {
         hasWelds={weldPoints.length > 0}
         hasSpools={spools.length > 0}
         hasParts={parts.length > 0}
+      />
+
+      <ProjectSetupWizard
+        isOpen={showSetupWizard}
+        onClose={handleWizardClose}
+        onComplete={handleWizardComplete}
+        onRequestLoadPdf={handleRequestWizardLoadPdf}
       />
     </div>
   );
