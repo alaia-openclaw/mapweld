@@ -7,6 +7,10 @@ function DashboardAnalytics({
   weldPoints = [],
   weldStatusByWeldId = new Map(),
   spools = [],
+  drawings = [],
+  lines = [],
+  systems = [],
+  parts = [],
 }) {
   const stats = useMemo(() => {
     const total = weldPoints.length;
@@ -40,17 +44,54 @@ function DashboardAnalytics({
       byType,
       assignedToSpool,
       spoolCount: spools.length,
+      drawingCount: drawings.length,
+      lineCount: lines.length,
+      systemCount: systems.length,
+      partCount: parts.length,
     };
-  }, [weldPoints, weldStatusByWeldId, spools]);
+  }, [weldPoints, weldStatusByWeldId, spools, drawings, lines, systems, parts]);
 
   const progressPct =
     stats.total > 0 ? Math.round((stats.complete / stats.total) * 100) : 0;
 
-  if (stats.total === 0 && stats.spoolCount === 0) return null;
+  if (
+    stats.total === 0 &&
+    stats.spoolCount === 0 &&
+    stats.drawingCount === 0 &&
+    stats.lineCount === 0 &&
+    stats.systemCount === 0 &&
+    stats.partCount === 0
+  ) {
+    return null;
+  }
 
   return (
     <div className="bg-base-200/80 rounded-lg border border-base-300 p-3 mb-3">
       <div className="flex flex-wrap items-center gap-4 md:gap-6">
+        {stats.drawingCount > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-base-content/60 text-sm font-medium">Drawings</span>
+            <span className="font-bold text-lg tabular-nums">{stats.drawingCount}</span>
+          </div>
+        )}
+        {stats.systemCount > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-base-content/60 text-sm font-medium">Systems</span>
+            <span className="font-bold text-lg tabular-nums">{stats.systemCount}</span>
+          </div>
+        )}
+        {stats.lineCount > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-base-content/60 text-sm font-medium">Lines</span>
+            <span className="font-bold text-lg tabular-nums">{stats.lineCount}</span>
+          </div>
+        )}
+        {stats.partCount > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-base-content/60 text-sm font-medium">Parts</span>
+            <span className="font-bold text-lg tabular-nums">{stats.partCount}</span>
+          </div>
+        )}
         <div className="flex items-center gap-2">
           <span className="text-base-content/60 text-sm font-medium">
             Welds

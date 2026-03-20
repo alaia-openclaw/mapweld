@@ -15,6 +15,7 @@ function ModalPrint({
   const [markerWelds, setMarkerWelds] = useState(true);
   const [markerSpools, setMarkerSpools] = useState(true);
   const [markerParts, setMarkerParts] = useState(true);
+  const [markerLines, setMarkerLines] = useState(true);
   const [weldMap, setWeldMap] = useState(true);
   const [projectProgress, setProjectProgress] = useState(true);
   const [projectSummary, setProjectSummary] = useState(true);
@@ -28,6 +29,7 @@ function ModalPrint({
         welds: markerWelds,
         spools: markerSpools,
         parts: markerParts,
+        lines: markerLines,
       },
       weldMap: hasWelds && weldMap,
       projectProgress,
@@ -39,6 +41,7 @@ function ModalPrint({
     markerWelds,
     markerSpools,
     markerParts,
+    markerLines,
     weldMap,
     projectProgress,
     projectSummary,
@@ -98,6 +101,15 @@ function ModalPrint({
                     onChange={(e) => setMarkerParts(e.target.checked)}
                   />
                   Parts
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="checkbox checkbox-xs"
+                    checked={markerLines}
+                    onChange={(e) => setMarkerLines(e.target.checked)}
+                  />
+                  Lines
                 </label>
               </div>
             </div>

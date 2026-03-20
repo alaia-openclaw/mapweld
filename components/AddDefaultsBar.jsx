@@ -12,6 +12,8 @@ function AddDefaultsBar({
   onAddDefaultsChange,
   spools = [],
   lines = [],
+  /** Lines linked to the active drawing (for new spool default line). */
+  linesForSpoolDefault = null,
   systems = [],
   className = "",
 }) {
@@ -35,6 +37,7 @@ function AddDefaultsBar({
   const showSpool = markupTool === "add";
   const showPart = markupTool === "addPart";
   const showLine = markupTool === "addLine";
+  const spoolLineChoices = Array.isArray(linesForSpoolDefault) ? linesForSpoolDefault : lines;
 
   function handleCatalogCategoryChange(value) {
     onAddDefaultsChange?.({
@@ -102,6 +105,28 @@ function AddDefaultsBar({
           </select>
         </div>
       )}
+      {showSpool && spoolLineChoices.length > 0 && (
+        <div className="flex items-center gap-1">
+          <label htmlFor="default-spool-line" className="text-[11px] text-base-content/60 whitespace-nowrap">
+            Line
+          </label>
+          <select
+            id="default-spool-line"
+            className="select select-bordered select-xs h-7 min-h-7 py-0.5 w-24 max-w-full text-xs"
+            value={addDefaults?.spoolLineId ?? ""}
+            onChange={(e) =>
+              onAddDefaultsChange?.({ ...addDefaults, spoolLineId: e.target.value || null })
+            }
+          >
+            <option value="">—</option>
+            {spoolLineChoices.map((line) => (
+              <option key={line.id} value={line.id}>
+                {line.name || line.id}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       {showPart && (
         <>
           <div className="flex items-center gap-1">
@@ -159,7 +184,7 @@ function AddDefaultsBar({
             id="default-thickness"
             type="text"
             className="input input-bordered input-xs h-7 min-h-7 py-0.5 w-12 max-w-full text-xs"
-            placeholder="Thick"
+            placeholder="Sch"
             value={addDefaults?.thickness ?? ""}
             onChange={(e) => onAddDefaultsChange?.({ ...addDefaults, thickness: e.target.value })}
             aria-label="Thickness"

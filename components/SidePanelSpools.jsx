@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
+import { comparePartDisplayNumbers } from "@/lib/part-display-number";
 
 function SidePanelSpools({
   spools = [],
@@ -179,7 +180,7 @@ function SidePanelSpools({
         <ul className="menu p-1">
           {partsNotOnSpool(spoolId)
             .slice()
-            .sort((a, b) => (a.displayNumber ?? 0) - (b.displayNumber ?? 0))
+            .sort(comparePartDisplayNumbers)
             .map((p) => {
               const otherSpoolName =
                 p.spoolId && p.spoolId !== spoolId ? getSpoolName(p.spoolId) : null;
@@ -524,7 +525,7 @@ function SidePanelSpools({
                               <ul className="space-y-0.5">
                                 {partsOnSpool(s.id)
                                   .slice()
-                                  .sort((a, b) => (a.displayNumber ?? 0) - (b.displayNumber ?? 0))
+                                  .sort(comparePartDisplayNumbers)
                                   .map((p) => (
                                     <li
                                       key={p.id}

@@ -13,6 +13,7 @@ import {
   findEntryByHierarchy,
 } from "@/lib/catalog-hierarchy";
 import CatalogHierarchyStepSelects from "@/components/CatalogHierarchyStepSelects";
+import { comparePartDisplayNumbers } from "@/lib/part-display-number";
 
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
@@ -251,7 +252,9 @@ function SidePanelPartForm({
   return (
     <div
       className={`flex flex-col bg-base-200 transition-all duration-300 ease-out min-w-0 ${
-        hideHeader ? "w-full flex-1 min-h-0 overflow-hidden flex-shrink" : `border-l border-base-300 ${isOpen ? "w-full min-w-[10rem] min-h-0 flex-1 h-full overflow-hidden flex-shrink" : "w-14 overflow-hidden flex-shrink-0"}`
+        hideHeader
+          ? "w-full flex-1 min-h-0 overflow-hidden"
+          : `flex-shrink-0 border-l border-base-300 ${isOpen ? "w-full min-w-[10rem] min-h-0 flex-1 h-full overflow-hidden" : "w-14 overflow-hidden"}`
       }`}
     >
       {!hideHeader && (
@@ -310,7 +313,15 @@ function SidePanelPartForm({
                     </button>
                   )}
                 </div>
-                <div className="space-y-3 w-full min-w-0">
+                <details
+                  className="rounded-lg border border-base-300 bg-base-100/40 open:bg-base-100/60"
+                  open
+                >
+                  <summary className="cursor-pointer list-none px-2 py-2 text-sm font-medium marker:content-none [&::-webkit-details-marker]:hidden flex items-center justify-between gap-2">
+                    <span>Part fields</span>
+                    <span className="text-base-content/40 text-xs">▾</span>
+                  </summary>
+                  <div className="space-y-3 w-full min-w-0 px-2 pb-3 pt-1 border-t border-base-300/50">
                   <div className="form-control">
                     <label className="label" htmlFor="part-catalog-category">
                       <span className="label-text">Category</span>
@@ -370,7 +381,7 @@ function SidePanelPartForm({
                       </div>
                       <div className="form-control">
                         <label className="label" htmlFor="part-thickness">
-                          <span className="label-text">Thickness</span>
+                          <span className="label-text">Schedule</span>
                         </label>
                         <input
                           id="part-thickness"
@@ -490,14 +501,15 @@ function SidePanelPartForm({
                       Link certificate by heat number for databook traceability.
                     </p>
                   </div>
-                </div>
+                  </div>
+                </details>
               </>
             ) : (
                 <div className="space-y-2 min-w-0">
                   <ul className="space-y-2 min-w-0">
                     {parts
                       .slice()
-                      .sort((a, b) => (a.displayNumber ?? 0) - (b.displayNumber ?? 0))
+                      .sort(comparePartDisplayNumbers)
                       .map((p) => {
                         const marker = partMarkers.find((m) => m.partId === p.id);
                         const spoolName = p.spoolId ? getSpoolName(p.spoolId) : null;

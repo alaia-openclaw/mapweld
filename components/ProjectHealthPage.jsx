@@ -111,6 +111,30 @@ function ProjectHealthPage({
     return map;
   }, [issues]);
 
+  /** Merge repeated titles (same severity + title + detail) into one row with a count. */
+  const rollupIssues = useMemo(() => {
+    const m = new Map();
+    for (const issue of issues) {
+      const key = `${issue.category}|${issue.severity}|${issue.title}|${issue.detail || ""}`;
+      const cur = m.get(key);
+      if (!cur) {
+        m.set(key, { issue, count: 1, entityIds: issue.entityId ? [issue.entityId] : [] });
+      } else {
+        cur.count += 1;
+        if (issue.entityId && cur.entityIds.length < 8) cur.entityIds.push(issue.entityId);
+      }
+    }
+    return [...m.values()];
+  }, [issues]);
+
+  const groupedRollup = useMemo(() => {
+    const map = {};
+    CATEGORY_ORDER.forEach((c) => {
+      map[c] = rollupIssues.filter((r) => r.issue.category === c);
+    });
+    return map;
+  }, [rollupIssues]);
+
   const totalErrors = issues.filter((i) => i.severity === "error").length;
   const totalWarnings = issues.filter((i) => i.severity === "warning").length;
 
@@ -169,6 +193,7 @@ function ProjectHealthPage({
           <div className="w-full max-w-4xl mx-auto rounded-xl border border-base-300 overflow-hidden divide-y divide-base-300 bg-base-100">
             {CATEGORY_ORDER.map((cat) => {
               const list = grouped[cat] || [];
+              const roll = groupedRollup[cat] || [];
               const counts = countsByCategory[cat] || { error: 0, warning: 0, info: 0 };
               const summary = formatSeveritySummary(counts);
               return (
@@ -189,40 +214,69 @@ function ProjectHealthPage({
                       <p className="text-sm text-base-content/50 py-3">Nothing to report in this category.</p>
                     ) : (
                       <ul className="flex flex-col gap-2 py-3">
-                        {list.map((issue) => (
-                          <li
-                            key={issue.id}
-                            className="rounded-lg border border-base-300 bg-base-100 p-3 flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3"
-                          >
-                            <BadgeSeverity severity={issue.severity} />
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium text-sm leading-snug">{issue.title}</p>
-                              {issue.detail ? (
-                                <p className="text-xs text-base-content/65 mt-1 leading-relaxed">{issue.detail}</p>
-                              ) : null}
-                              {issue.entityType === "weld" && issue.entityId && getWeldName ? (
-                                <p className="text-xs text-base-content/50 mt-1">
-                                  Weld:{" "}
-                                  <span className="font-mono">
-                                    {getWeldName(
-                                      weldPoints.find((w) => w.id === issue.entityId) ?? { id: issue.entityId },
-                                      weldPoints
-                                    ) ?? issue.entityId}
-                                  </span>
+                        {roll.map((row) => {
+                          const issue = row.issue;
+                          return (
+                            <li
+                              key={`${issue.category}|${issue.severity}|${issue.title}|${issue.detail || ""}`}
+                              className="rounded-lg border border-base-300 bg-base-100 p-3 flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3"
+                            >
+                              <BadgeSeverity severity={issue.severity} />
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-sm leading-snug">
+                                  {issue.title}
+                                  {row.count > 1 ? (
+                                    <span className="ml-2 tabular-nums text-base-content/60 font-normal">
+                                      × {row.count}
+                                    </span>
+                                  ) : null}
                                 </p>
+                                {issue.detail ? (
+                                  <p className="text-xs text-base-content/65 mt-1 leading-relaxed">{issue.detail}</p>
+                                ) : null}
+                                {issue.entityType === "weld" && row.entityIds.length > 0 && getWeldName ? (
+                                  <p className="text-xs text-base-content/50 mt-1">
+                                    {row.count > 1 ? (
+                                      <span>
+                                        Examples:{" "}
+                                        {row.entityIds.slice(0, 3).map((id) => (
+                                          <span key={id} className="font-mono mr-1">
+                                            {getWeldName(
+                                              weldPoints.find((w) => w.id === id) ?? { id },
+                                              weldPoints
+                                            ) ?? id}
+                                          </span>
+                                        ))}
+                                        {row.count > 3 ? "…" : null}
+                                      </span>
+                                    ) : (
+                                      <>
+                                        Weld:{" "}
+                                        <span className="font-mono">
+                                          {getWeldName(
+                                            weldPoints.find((w) => w.id === issue.entityId) ?? {
+                                              id: issue.entityId,
+                                            },
+                                            weldPoints
+                                          ) ?? issue.entityId}
+                                        </span>
+                                      </>
+                                    )}
+                                  </p>
+                                ) : null}
+                              </div>
+                              {issue.entityType === "weld" && issue.entityId && onSelectWeld ? (
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost btn-xs shrink-0 self-start"
+                                  onClick={() => onSelectWeld(issue.entityId)}
+                                >
+                                  Open weld
+                                </button>
                               ) : null}
-                            </div>
-                            {issue.entityType === "weld" && issue.entityId && onSelectWeld ? (
-                              <button
-                                type="button"
-                                className="btn btn-ghost btn-xs shrink-0 self-start"
-                                onClick={() => onSelectWeld(issue.entityId)}
-                              >
-                                Open weld
-                              </button>
-                            ) : null}
-                          </li>
-                        ))}
+                            </li>
+                          );
+                        })}
                       </ul>
                     )}
                   </div>

@@ -55,8 +55,7 @@ function PDFViewer({
   onMovePartIndicator,
   onDeletePartMarker,
   scrollToTarget,
-  showOverlay = true,
-  onToggleOverlay,
+  markerLayers = { welds: true, spools: true, parts: true, lines: true },
   pendingLabelId = null,
   onPendingLabelMove,
   focusMode = false,
@@ -524,28 +523,32 @@ function PDFViewer({
               </div>
             );
           })()}
-          {showOverlay && (
-            <>
-              <WeldOverlay
-                weldPoints={weldPointsOnPage}
-                selectedWeldId={selectedWeldId}
-                onWeldClick={onWeldClick}
-                onWeldDoubleClick={onWeldDoubleClick}
-                appMode={appMode}
-                canDrag={appMode === "edition"}
-                pageWrapperRef={pageWrapperRef}
-                onMoveWeldPoint={onMoveWeldPoint}
-                onMoveIndicator={onMoveIndicator}
-                onResizeLabel={onResizeLabel}
-                onMoveLineBend={onMoveLineBend}
-                weldStatusByWeldId={weldStatusByWeldId}
-                spools={spools}
-                scale={scale}
-                pendingWeldId={pendingLabelId?.type === "weld" ? pendingLabelId.id : null}
-                placingIndicatorOverride={placingIndicatorPos ? { xPercent: placingIndicatorPos.x, yPercent: placingIndicatorPos.y } : null}
-              />
-              <div className="absolute inset-0 pointer-events-none">
-                {spoolMarkersOnPage.map((m) => (
+          {markerLayers?.welds !== false && (
+            <WeldOverlay
+              weldPoints={weldPointsOnPage}
+              selectedWeldId={selectedWeldId}
+              onWeldClick={onWeldClick}
+              onWeldDoubleClick={onWeldDoubleClick}
+              appMode={appMode}
+              canDrag={appMode === "edition"}
+              pageWrapperRef={pageWrapperRef}
+              onMoveWeldPoint={onMoveWeldPoint}
+              onMoveIndicator={onMoveIndicator}
+              onResizeLabel={onResizeLabel}
+              onMoveLineBend={onMoveLineBend}
+              weldStatusByWeldId={weldStatusByWeldId}
+              spools={spools}
+              scale={scale}
+              pendingWeldId={pendingLabelId?.type === "weld" ? pendingLabelId.id : null}
+              placingIndicatorOverride={placingIndicatorPos ? { xPercent: placingIndicatorPos.x, yPercent: placingIndicatorPos.y } : null}
+            />
+          )}
+          {(markerLayers?.spools !== false ||
+            markerLayers?.lines !== false ||
+            markerLayers?.parts !== false) && (
+            <div className="absolute inset-0 pointer-events-none">
+              {markerLayers?.spools !== false &&
+                spoolMarkersOnPage.map((m) => (
                   <SpoolMarker
                     key={m.id}
                     marker={m}
@@ -561,7 +564,8 @@ function PDFViewer({
                     indicatorPositionOverride={pendingLabelId?.type === "spool" && pendingLabelId?.id === m.id && placingIndicatorPos ? { xPercent: placingIndicatorPos.x, yPercent: placingIndicatorPos.y } : null}
                   />
                 ))}
-                {lineMarkersOnPage.map((m) => {
+              {markerLayers?.lines !== false &&
+                lineMarkersOnPage.map((m) => {
                   const line = lines.find((item) => item.id === m.lineId);
                   return (
                     <LineMarker
@@ -579,7 +583,8 @@ function PDFViewer({
                     />
                   );
                 })}
-                {partMarkersOnPage.map((m) => {
+              {markerLayers?.parts !== false &&
+                partMarkersOnPage.map((m) => {
                   const part = parts.find((p) => p.id === m.partId);
                   return (
                     <PartMarker
@@ -598,8 +603,7 @@ function PDFViewer({
                     />
                   );
                 })}
-              </div>
-            </>
+            </div>
           )}
           {isPlacingLabel && (
             <div

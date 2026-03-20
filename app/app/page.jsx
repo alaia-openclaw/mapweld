@@ -37,6 +37,7 @@ import { createDefaultWeld, createDefaultSpool, createDefaultPart, createDefault
 import { normalizeJointDimensions } from "@/lib/joint-dimensions";
 import { partCatalog, findCatalogEntry } from "@/lib/part-catalog";
 import { findEntryByHierarchy } from "@/lib/catalog-hierarchy";
+import { computePartDisplayNumber } from "@/lib/part-display-number";
 import { getWeldName, getWeldOverallStatus, computeNdtSelection } from "@/lib/weld-utils";
 import { formatNdtRequirements, NDT_REPORT_STATUS } from "@/lib/constants";
 import { exportWeldsToExcel } from "@/lib/excel-export";
@@ -156,6 +157,7 @@ export default function WeldTrackerApp() {
   const [materialCertificates, setMaterialCertificates] = useState([]);
   const [addDefaults, setAddDefaults] = useState({
     spoolId: null,
+    spoolLineId: null,
     weldLocation: "shop",
     lineId: "__new__",
     lineSystemId: null,
@@ -172,7 +174,12 @@ export default function WeldTrackerApp() {
     pendingLabelRef.current = value;
     setPendingLabelIdState(value);
   }, []);
-  const [showOverlay, setShowOverlay] = useState(true);
+  const [markerLayers, setMarkerLayers] = useState({
+    welds: true,
+    spools: true,
+    parts: true,
+    lines: true,
+  });
   const [showPagePanel, setShowPagePanel] = useState(true);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
   const [mobileSheetTab, setMobileSheetTab] = useState("drawings");
@@ -294,8 +301,11 @@ export default function WeldTrackerApp() {
 
   const handleModeChange = useCallback((mode) => {
     setAppMode(mode);
-    if (mode === "inspection") setFormWeld(null);
-    if (mode === "inspection") setIsFloatingToolbarCollapsed(true);
+    if (mode === "inspection") {
+      setFormWeld(null);
+      setIsFloatingToolbarCollapsed(true);
+      setMarkupTool("select");
+    }
   }, []);
 
   const handleToolChange = useCallback((tool) => {
@@ -324,8 +334,7 @@ export default function WeldTrackerApp() {
       let newWeld;
       const loc = addDefaults?.weldLocation || "shop";
       setWeldPoints((prev) => {
-        const sameType = prev.filter((w) => (w.weldLocation || "shop") === loc);
-        const maxNum = sameType.reduce((m, w) => Math.max(m, w.weldNumber ?? 0), 0);
+        const maxNum = prev.reduce((m, w) => Math.max(m, w.weldNumber ?? 0), 0);
         newWeld = {
           ...createDefaultWeld(),
           id: generateId(),
@@ -375,6 +384,7 @@ export default function WeldTrackerApp() {
         const newSpool = createDefaultSpool({
           id: newSpoolId,
           name: `SP-${nextLetter}`,
+          lineId: addDefaults?.spoolLineId ?? null,
         });
         return [...prev, newSpool];
       });
@@ -393,7 +403,7 @@ export default function WeldTrackerApp() {
       ]);
       setPendingLabelId({ type: "spool", id: newMarkerId });
     },
-    [activeDrawingId, setPendingLabelId]
+    [activeDrawingId, addDefaults?.spoolLineId, setPendingLabelId]
   );
 
   const handleDeleteSpoolMarker = useCallback((markerId) => {
@@ -437,8 +447,6 @@ export default function WeldTrackerApp() {
 
   const handleAddPartMarker = useCallback(
     ({ xPercent, yPercent, pageNumber }) => {
-      const labelOffset = 4;
-      const nextNum = parts.length === 0 ? 1 : Math.max(...parts.map((p) => p.displayNumber ?? 0), 0) + 1;
       const cat = addDefaults?.catalogCategory;
       const hierarchyState = addDefaults?.hierarchyState ?? {};
       const entriesForCat = cat ? partCatalog.entries.filter((e) => e.catalogCategory === cat) : [];
@@ -456,7 +464,17 @@ export default function WeldTrackerApp() {
       const nps = catalogEntry?.nps ?? n;
       const thickness = catalogEntry?.thickness ?? th;
       const newPart = createDefaultPart({
-        displayNumber: nextNum,
+        displayNumber: computePartDisplayNumber({
+          parts,
+          partMarkers,
+          drawingId: activeDrawingId ?? null,
+          newPart: {
+            catalogPartId: catalogEntry?.catalogPartId ?? null,
+            partType,
+            nps,
+            thickness,
+          },
+        }),
         spoolId: addDefaults?.spoolId ?? null,
         partType,
         nps,
@@ -480,7 +498,7 @@ export default function WeldTrackerApp() {
       setPartMarkers((prev) => [...prev, newMarker]);
       setPendingLabelId({ type: "part", id: newMarkerId });
     },
-    [parts, addDefaults, activeDrawingId, setPendingLabelId]
+    [parts, partMarkers, addDefaults, activeDrawingId, setPendingLabelId]
   );
 
   const handleAddLineMarker = useCallback(
@@ -946,6 +964,7 @@ export default function WeldTrackerApp() {
         data.addDefaults && typeof data.addDefaults === "object"
           ? {
               spoolId: null,
+              spoolLineId: null,
               weldLocation: "shop",
               lineId: "__new__",
               lineSystemId: null,
@@ -959,6 +978,7 @@ export default function WeldTrackerApp() {
             }
           : {
               spoolId: null,
+              spoolLineId: null,
               weldLocation: "shop",
               lineId: "__new__",
               lineSystemId: null,
@@ -1457,15 +1477,16 @@ export default function WeldTrackerApp() {
 
   const handleExportExcel = useCallback(() => {
     exportWeldsToExcel(weldPoints, {
-      pdfFilename: projectMeta?.projectName?.trim() || pdfFilename,
+      pdfFilename,
       projectMeta,
       spools,
       parts,
       personnel,
       drawingSettings,
       ndtContext,
+      drawings,
     });
-  }, [weldPoints, pdfFilename, spools, parts, personnel, drawingSettings, projectMeta, ndtContext]);
+  }, [weldPoints, pdfFilename, spools, parts, personnel, drawingSettings, projectMeta, ndtContext, drawings]);
 
   const weldStatusByWeldId = useMemo(() => {
     const map = new Map();
@@ -1479,10 +1500,18 @@ export default function WeldTrackerApp() {
   const handlePrint = useCallback(
     async (options) => {
       const { runPrint } = await import("@/lib/print-utils");
-      const prevOverlay = showOverlay;
-      const includeMarkers = options.pdfDrawing && options.markers && (options.markers.welds || options.markers.spools || options.markers.parts);
-      if (includeMarkers !== prevOverlay) {
-        setShowOverlay(!!includeMarkers);
+      const includeMarkers =
+        options.pdfDrawing &&
+        options.markers &&
+        (options.markers.welds || options.markers.spools || options.markers.parts || options.markers.lines);
+      const prevLayers = { ...markerLayers };
+      if (includeMarkers) {
+        setMarkerLayers({
+          welds: !!options.markers.welds,
+          spools: !!options.markers.spools,
+          parts: !!options.markers.parts,
+          lines: !!options.markers.lines,
+        });
         await new Promise((r) => setTimeout(r, 200));
       }
       try {
@@ -1502,13 +1531,14 @@ export default function WeldTrackerApp() {
           weldStatusByWeldId,
           getWeldName,
           ndtContext,
+          drawings,
         });
       } finally {
-        if (includeMarkers !== prevOverlay) setShowOverlay(prevOverlay);
+        if (includeMarkers) setMarkerLayers(prevLayers);
       }
     },
     [
-      showOverlay,
+      markerLayers,
       pdfBlob,
       pdfFilename,
       weldPoints,
@@ -1518,6 +1548,7 @@ export default function WeldTrackerApp() {
       drawingSettings,
       weldStatusByWeldId,
       ndtContext,
+      drawings,
     ]
   );
 
@@ -1551,6 +1582,17 @@ export default function WeldTrackerApp() {
   const lineMarkersOnActiveDrawing = useMemo(
     () => lineMarkers.filter((marker) => isOnActiveDrawing(marker.drawingId)),
     [lineMarkers, isOnActiveDrawing]
+  );
+
+  const linesLinkedToActiveDrawing = useMemo(
+    () =>
+      lines.filter(
+        (ln) =>
+          activeDrawingId &&
+          Array.isArray(ln.drawingIds) &&
+          ln.drawingIds.includes(activeDrawingId)
+      ),
+    [lines, activeDrawingId]
   );
 
   const weldsOnCurrentPage = useMemo(
@@ -1813,6 +1855,15 @@ export default function WeldTrackerApp() {
     return id;
   }, [activeDrawingId, ensureLineLinkedToCurrentDrawing, addOrMoveLineMarkerOnCurrentPage]);
 
+  const selectionScrollKey = [
+    selectedWeldId,
+    selectedSpoolMarkerId,
+    selectedPartMarkerId,
+    selectedLineMarkerId,
+  ]
+    .filter(Boolean)
+    .join("|");
+
   const scrollToTarget = useMemo(() => {
     if (selectedWeldId) {
       const w = weldPoints.find((x) => x.id === selectedWeldId);
@@ -1831,7 +1882,7 @@ export default function WeldTrackerApp() {
       if (marker && marker.pageNumber != null) return { pageNumber: marker.pageNumber, xPercent: marker.xPercent ?? 50, yPercent: marker.yPercent ?? 50 };
     }
     return null;
-  }, [selectedWeldId, selectedSpoolMarkerId, selectedPartMarkerId, selectedLineMarkerId, weldPoints, spoolMarkers, partMarkers, lineMarkers]);
+  }, [selectionScrollKey]); // eslint-disable-line react-hooks/exhaustive-deps -- scroll only when selection id changes, not when dragging markers
 
   const settingsStructureIntegration = useMemo(
     () =>
@@ -2041,6 +2092,10 @@ export default function WeldTrackerApp() {
                 weldPoints={weldPoints}
                 weldStatusByWeldId={weldStatusByWeldId}
                 spools={spools}
+                drawings={drawings}
+                lines={lines}
+                systems={systems}
+                parts={parts}
               />
             </div>
           )}
@@ -2133,15 +2188,59 @@ export default function WeldTrackerApp() {
                               +
                             </button>
                           </div>
-                          <button
-                            type="button"
-                            className="btn btn-xs btn-ghost h-7 min-h-7 gap-1 hidden md:flex"
-                            onClick={() => setShowOverlay((v) => !v)}
-                            aria-label={showOverlay ? "Hide markers" : "Show markers"}
-                            title={showOverlay ? "Hide markers" : "Show markers"}
-                          >
-                            {showOverlay ? "Hide markers" : "Show markers"}
-                          </button>
+                          <details className="dropdown dropdown-end hidden md:block">
+                            <summary className="btn btn-xs btn-ghost h-7 min-h-7 gap-1 list-none cursor-pointer [&::-webkit-details-marker]:hidden">
+                              Markers
+                              {markerLayers.welds &&
+                              markerLayers.spools &&
+                              markerLayers.parts &&
+                              markerLayers.lines
+                                ? ""
+                                : "…"}
+                            </summary>
+                            <div className="dropdown-content z-[100] mt-1 w-52 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg">
+                              <p className="px-1 pb-1 text-[10px] font-medium uppercase tracking-wide text-base-content/50">
+                                Show on drawing
+                              </p>
+                              {(
+                                [
+                                  ["welds", "Welds"],
+                                  ["spools", "Spools"],
+                                  ["parts", "Parts"],
+                                  ["lines", "Lines"],
+                                ]
+                              ).map(([key, label]) => (
+                                <label
+                                  key={key}
+                                  className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-xs hover:bg-base-200"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    className="checkbox checkbox-xs"
+                                    checked={markerLayers[key]}
+                                    onChange={() =>
+                                      setMarkerLayers((prev) => ({ ...prev, [key]: !prev[key] }))
+                                    }
+                                  />
+                                  {label}
+                                </label>
+                              ))}
+                              <button
+                                type="button"
+                                className="btn btn-ghost btn-xs mt-2 w-full"
+                                onClick={() =>
+                                  setMarkerLayers({
+                                    welds: true,
+                                    spools: true,
+                                    parts: true,
+                                    lines: true,
+                                  })
+                                }
+                              >
+                                Show all
+                              </button>
+                            </div>
+                          </details>
                           {numPdfPages != null && numPdfPages > 1 && (
                             <>
                               <span className="w-px h-5 bg-base-300/60 shrink-0 ml-1" aria-hidden />
@@ -2181,6 +2280,7 @@ export default function WeldTrackerApp() {
                           onAddDefaultsChange={setAddDefaults}
                           spools={spoolsOnCurrentPage}
                           lines={lines}
+                          linesForSpoolDefault={linesLinkedToActiveDrawing}
                           systems={systems}
                           className="shadow-lg"
                         />
@@ -2244,8 +2344,7 @@ export default function WeldTrackerApp() {
                     onMovePartIndicator={handleMovePartIndicator}
                     onDeletePartMarker={handleDeletePartMarker}
                     scrollToTarget={scrollToTarget}
-                    showOverlay={showOverlay}
-                    onToggleOverlay={() => setShowOverlay((v) => !v)}
+                    markerLayers={markerLayers}
                     pendingLabelId={pendingLabelId}
                     onPendingLabelMove={handlePendingLabelMove}
                   />
@@ -2414,7 +2513,6 @@ export default function WeldTrackerApp() {
                             onUpdatePartHeat={handleUpdatePartHeat}
                             personnel={personnel}
                             wpsLibrary={wpsLibrary}
-                            documents={documents}
                             electrodeLibrary={electrodeLibrary}
                             ndtAutoLabel={formatNdtRequirements(drawingSettings.ndtRequirements)}
                             drawingSettings={drawingSettings}
@@ -2627,7 +2725,6 @@ export default function WeldTrackerApp() {
                 onUpdatePartHeat={handleUpdatePartHeat}
                 personnel={personnel}
                 wpsLibrary={wpsLibrary}
-                documents={documents}
                 electrodeLibrary={electrodeLibrary}
                 ndtAutoLabel={formatNdtRequirements(drawingSettings.ndtRequirements)}
                 drawingSettings={drawingSettings}
