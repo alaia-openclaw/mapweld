@@ -39,12 +39,7 @@ function WeldOverlay({
           weldStatus={weldStatusByWeldId?.get(weld.id)}
           scale={scale}
           indicatorPositionOverride={
-            pendingWeldId === weld.id
-              ? (placingIndicatorOverride ?? {
-                  xPercent: weld.indicatorXPercent ?? weld.xPercent ?? 0,
-                  yPercent: weld.indicatorYPercent ?? weld.yPercent ?? 0,
-                })
-              : null
+            pendingWeldId === weld.id ? placingIndicatorOverride : null
           }
         />
       ))}

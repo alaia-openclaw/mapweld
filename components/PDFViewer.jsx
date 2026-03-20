@@ -71,6 +71,7 @@ function PDFViewer({
   const isPanningRef = useRef(false);
   const pinchRef = useRef(null);
   const lastPlacementTapRef = useRef(0);
+  const placementSessionKeyRef = useRef("");
 
   const scale = controlledScale !== undefined ? controlledScale : internalScale;
   const currentPage = controlledPage !== undefined ? controlledPage : internalPage;
@@ -295,6 +296,24 @@ function PDFViewer({
   const weldPointsOnPage = weldPoints.filter(
     (w) => (w.pageNumber ?? 0) === currentPage - 1
   );
+
+  /** Pending-weld label: ignore placingIndicatorPos until layout effect pins this session (avoids stale coords from prior placement). */
+  const pendingWeldPlacingOverride =
+    pendingLabelId?.type === "weld"
+      ? (() => {
+          const w = weldPointsOnPage.find((p) => p.id === pendingLabelId.id);
+          if (!w) return null;
+          const sessionKey = `weld:${pendingLabelId.id}`;
+          const sessionReady = placementSessionKeyRef.current === sessionKey;
+          if (placingIndicatorPos && sessionReady) {
+            return { xPercent: placingIndicatorPos.x, yPercent: placingIndicatorPos.y };
+          }
+          return {
+            xPercent: w.indicatorXPercent ?? w.xPercent ?? 0,
+            yPercent: w.indicatorYPercent ?? w.yPercent ?? 0,
+          };
+        })()
+      : null;
   const spoolMarkersOnPage = spoolMarkers.filter(
     (m) => (m.pageNumber ?? 0) === currentPage - 1
   );
@@ -310,23 +329,39 @@ function PDFViewer({
   useLayoutEffect(() => {
     if (!isPlacingLabel) {
       setPlacingIndicatorPos(null);
+      placementSessionKeyRef.current = "";
       return;
     }
     const pending = pendingLabelId;
     if (!pending) return;
+    const sessionKey = `${pending.type}:${pending.id}`;
+    const sessionChanged = placementSessionKeyRef.current !== sessionKey;
     let ix, iy;
     if (pending.type === "weld") {
       const w = weldPoints.find((p) => p.id === pending.id);
-      ix = w?.indicatorXPercent; iy = w?.indicatorYPercent;
+      ix = w?.indicatorXPercent;
+      iy = w?.indicatorYPercent;
     } else if (pending.type === "spool") {
       const m = spoolMarkers.find((p) => p.id === pending.id);
-      ix = m?.indicatorXPercent; iy = m?.indicatorYPercent;
+      ix = m?.indicatorXPercent;
+      iy = m?.indicatorYPercent;
     } else if (pending.type === "part") {
       const m = partMarkers.find((p) => p.id === pending.id);
-      ix = m?.indicatorXPercent; iy = m?.indicatorYPercent;
+      ix = m?.indicatorXPercent;
+      iy = m?.indicatorYPercent;
     } else if (pending.type === "line") {
       const m = lineMarkers.find((p) => p.id === pending.id);
-      ix = m?.indicatorXPercent; iy = m?.indicatorYPercent;
+      ix = m?.indicatorXPercent;
+      iy = m?.indicatorYPercent;
+    }
+    if (sessionChanged) {
+      placementSessionKeyRef.current = sessionKey;
+      if (ix != null && iy != null) {
+        setPlacingIndicatorPos({ x: ix, y: iy });
+      } else {
+        setPlacingIndicatorPos(null);
+      }
+      return;
     }
     if (ix != null && iy != null) {
       setPlacingIndicatorPos((prev) => prev ?? { x: ix, y: iy });
@@ -339,21 +374,19 @@ function PDFViewer({
       const target = pageWrapperRef?.current;
       if (!target) return;
       const rect = target.getBoundingClientRect();
-      const clientX = e.touches ? e.touches[0]?.clientX : e.clientX;
-      const clientY = e.touches ? e.touches[0]?.clientY : e.clientY;
+      const clientX = e.clientX;
+      const clientY = e.clientY;
       if (clientX == null || clientY == null) return;
       const x = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
       const y = Math.max(0, Math.min(100, ((clientY - rect.top) / rect.height) * 100));
       setPlacingIndicatorPos({ x, y });
       onPendingLabelMove({ xPercent: x, yPercent: y });
-      if (e.touches && e.cancelable) e.preventDefault();
+      if (e.cancelable && e.pointerType === "touch") e.preventDefault();
     };
     const opts = { passive: false, capture: true };
-    document.addEventListener("mousemove", handler, opts);
-    document.addEventListener("touchmove", handler, opts);
+    window.addEventListener("pointermove", handler, opts);
     return () => {
-      document.removeEventListener("mousemove", handler, opts);
-      document.removeEventListener("touchmove", handler, opts);
+      window.removeEventListener("pointermove", handler, opts);
     };
   }, [isPlacingLabel, onPendingLabelMove]);
 
@@ -540,7 +573,7 @@ function PDFViewer({
               spools={spools}
               scale={scale}
               pendingWeldId={pendingLabelId?.type === "weld" ? pendingLabelId.id : null}
-              placingIndicatorOverride={placingIndicatorPos ? { xPercent: placingIndicatorPos.x, yPercent: placingIndicatorPos.y } : null}
+              placingIndicatorOverride={pendingWeldPlacingOverride}
             />
           )}
           {(markerLayers?.spools !== false ||
