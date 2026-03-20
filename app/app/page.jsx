@@ -37,7 +37,7 @@ import { createDefaultWeld, createDefaultSpool, createDefaultPart, createDefault
 import { normalizeJointDimensions } from "@/lib/joint-dimensions";
 import { partCatalog, findCatalogEntry } from "@/lib/part-catalog";
 import { findEntryByHierarchy } from "@/lib/catalog-hierarchy";
-import { computePartDisplayNumber } from "@/lib/part-display-number";
+import { assignPartDisplayNumbersForAllDrawings } from "@/lib/part-display-number";
 import { getWeldName, getWeldOverallStatus, computeNdtSelection } from "@/lib/weld-utils";
 import { formatNdtRequirements, NDT_REPORT_STATUS } from "@/lib/constants";
 import { exportWeldsToExcel } from "@/lib/excel-export";
@@ -464,22 +464,12 @@ export default function WeldTrackerApp() {
       const nps = catalogEntry?.nps ?? n;
       const thickness = catalogEntry?.thickness ?? th;
       const newPart = createDefaultPart({
-        displayNumber: computePartDisplayNumber({
-          parts,
-          partMarkers,
-          drawingId: activeDrawingId ?? null,
-          newPart: {
-            catalogPartId: catalogEntry?.catalogPartId ?? null,
-            partType,
-            nps,
-            thickness,
-          },
-        }),
         spoolId: addDefaults?.spoolId ?? null,
         partType,
         nps,
         thickness,
         materialGrade: addDefaults?.materialGrade ?? "",
+        catalogCategory: cat ?? "",
         catalogPartId: catalogEntry?.catalogPartId ?? null,
         weightKg: catalogEntry?.weightKg ?? null,
       });
@@ -494,11 +484,17 @@ export default function WeldTrackerApp() {
         indicatorYPercent: yPercent,
         pageNumber: pageNumber ?? 0,
       };
-      setParts((prev) => [...prev, newPart]);
-      setPartMarkers((prev) => [...prev, newMarker]);
+      setPartMarkers((prevMarkers) => {
+        const nextMarkers = [...prevMarkers, newMarker];
+        setParts((prevParts) => {
+          const nextParts = [...prevParts, newPart];
+          return assignPartDisplayNumbersForAllDrawings(nextParts, nextMarkers);
+        });
+        return nextMarkers;
+      });
       setPendingLabelId({ type: "part", id: newMarkerId });
     },
-    [parts, partMarkers, addDefaults, activeDrawingId, setPendingLabelId]
+    [addDefaults, activeDrawingId, setPendingLabelId]
   );
 
   const handleAddLineMarker = useCallback(
@@ -655,9 +651,13 @@ export default function WeldTrackerApp() {
   }, []);
 
   const handleSavePart = useCallback((updatedPart) => {
-    setParts((prev) =>
-      prev.map((p) => (p.id === updatedPart.id ? updatedPart : p))
-    );
+    setPartMarkers((currentMarkers) => {
+      setParts((prevParts) => {
+        const nextParts = prevParts.map((p) => (p.id === updatedPart.id ? updatedPart : p));
+        return assignPartDisplayNumbersForAllDrawings(nextParts, currentMarkers);
+      });
+      return currentMarkers;
+    });
   }, []);
 
   const handleUpdatePartHeat = useCallback((partId, newHeatNumber) => {
@@ -675,8 +675,14 @@ export default function WeldTrackerApp() {
   }, []);
 
   const handleDeletePart = useCallback((partId) => {
-    setParts((prev) => prev.filter((p) => p.id !== partId));
-    setPartMarkers((prev) => prev.filter((m) => m.partId !== partId));
+    setPartMarkers((prevMarkers) => {
+      const nextMarkers = prevMarkers.filter((m) => m.partId !== partId);
+      setParts((prevParts) => {
+        const nextParts = prevParts.filter((p) => p.id !== partId);
+        return assignPartDisplayNumbersForAllDrawings(nextParts, nextMarkers);
+      });
+      return nextMarkers;
+    });
     setWeldPoints((prev) =>
       prev.map((w) => ({
         ...w,

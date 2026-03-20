@@ -89,14 +89,14 @@ function SidePanelPartForm({
         setNps(entry.nps ?? "");
         setThickness(entry.thickness ?? "");
       } else {
-        setCatalogCategory("");
+        setCatalogCategory(selectedPart.catalogCategory ?? "");
         setHierarchyState({});
         setPartType(selectedPart.partType ?? "");
         setNps(selectedPart.nps ?? "");
         setThickness(selectedPart.thickness ?? "");
       }
     } else {
-      setCatalogCategory("");
+      setCatalogCategory(selectedPart.catalogCategory ?? "");
       setHierarchyState({});
       setPartType(selectedPart.partType ?? "");
       setNps(selectedPart.nps ?? "");
@@ -127,6 +127,7 @@ function SidePanelPartForm({
         entry?.thickness ?? hierarchyState.schedule ?? thickness.trim();
       onSavePart?.({
         ...selectedPart,
+        catalogCategory: catalogCategory || "",
         catalogPartId: entry?.catalogPartId ?? null,
         partType: resolvedPartType,
         nps: resolvedNps,
