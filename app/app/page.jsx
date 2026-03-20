@@ -1584,16 +1584,26 @@ export default function WeldTrackerApp() {
     [lineMarkers, isOnActiveDrawing]
   );
 
-  const linesLinkedToActiveDrawing = useMemo(
-    () =>
-      lines.filter(
-        (ln) =>
-          activeDrawingId &&
-          Array.isArray(ln.drawingIds) &&
-          ln.drawingIds.includes(activeDrawingId)
-      ),
-    [lines, activeDrawingId]
-  );
+  const linesLinkedToActiveDrawing = useMemo(() => {
+    if (!activeDrawingId) return [];
+    const activeDwg = drawings.find((d) => d.id === activeDrawingId);
+    const idsFromDrawing = new Set(
+      Array.isArray(activeDwg?.lineIds) ? activeDwg.lineIds.filter(Boolean) : []
+    );
+    const matched = lines.filter((ln) => {
+      const viaLine =
+        Array.isArray(ln.drawingIds) && ln.drawingIds.includes(activeDrawingId);
+      const viaDrawing = idsFromDrawing.has(ln.id);
+      return viaLine || viaDrawing;
+    });
+    return matched
+      .slice()
+      .sort((a, b) =>
+        (a.name || a.id || "").localeCompare(b.name || b.id || "", undefined, {
+          sensitivity: "base",
+        })
+      );
+  }, [lines, activeDrawingId, drawings]);
 
   const weldsOnCurrentPage = useMemo(
     () => weldPointsOnActiveDrawing.filter((w) => (w.pageNumber ?? 0) === currentPage0),

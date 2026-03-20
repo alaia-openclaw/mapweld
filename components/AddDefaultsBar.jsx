@@ -34,7 +34,8 @@ function AddDefaultsBar({
   );
 
   const showWeld = markupTool === "add";
-  const showSpool = markupTool === "add";
+  /** Spool + line defaults apply when placing welds or spool markers */
+  const showSpool = markupTool === "add" || markupTool === "addSpool";
   const showPart = markupTool === "addPart";
   const showLine = markupTool === "addLine";
   const spoolLineChoices = Array.isArray(linesForSpoolDefault) ? linesForSpoolDefault : lines;
