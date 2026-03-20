@@ -84,6 +84,8 @@ function SidePanelWeldForm({
   const [weldType, setWeldType] = useState("butt");
   const [weldLocation, setWeldLocation] = useState("shop");
   const [wps, setWps] = useState("");
+  /** Distinguish inherit vs custom when WPS text is blank (select cannot use value alone). */
+  const [wpsUiMode, setWpsUiMode] = useState("inherit");
   /** Optional `wpsLibrary` row id — synced when picking a preset code (managed in Settings for PDF link). */
   const [linkedWpsEntryId, setLinkedWpsEntryId] = useState("");
   const [weldListSearch, setWeldListSearch] = useState("");
@@ -228,6 +230,7 @@ function SidePanelWeldForm({
   function applyPresetWpsCode(code) {
     const v = (code || "").trim();
     setWps(v);
+    setWpsUiMode("preset");
     const matches = libraryWpsEntries.filter((e) => (e.code || "").trim() === v);
     if (matches.length === 1) setLinkedWpsEntryId(matches[0].id);
     else setLinkedWpsEntryId("");
@@ -320,6 +323,7 @@ function SidePanelWeldForm({
   useEffect(() => {
     if (!weld) {
       previousWeldIdRef.current = null;
+      setWpsUiMode("inherit");
       return;
     }
     const isNewWeld = previousWeldIdRef.current !== weld.id;
@@ -327,8 +331,12 @@ function SidePanelWeldForm({
     if (!isNewWeld) return;
     setWeldType(weld.weldType || "butt");
     setWeldLocation(weld.weldLocation || "shop");
+    const wpsTrim = (weld.wps || "").trim();
     setWps(weld.wps || "");
     setLinkedWpsEntryId(weld.wpsLibraryEntryId || "");
+    if (!wpsTrim) setWpsUiMode("inherit");
+    else if (wpsPresetCodes.includes(wpsTrim)) setWpsUiMode("preset");
+    else setWpsUiMode("custom");
     setFitterName(weld.fitterName || "");
     setDateFitUp(weld.dateFitUp || "");
     setHeatNumber1(weld.heatNumber1 || "");
@@ -357,6 +365,7 @@ function SidePanelWeldForm({
     setNdtResultOutcome(weld.ndtResultOutcome || {});
     setNdtResultManualOverride(weld.ndtResultManualOverride || {});
     setNdtResultOverrideUnlocked(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- wpsUiMode uses wpsPresetCodes only when switching to this weld
   }, [weld]);
 
   useEffect(() => {
@@ -821,20 +830,22 @@ function SidePanelWeldForm({
                                               <select
                                                 className="select select-bordered select-sm"
                                                 value={
-                                                  !(wps || "").trim()
+                                                  wpsUiMode === "inherit"
                                                     ? "__inherit__"
-                                                    : wpsPresetCodes.includes((wps || "").trim())
-                                                      ? (wps || "").trim()
-                                                      : "__custom__"
+                                                    : wpsUiMode === "custom"
+                                                      ? "__custom__"
+                                                      : (wps || "").trim()
                                                 }
                                                 onChange={(e) => {
                                                   const v = e.target.value;
                                                   if (v === "__inherit__") {
+                                                    setWpsUiMode("inherit");
                                                     setWps("");
                                                     setLinkedWpsEntryId("");
                                                     return;
                                                   }
                                                   if (v === "__custom__") {
+                                                    setWpsUiMode("custom");
                                                     setWps("");
                                                     setLinkedWpsEntryId("");
                                                     return;
@@ -854,7 +865,8 @@ function SidePanelWeldForm({
                                               </select>
                                             )}
                                             {wpsPresetCodes.length === 0 ||
-                                            !(wps || "").trim() ||
+                                            wpsUiMode === "inherit" ||
+                                            wpsUiMode === "custom" ||
                                             !wpsPresetCodes.includes((wps || "").trim()) ? (
                                               <input
                                                 id="side-wps"
@@ -864,6 +876,10 @@ function SidePanelWeldForm({
                                                 onChange={(e) => {
                                                   const next = e.target.value;
                                                   setWps(next);
+                                                  const t = next.trim();
+                                                  if (!t) setWpsUiMode("inherit");
+                                                  else if (wpsPresetCodes.includes(t)) setWpsUiMode("preset");
+                                                  else setWpsUiMode("custom");
                                                   syncLinkedWpsAfterCodeChange(next);
                                                 }}
                                                 placeholder={

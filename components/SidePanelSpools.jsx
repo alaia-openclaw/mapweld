@@ -44,10 +44,12 @@ function SidePanelSpools({
       closeMenuPortal();
     }
     window.addEventListener("keydown", onKey);
-    window.addEventListener("scroll", onResize, true);
+    // Do not listen to `scroll` with capture — scrolling inside the portal menu
+    // fires captured scroll events and was closing the menu when using the scrollbar.
+    window.addEventListener("resize", onResize);
     return () => {
       window.removeEventListener("keydown", onKey);
-      window.removeEventListener("scroll", onResize, true);
+      window.removeEventListener("resize", onResize);
     };
   }, [menuPortal, closeMenuPortal]);
 
@@ -253,8 +255,10 @@ function SidePanelSpools({
           onClick={closeMenuPortal}
         />
         <div
-          className="fixed rounded-box border border-base-300 bg-base-100 p-1 shadow-lg flex flex-col min-h-0"
+          className="fixed rounded-box border border-base-300 bg-base-100 p-1 shadow-lg flex flex-col min-h-0 pointer-events-auto"
           style={menuStyle}
+          onMouseDown={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
         >
           {kind === "weld" && onAssignWeldToSpool && listWeld()}
           {kind === "part" && onAssignPartToSpool && listPart()}

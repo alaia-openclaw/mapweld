@@ -34,8 +34,10 @@ function AddDefaultsBar({
   );
 
   const showWeld = markupTool === "add";
-  /** Spool + line defaults apply when placing welds or spool markers */
-  const showSpool = markupTool === "add" || markupTool === "addSpool";
+  /** Line default for new spool markers (and welds) */
+  const showSpoolLineDefaults = markupTool === "add" || markupTool === "addSpool";
+  /** Default spool assignment only when placing welds — not when placing spool markers */
+  const showSpoolPickerForWelds = markupTool === "add";
   const showPart = markupTool === "addPart";
   const showLine = markupTool === "addLine";
   const spoolLineChoices = Array.isArray(linesForSpoolDefault) ? linesForSpoolDefault : lines;
@@ -88,7 +90,7 @@ function AddDefaultsBar({
           </select>
         </div>
       )}
-      {showSpool && spools.length > 0 && (
+      {showSpoolPickerForWelds && spools.length > 0 && (
         <div className="flex items-center gap-1">
           <label htmlFor="default-spool" className="text-[11px] text-base-content/60 whitespace-nowrap">
             Spool
@@ -106,7 +108,7 @@ function AddDefaultsBar({
           </select>
         </div>
       )}
-      {showSpool && spoolLineChoices.length > 0 && (
+      {showSpoolLineDefaults && spoolLineChoices.length > 0 && (
         <div className="flex items-center gap-1">
           <label htmlFor="default-spool-line" className="text-[11px] text-base-content/60 whitespace-nowrap">
             Line
