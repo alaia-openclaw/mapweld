@@ -60,6 +60,8 @@ function SidePanelPartForm({
   const [spoolId, setSpoolId] = useState("");
   const [heatNumber, setHeatNumber] = useState("");
   const [variation, setVariation] = useState("");
+  /** Which part row shows the editor (Lines / Spools–style accordion). */
+  const [expandedPartMarkerId, setExpandedPartMarkerId] = useState(null);
   const autoSaveTimeoutRef = useRef(null);
   const mtcUploadInputRef = useRef(null);
 
@@ -108,6 +110,14 @@ function SidePanelPartForm({
     setHeatNumber(selectedPart.heatNumber ?? "");
     setVariation(selectedPart.variation ?? "");
   }, [selectedPart]);
+
+  useEffect(() => {
+    if (!selectedPartMarkerId) {
+      setExpandedPartMarkerId(null);
+      return;
+    }
+    setExpandedPartMarkerId(selectedPartMarkerId);
+  }, [selectedPartMarkerId]);
 
   useEffect(() => {
     if (!selectedPart) return;
@@ -250,6 +260,192 @@ function SidePanelPartForm({
     setHeatMtcDocument(uploadedDoc.id);
   }
 
+  function renderPartEditorBody() {
+    return (
+      <div className="border-t border-base-300/60 px-2 py-2 space-y-3 w-full min-w-0">
+        <div className="form-control">
+          <label className="label" htmlFor="part-catalog-category">
+            <span className="label-text">Category</span>
+          </label>
+          <select
+            id="part-catalog-category"
+            className="select select-bordered select-sm w-full"
+            value={catalogCategory}
+            onChange={(e) => handleCatalogCategoryChange(e.target.value)}
+          >
+            <option value="">Custom (free text)</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        {isCatalogMode ? (
+          <CatalogHierarchyStepSelects
+            catalogCategory={catalogCategory}
+            hierarchySteps={hierarchySteps}
+            hierarchyState={hierarchyState}
+            catalogEntriesForCategory={catalogEntriesForCategory}
+            onHierarchyChange={handleHierarchyChange}
+            variant="form"
+            idPrefix="part-hierarchy"
+          />
+        ) : (
+          <>
+            <div className="form-control">
+              <label className="label" htmlFor="part-type">
+                <span className="label-text">Part type</span>
+              </label>
+              <select
+                id="part-type"
+                className="select select-bordered select-sm w-full"
+                value={partType}
+                onChange={(e) => setPartType(e.target.value)}
+              >
+                <option value="">—</option>
+                {partTypeOptions}
+              </select>
+            </div>
+            <div className="form-control">
+              <label className="label" htmlFor="part-nps">
+                <span className="label-text">NPS</span>
+              </label>
+              <input
+                id="part-nps"
+                type="text"
+                className="input input-bordered input-sm w-full min-w-0"
+                value={nps}
+                onChange={(e) => setNps(e.target.value)}
+                placeholder="e.g. 2, 4, 6"
+              />
+            </div>
+            <div className="form-control">
+              <label className="label" htmlFor="part-thickness">
+                <span className="label-text">Schedule</span>
+              </label>
+              <input
+                id="part-thickness"
+                type="text"
+                className="input input-bordered input-sm w-full min-w-0"
+                value={thickness}
+                onChange={(e) => setThickness(e.target.value)}
+                placeholder="e.g. SCH 40"
+              />
+            </div>
+          </>
+        )}
+        <div className="form-control">
+          <label className="label" htmlFor="part-variation">
+            <span className="label-text">Variation (optional)</span>
+          </label>
+          <input
+            id="part-variation"
+            type="text"
+            className="input input-bordered input-sm w-full min-w-0"
+            value={variation}
+            onChange={(e) => setVariation(e.target.value)}
+            placeholder="Case-by-case note"
+          />
+        </div>
+        <div className="form-control">
+          <label className="label" htmlFor="part-material">
+            <span className="label-text">Material grade</span>
+          </label>
+          <input
+            id="part-material"
+            type="text"
+            className="input input-bordered input-sm w-full min-w-0"
+            value={materialGrade}
+            onChange={(e) => setMaterialGrade(e.target.value)}
+            placeholder="e.g. A106 Gr.B"
+          />
+        </div>
+        <div className="form-control">
+          <label className="label" htmlFor="part-length">
+            <span className="label-text">Length (optional)</span>
+          </label>
+          <input
+            id="part-length"
+            type="text"
+            className="input input-bordered input-sm w-full min-w-0"
+            value={length}
+            onChange={(e) => setLength(e.target.value)}
+            placeholder="e.g. 500 mm"
+          />
+        </div>
+        {spools.length > 0 && (
+          <div className="form-control">
+            <label className="label" htmlFor="part-spool">
+              <span className="label-text">Spool</span>
+            </label>
+            <select
+              id="part-spool"
+              className="select select-bordered select-sm w-full"
+              value={spoolId}
+              onChange={(e) => setSpoolId(e.target.value)}
+            >
+              <option value="">—</option>
+              {spools.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name || s.id}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        <div className="form-control">
+          <label className="label" htmlFor="part-heatNumber">
+            <span className="label-text">Heat number</span>
+          </label>
+          <input
+            id="part-heatNumber"
+            type="text"
+            className="input input-bordered input-sm"
+            value={heatNumber}
+            onChange={(e) => setHeatNumber(e.target.value)}
+            placeholder="e.g. H12345"
+          />
+        </div>
+        <div className="form-control">
+          <label className="label" htmlFor="part-mtc">
+            <span className="label-text">MTC PDF link</span>
+          </label>
+          <div className="flex gap-1">
+            <select
+              id="part-mtc"
+              className="select select-bordered select-sm flex-1"
+              value={linkedMtc?.documentId || ""}
+              onChange={(e) => setHeatMtcDocument(e.target.value)}
+              disabled={!normalizedHeat}
+            >
+              <option value="">
+                {normalizedHeat ? "No MTC linked" : "Enter heat number first"}
+              </option>
+              {mtcDocuments.map((doc) => (
+                <option key={doc.id} value={doc.id}>
+                  {doc.title || doc.fileName}
+                </option>
+              ))}
+            </select>
+            {!linkedMtc?.documentId && normalizedHeat && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => mtcUploadInputRef.current?.click()}
+              >
+                Load
+              </button>
+            )}
+          </div>
+          <p className="text-xs text-base-content/60 mt-1">
+            Link certificate by heat number for databook traceability.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className={`flex flex-col bg-base-200 transition-all duration-300 ease-out min-w-0 ${
@@ -298,240 +494,70 @@ function SidePanelPartForm({
                 <p>No parts yet</p>
                 <p className="mt-1">Add with the Add Part tool on the drawing</p>
               </div>
-            ) : selectedPart ? (
-              <>
-                <div className="flex items-center justify-between gap-2 min-w-0">
-                  <span className="font-medium truncate min-w-0">
-                    Part {selectedPart.displayNumber}
-                  </span>
-                  {appMode === "edition" && (
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-sm text-error shrink-0 whitespace-nowrap"
-                      onClick={handleDelete}
-                    >
-                      Delete
-                    </button>
-                  )}
-                </div>
-                <details
-                  className="rounded-lg border border-base-300 bg-base-100/40 open:bg-base-100/60"
-                  open
-                >
-                  <summary className="cursor-pointer list-none px-2 py-2 text-sm font-medium marker:content-none [&::-webkit-details-marker]:hidden flex items-center justify-between gap-2">
-                    <span>Part fields</span>
-                    <span className="text-base-content/40 text-xs">▾</span>
-                  </summary>
-                  <div className="space-y-3 w-full min-w-0 px-2 pb-3 pt-1 border-t border-base-300/50">
-                  <div className="form-control">
-                    <label className="label" htmlFor="part-catalog-category">
-                      <span className="label-text">Category</span>
-                    </label>
-                    <select
-                      id="part-catalog-category"
-                      className="select select-bordered select-sm w-full"
-                      value={catalogCategory}
-                      onChange={(e) => handleCatalogCategoryChange(e.target.value)}
-                    >
-                      <option value="">Custom (free text)</option>
-                      {categories.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  {isCatalogMode ? (
-                    <CatalogHierarchyStepSelects
-                      catalogCategory={catalogCategory}
-                      hierarchySteps={hierarchySteps}
-                      hierarchyState={hierarchyState}
-                      catalogEntriesForCategory={catalogEntriesForCategory}
-                      onHierarchyChange={handleHierarchyChange}
-                      variant="form"
-                      idPrefix="part-hierarchy"
-                    />
-                  ) : (
-                    <>
-                      <div className="form-control">
-                        <label className="label" htmlFor="part-type">
-                          <span className="label-text">Part type</span>
-                        </label>
-                        <select
-                          id="part-type"
-                          className="select select-bordered select-sm w-full"
-                          value={partType}
-                          onChange={(e) => setPartType(e.target.value)}
-                        >
-                          <option value="">—</option>
-                          {partTypeOptions}
-                        </select>
-                      </div>
-                      <div className="form-control">
-                        <label className="label" htmlFor="part-nps">
-                          <span className="label-text">NPS</span>
-                        </label>
-                        <input
-                          id="part-nps"
-                          type="text"
-                          className="input input-bordered input-sm w-full min-w-0"
-                          value={nps}
-                          onChange={(e) => setNps(e.target.value)}
-                          placeholder="e.g. 2, 4, 6"
-                        />
-                      </div>
-                      <div className="form-control">
-                        <label className="label" htmlFor="part-thickness">
-                          <span className="label-text">Schedule</span>
-                        </label>
-                        <input
-                          id="part-thickness"
-                          type="text"
-                          className="input input-bordered input-sm w-full min-w-0"
-                          value={thickness}
-                          onChange={(e) => setThickness(e.target.value)}
-                          placeholder="e.g. SCH 40"
-                        />
-                      </div>
-                    </>
-                  )}
-                  <div className="form-control">
-                    <label className="label" htmlFor="part-variation">
-                      <span className="label-text">Variation (optional)</span>
-                    </label>
-                    <input
-                      id="part-variation"
-                      type="text"
-                      className="input input-bordered input-sm w-full min-w-0"
-                      value={variation}
-                      onChange={(e) => setVariation(e.target.value)}
-                      placeholder="Case-by-case note"
-                    />
-                  </div>
-                  <div className="form-control">
-                    <label className="label" htmlFor="part-material">
-                      <span className="label-text">Material grade</span>
-                    </label>
-                    <input
-                      id="part-material"
-                      type="text"
-                      className="input input-bordered input-sm w-full min-w-0"
-                      value={materialGrade}
-                      onChange={(e) => setMaterialGrade(e.target.value)}
-                      placeholder="e.g. A106 Gr.B"
-                    />
-                  </div>
-                  <div className="form-control">
-                    <label className="label" htmlFor="part-length">
-                      <span className="label-text">Length (optional)</span>
-                    </label>
-                    <input
-                      id="part-length"
-                      type="text"
-                      className="input input-bordered input-sm w-full min-w-0"
-                      value={length}
-                      onChange={(e) => setLength(e.target.value)}
-                      placeholder="e.g. 500 mm"
-                    />
-                  </div>
-                  {spools.length > 0 && (
-                    <div className="form-control">
-                      <label className="label" htmlFor="part-spool">
-                        <span className="label-text">Spool</span>
-                      </label>
-                      <select
-                        id="part-spool"
-                        className="select select-bordered select-sm w-full"
-                        value={spoolId}
-                        onChange={(e) => setSpoolId(e.target.value)}
-                      >
-                        <option value="">—</option>
-                        {spools.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.name || s.id}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                  <div className="form-control">
-                    <label className="label" htmlFor="part-heatNumber">
-                      <span className="label-text">Heat number</span>
-                    </label>
-                    <input
-                      id="part-heatNumber"
-                      type="text"
-                      className="input input-bordered input-sm"
-                      value={heatNumber}
-                      onChange={(e) => setHeatNumber(e.target.value)}
-                      placeholder="e.g. H12345"
-                    />
-                  </div>
-                  <div className="form-control">
-                    <label className="label" htmlFor="part-mtc">
-                      <span className="label-text">MTC PDF link</span>
-                    </label>
-                    <div className="flex gap-1">
-                      <select
-                        id="part-mtc"
-                        className="select select-bordered select-sm flex-1"
-                        value={linkedMtc?.documentId || ""}
-                        onChange={(e) => setHeatMtcDocument(e.target.value)}
-                        disabled={!normalizedHeat}
-                      >
-                        <option value="">
-                          {normalizedHeat ? "No MTC linked" : "Enter heat number first"}
-                        </option>
-                        {mtcDocuments.map((doc) => (
-                          <option key={doc.id} value={doc.id}>
-                            {doc.title || doc.fileName}
-                          </option>
-                        ))}
-                      </select>
-                      {!linkedMtc?.documentId && normalizedHeat && (
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-sm"
-                          onClick={() => mtcUploadInputRef.current?.click()}
-                        >
-                          Load
-                        </button>
-                      )}
-                    </div>
-                    <p className="text-xs text-base-content/60 mt-1">
-                      Link certificate by heat number for databook traceability.
-                    </p>
-                  </div>
-                  </div>
-                </details>
-              </>
             ) : (
-                <div className="space-y-2 min-w-0">
-                  <ul className="space-y-2 min-w-0">
-                    {parts
-                      .slice()
-                      .sort(comparePartDisplayNumbers)
-                      .map((p) => {
-                        const marker = partMarkers.find((m) => m.partId === p.id);
-                        const spoolName = p.spoolId ? getSpoolName(p.spoolId) : null;
-                        return (
-                          <li key={p.id} className="min-w-0">
+              <ul className="space-y-2 min-w-0">
+                {parts
+                  .slice()
+                  .sort(comparePartDisplayNumbers)
+                  .map((p) => {
+                    const marker = partMarkers.find((m) => m.partId === p.id);
+                    if (!marker) return null;
+                    const spoolName = p.spoolId ? getSpoolName(p.spoolId) : null;
+                    const isExpanded = expandedPartMarkerId === marker.id;
+                    const isActivePart = selectedPartMarkerId === marker.id;
+                    return (
+                      <li
+                        key={p.id}
+                        className="bg-base-100 border border-base-300 rounded-lg overflow-hidden min-w-0"
+                      >
+                        <div className="flex items-stretch gap-0 min-w-0">
+                          <button
+                            type="button"
+                            className="flex-1 min-w-0 text-left text-xs px-2 py-1.5 flex items-center justify-between gap-2 hover:bg-base-200/60"
+                            onClick={() => {
+                              onSelectPartMarker?.(marker.id);
+                              setExpandedPartMarkerId((prev) =>
+                                prev === marker.id ? null : marker.id
+                              );
+                            }}
+                          >
+                            <span className="font-medium shrink-0">Part {p.displayNumber}</span>
+                            <span className="text-xs text-base-content/60 truncate min-w-0 flex-1 text-right">
+                              {spoolName || (p.heatNumber ? `Heat: ${p.heatNumber}` : "") || "—"}
+                            </span>
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className={`h-3 w-3 flex-shrink-0 transition-transform ${
+                                isExpanded ? "rotate-180" : ""
+                              }`}
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M19 9l-7 7-7-7"
+                              />
+                            </svg>
+                          </button>
+                          {appMode === "edition" && isExpanded && isActivePart && selectedPart ? (
                             <button
                               type="button"
-                              className="w-full min-w-0 text-left p-2 rounded-lg bg-base-100 border border-base-300 hover:bg-base-200 flex items-center justify-between gap-2"
-                              onClick={() => marker && onSelectPartMarker?.(marker.id)}
+                              className="btn btn-ghost btn-xs text-error shrink-0 self-center mr-1"
+                              onClick={handleDelete}
                             >
-                              <span className="font-medium shrink-0">Part {p.displayNumber}</span>
-                              <span className="text-xs text-base-content/60 truncate min-w-0 flex-1">
-                                {spoolName || (p.heatNumber ? `Heat: ${p.heatNumber}` : "") || "—"}
-                              </span>
+                              Delete
                             </button>
-                          </li>
-                        );
-                      })}
-                  </ul>
-                </div>
-              )}
+                          ) : null}
+                        </div>
+                        {isExpanded && isActivePart && selectedPart ? renderPartEditorBody() : null}
+                      </li>
+                    );
+                  })}
+              </ul>
+            )}
           </div>
         </div>
       )}
