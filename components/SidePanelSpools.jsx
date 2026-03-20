@@ -128,15 +128,41 @@ function SidePanelSpools({
   function renderPortalMenu() {
     if (!menuPortal || typeof document === "undefined") return null;
     const { kind, spoolId, rect } = menuPortal;
-    const maxH = Math.min(320, window.innerHeight - rect.bottom - 16);
+    const margin = 12;
+    const spaceBelow = Math.max(0, window.innerHeight - rect.bottom - margin);
+    const spaceAbove = Math.max(0, rect.top - margin);
+    const idealMax = 360;
+    let openDownward = spaceBelow >= spaceAbove;
+    let avail = openDownward ? spaceBelow : spaceAbove;
+    let maxH = Math.min(idealMax, avail);
+    if (maxH < 80) {
+      const other = openDownward ? spaceAbove : spaceBelow;
+      if (other > avail) {
+        openDownward = !openDownward;
+        avail = other;
+        maxH = Math.min(idealMax, avail);
+      }
+    }
+    if (maxH < 48) {
+      maxH = Math.min(idealMax, Math.max(spaceBelow, spaceAbove));
+    }
+
     const menuStyle = {
       position: "fixed",
-      top: rect.bottom + 4,
       right: Math.max(8, window.innerWidth - rect.right),
+      minWidth: "12rem",
       maxHeight: maxH,
-      minWidth: "10rem",
       zIndex: 9999,
+      overflowY: "auto",
+      overscrollBehavior: "contain",
+      WebkitOverflowScrolling: "touch",
+      touchAction: "pan-y",
     };
+    if (openDownward) {
+      menuStyle.top = rect.bottom + 4;
+    } else {
+      menuStyle.bottom = window.innerHeight - rect.top + 4;
+    }
 
     const listWeld = () =>
       weldsNotOnSpool(spoolId).length === 0 ? (
@@ -227,7 +253,7 @@ function SidePanelSpools({
           onClick={closeMenuPortal}
         />
         <div
-          className="fixed overflow-y-auto rounded-box border border-base-300 bg-base-100 p-1 shadow-lg"
+          className="fixed rounded-box border border-base-300 bg-base-100 p-1 shadow-lg flex flex-col min-h-0"
           style={menuStyle}
         >
           {kind === "weld" && onAssignWeldToSpool && listWeld()}
