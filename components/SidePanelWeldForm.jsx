@@ -16,7 +16,7 @@ import {
   WELDING_PROCESS_LABELS,
   sortNdtMethods,
 } from "@/lib/constants";
-import { getWeldName, getWeldSectionCompletion, computeNdtSelection, getNdtSelectionWarnings } from "@/lib/weld-utils";
+import { getWeldName, getWeldSectionCompletion, computeNdtSelection } from "@/lib/weld-utils";
 import { useNdtScope } from "@/contexts/NdtScopeContext";
 import { getInheritedWpsCode, getResolvedWpsCode, getWpsLibraryEntryById } from "@/lib/wps-resolution";
 import { comparePartDisplayNumbers } from "@/lib/part-display-number";
@@ -1507,19 +1507,6 @@ function SidePanelWeldForm({
                                       })}
                                     </tbody>
                                   </table>
-                                  {(() => {
-                                    const allWarnings = inspectionMethods.flatMap((m) =>
-                                      getNdtSelectionWarnings(weldPoints, drawingSettings, m, ndtContext)
-                                    );
-                                    if (allWarnings.length === 0) return null;
-                                    return (
-                                      <div className="mt-2 p-2 bg-warning/10 border border-warning/30 rounded text-xs">
-                                        {allWarnings.map((msg, i) => (
-                                          <div key={i}>{msg}</div>
-                                        ))}
-                                      </div>
-                                    );
-                                  })()}
                                 </div>
                               </div>
                             )}
