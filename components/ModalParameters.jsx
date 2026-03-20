@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import SidePanelDrawings from "@/components/SidePanelDrawings";
 import SidePanelLines from "@/components/SidePanelLines";
 import SidePanelSpools from "@/components/SidePanelSpools";
@@ -41,6 +41,8 @@ function ModalSettings({
   wpsLibrary = [],
   electrodeLibrary = [],
   documents = [],
+  /** Used to hint WPS codes typed on welds but missing from the library */
+  weldPoints = [],
   onSave,
   /** When set, tree includes Drawings / Systems & lines / Spools with full-project editors */
   structureIntegration = null,
@@ -59,6 +61,7 @@ function ModalSettings({
   const [metaDate, setMetaDate] = useState("");
   const [projectSystems, setProjectSystems] = useState([]);
   const [projectWpsLibrary, setProjectWpsLibrary] = useState([]);
+  const [wpsLibraryFilter, setWpsLibraryFilter] = useState("");
 
   // Personnel state
   const [personnelSubtab, setPersonnelSubtab] = useState("fitters");
@@ -106,9 +109,36 @@ function ModalSettings({
       setEditingWelderId(null);
       wqrUploadTargetRef.current = null;
       wpsUploadTargetRef.current = null;
+      setWpsLibraryFilter("");
       setActiveSection("project-ndt");
     }
   }, [settings, isOpen, projectMeta, systems, wpsLibrary]);
+
+  const wpsLibraryFilterNorm = (wpsLibraryFilter || "").trim().toLowerCase();
+  const filteredProjectWpsLibrary = useMemo(() => {
+    if (!wpsLibraryFilterNorm) return projectWpsLibrary;
+    return projectWpsLibrary.filter((entry) => {
+      const code = (entry.code || "").trim().toLowerCase();
+      const title = (entry.title || "").trim().toLowerCase();
+      return code.includes(wpsLibraryFilterNorm) || title.includes(wpsLibraryFilterNorm);
+    });
+  }, [projectWpsLibrary, wpsLibraryFilterNorm]);
+
+  const wpsCodesOnWeldsNotInLibrary = useMemo(() => {
+    if (!Array.isArray(weldPoints) || weldPoints.length === 0) return [];
+    const libLower = new Set(
+      projectWpsLibrary.map((e) => (e.code || "").trim().toLowerCase()).filter(Boolean)
+    );
+    const seen = new Map();
+    for (const w of weldPoints) {
+      const raw = (w?.wps || "").trim();
+      if (!raw) continue;
+      const k = raw.toLowerCase();
+      if (libLower.has(k)) continue;
+      if (!seen.has(k)) seen.set(k, raw);
+    }
+    return [...seen.values()].sort((a, b) => a.localeCompare(b));
+  }, [weldPoints, projectWpsLibrary]);
 
   // Personnel
   function handleAddFitter(e) {
@@ -434,7 +464,8 @@ function ModalSettings({
         {activeSection === "personnel" && (
           <div className="mt-2 md:mt-0 space-y-4">
             <p className="text-sm text-base-content/70">
-              Manage fitters, welders, and welder qualifications (WQR).
+              Manage fitters, welders, and welder qualifications (WQR). Welding records on each weld use these
+              registrations — link WQR PDFs here; the weld form only picks from welders and codes you define.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-[14rem_minmax(0,1fr)] gap-3">
@@ -511,6 +542,11 @@ function ModalSettings({
 
                 {personnelSubtab === "welders" && (
                   <div className="space-y-3">
+                    <div className="rounded-lg border border-base-300/70 bg-info/5 p-3 text-xs text-base-content/80 leading-relaxed">
+                      <strong className="text-info">WPS vs WQR:</strong> Procedure PDFs and WPS codes live under{" "}
+                      <strong>Project info → WPS Library</strong>. Welder qualifications (WQR codes + PDFs) are managed
+                      below — each welder can hold multiple WQRs used when filling welding records on welds.
+                    </div>
                     <div>
                       <h4 className="font-medium text-sm mb-2">Welders</h4>
                       <form onSubmit={handleAddWelder} className="flex gap-2 mb-2">
@@ -549,6 +585,10 @@ function ModalSettings({
 
                     <div>
                       <h4 className="font-medium text-sm mb-2">WQR per welder</h4>
+                      <p className="text-xs text-base-content/60 mb-2">
+                        Add a WQR code for the selected welder, then link the qualification PDF from your vault (or upload).
+                        Those pairs appear as presets on the weld <strong>Welding</strong> section.
+                      </p>
                       <div className="form-control">
                         <label className="label py-0">
                           <span className="label-text text-xs">Select welder</span>
@@ -742,13 +782,40 @@ function ModalSettings({
             {projectSystems.length === 0 && <p className="text-sm text-base-content/50">No systems yet.</p>}
 
             <div className="divider my-1">WPS Library</div>
-            <div className="flex justify-end">
-              <button type="button" className="btn btn-ghost btn-sm" onClick={handleAddWps}>
+            <div className="rounded-lg border border-base-300/70 bg-base-200/40 p-3 text-sm text-base-content/80 space-y-2 mb-3">
+              <p>
+                <strong>WPS traceability:</strong> Register each procedure code once here and attach its PDF. On welds,
+                set the WPS in <strong>General</strong> (preset or typed code). Matching codes tie back to this list for
+                exports and health checks — PDFs are opened from here, not from the weld form.
+              </p>
+              {wpsCodesOnWeldsNotInLibrary.length > 0 && (
+                <p className="text-xs text-warning">
+                  <span className="font-medium">Codes on welds not in this library yet:</span>{" "}
+                  {wpsCodesOnWeldsNotInLibrary.join(", ")} — add matching rows below or align weld WPS codes.
+                </p>
+              )}
+            </div>
+            <div className="flex flex-col sm:flex-row sm:items-end gap-2 sm:justify-between mb-2">
+              <div className="form-control flex-1 min-w-0 max-w-md">
+                <label className="label py-0" htmlFor="wps-lib-filter">
+                  <span className="label-text text-xs">Filter library</span>
+                </label>
+                <input
+                  id="wps-lib-filter"
+                  type="search"
+                  className="input input-bordered input-sm w-full"
+                  value={wpsLibraryFilter}
+                  onChange={(e) => setWpsLibraryFilter(e.target.value)}
+                  placeholder="Code or title…"
+                  autoComplete="off"
+                />
+              </div>
+              <button type="button" className="btn btn-ghost btn-sm shrink-0" onClick={handleAddWps}>
                 + Add WPS
               </button>
             </div>
             <ul className="space-y-2">
-              {projectWpsLibrary.map((entry) => (
+              {filteredProjectWpsLibrary.map((entry) => (
                 <li key={entry.id} className="p-2 bg-base-200 rounded-lg space-y-2">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     <input
@@ -808,6 +875,9 @@ function ModalSettings({
               ))}
             </ul>
             {projectWpsLibrary.length === 0 && <p className="text-sm text-base-content/50">No WPS entries yet.</p>}
+            {projectWpsLibrary.length > 0 && filteredProjectWpsLibrary.length === 0 && (
+              <p className="text-sm text-base-content/50">No library rows match this filter.</p>
+            )}
 
             <p className="text-sm text-base-content/60 mt-4">
               Manage electrode certificates and register entries in <strong>Document Vault</strong> (Databook builder).

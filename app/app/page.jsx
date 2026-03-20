@@ -2767,6 +2767,7 @@ export default function WeldTrackerApp() {
         wpsLibrary={wpsLibrary}
         electrodeLibrary={electrodeLibrary}
         documents={documents}
+        weldPoints={weldPoints}
         structureIntegration={settingsStructureIntegration}
         onSave={({ drawingSettings: s, personnel: p, projectSettings: ps, projectMeta: pm, systems: sys, wpsLibrary: wps, electrodeLibrary: electrodes, documents: docs }) => {
           if (s != null) setDrawingSettings(s);

@@ -24,7 +24,6 @@ import {
   createDefaultJointDimensions,
   normalizeJointDimensions,
   getEffectiveJointSide,
-  formatEffectiveJointSideSummary,
 } from "@/lib/joint-dimensions";
 
 function electrodeRefKey(s) {
@@ -142,6 +141,37 @@ function SidePanelWeldForm({
       };
     });
   }
+
+  function handlePart1Select(id) {
+    const nextId = id || "";
+    setPartId1(nextId);
+    const p = parts.find((x) => x.id === nextId);
+    if (p?.heatNumber) {
+      setHeatNumber1((prev) => ((prev ?? "").trim() ? prev : p.heatNumber));
+    }
+    if (nextId) {
+      setJointDimensions((prev) => {
+        const n = normalizeJointDimensions(prev);
+        return { ...n, side1: { nps: "", schedule: "" } };
+      });
+    }
+  }
+
+  function handlePart2Select(id) {
+    const nextId = id || "";
+    setPartId2(nextId);
+    const p = parts.find((x) => x.id === nextId);
+    if (p?.heatNumber) {
+      setHeatNumber2((prev) => ((prev ?? "").trim() ? prev : p.heatNumber));
+    }
+    if (nextId) {
+      setJointDimensions((prev) => {
+        const n = normalizeJointDimensions(prev);
+        return { ...n, side2: { nps: "", schedule: "" } };
+      });
+    }
+  }
+
   const libraryWpsEntries = useMemo(
     () => (Array.isArray(wpsLibrary) ? wpsLibrary : []),
     [wpsLibrary]
@@ -949,74 +979,27 @@ function SidePanelWeldForm({
                                     onChange={(e) => setDateFitUp(e.target.value)}
                                   />
                                 </div>
-                                <div className="form-control">
-                                  <label className="label" htmlFor="side-heatNumber1">
-                                    <span className="label-text">Heat number (part 1)</span>
-                                  </label>
-                                  <input
-                                    id="side-heatNumber1"
-                                    type="text"
-                                    className="input input-bordered input-sm"
-                                    value={heatNumber1}
-                                    onChange={(e) => setHeatNumber1(e.target.value)}
-                                    placeholder="e.g. H12345"
-                                  />
-                                </div>
-                                {selectedPart1 && !selectedPart1.heatNumber && !trimmedHeat1 && (
-                                  <p className="text-xs text-base-content/60">
-                                    Type a heat number above and then assign it to Part {selectedPart1.displayNumber}.
-                                  </p>
-                                )}
-                                <div className="form-control">
-                                  <label className="label" htmlFor="side-heatNumber2">
-                                    <span className="label-text">Heat number (part 2)</span>
-                                  </label>
-                                  <input
-                                    id="side-heatNumber2"
-                                    type="text"
-                                    className="input input-bordered input-sm"
-                                    value={heatNumber2}
-                                    onChange={(e) => setHeatNumber2(e.target.value)}
-                                    placeholder="e.g. H12346"
-                                  />
-                                </div>
-                                {selectedPart2 && !selectedPart2.heatNumber && !trimmedHeat2 && (
-                                  <p className="text-xs text-base-content/60">
-                                    Type a heat number above and then assign it to Part {selectedPart2.displayNumber}.
-                                  </p>
-                                )}
-                                {parts.length > 0 && (
-                                  <>
+
+                                <div className="rounded-lg border border-base-300/70 bg-base-200/25 p-3 space-y-3">
+                                  <p className="text-xs font-semibold text-base-content/75 uppercase tracking-wide">Side 1</p>
+                                  {parts.length > 0 && (
                                     <div className="form-control">
-                                      <label className="label" htmlFor="side-partId1">
-                                        <span className="label-text">Part 1</span>
+                                      <label className="label py-0" htmlFor="side-partId1">
+                                        <span className="label-text text-sm">Part 1</span>
                                       </label>
                                       <select
                                         id="side-partId1"
                                         className="select select-bordered select-sm w-full"
                                         value={partId1}
-                                        onChange={(e) => {
-                                          const id = e.target.value || "";
-                                          setPartId1(id);
-                                          const p = parts.find((x) => x.id === id);
-                                          if (p?.heatNumber) {
-                                            setHeatNumber1((prev) =>
-                                              prev?.trim?.() ? prev : p.heatNumber
-                                            );
-                                          }
-                                        }}
+                                        onChange={(e) => handlePart1Select(e.target.value)}
                                       >
-                                        <option value="">— or type heat above</option>
+                                        <option value="">— No part (custom joint)</option>
                                         {parts
                                           .slice()
                                           .filter((p) => {
                                             const heat = (heatNumber1 ?? "").trim();
                                             if (!heat) return true;
                                             const partHeat = (p.heatNumber ?? "").trim();
-                                            // When a heat is typed, show:
-                                            // - parts with matching heat
-                                            // - parts with no heat yet
-                                            // - always include the currently selected part
                                             if (!partHeat) return true;
                                             return partHeat === heat || p.id === partId1;
                                           })
@@ -1030,7 +1013,7 @@ function SidePanelWeldForm({
                                             </option>
                                           ))}
                                       </select>
-                                      {showSync1 && onUpdatePartHeat && (
+                                      {showSync1 && onUpdatePartHeat && selectedPart1 && (
                                         <button
                                           type="button"
                                           className="btn btn-ghost btn-xs mt-1"
@@ -1042,36 +1025,90 @@ function SidePanelWeldForm({
                                         </button>
                                       )}
                                     </div>
+                                  )}
+                                  <div className="form-control">
+                                    <label className="label py-0" htmlFor="side-heatNumber1">
+                                      <span className="label-text text-sm">Heat number</span>
+                                    </label>
+                                    <input
+                                      id="side-heatNumber1"
+                                      type="text"
+                                      className="input input-bordered input-sm"
+                                      value={heatNumber1}
+                                      onChange={(e) => setHeatNumber1(e.target.value)}
+                                      placeholder="e.g. H12345"
+                                    />
+                                  </div>
+                                  {selectedPart1 && !selectedPart1.heatNumber && !trimmedHeat1 && (
+                                    <p className="text-xs text-base-content/60">
+                                      Type a heat number above and then assign it to Part {selectedPart1.displayNumber}.
+                                    </p>
+                                  )}
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                     <div className="form-control">
-                                      <label className="label" htmlFor="side-partId2">
-                                        <span className="label-text">Part 2</span>
+                                      <label className="label py-0" htmlFor="fit-nps-1">
+                                        <span className="label-text text-xs">NPS</span>
+                                      </label>
+                                      <input
+                                        id="fit-nps-1"
+                                        type="text"
+                                        readOnly={!!selectedPart1}
+                                        className={`input input-bordered input-sm w-full ${selectedPart1 ? "bg-base-200/90 text-base-content/75 cursor-default" : ""}`}
+                                        value={selectedPart1 ? effectiveJoint1.nps : jointDimensionsNorm.side1.nps}
+                                        onChange={
+                                          selectedPart1
+                                            ? undefined
+                                            : (e) => setJointSideField(1, "nps", e.target.value)
+                                        }
+                                        placeholder={selectedPart1 ? "" : "e.g. 2"}
+                                      />
+                                    </div>
+                                    <div className="form-control">
+                                      <label className="label py-0" htmlFor="fit-sch-1">
+                                        <span className="label-text text-xs">Schedule</span>
+                                      </label>
+                                      <input
+                                        id="fit-sch-1"
+                                        type="text"
+                                        readOnly={!!selectedPart1}
+                                        className={`input input-bordered input-sm w-full ${selectedPart1 ? "bg-base-200/90 text-base-content/75 cursor-default" : ""}`}
+                                        value={selectedPart1 ? effectiveJoint1.schedule : jointDimensionsNorm.side1.schedule}
+                                        onChange={
+                                          selectedPart1
+                                            ? undefined
+                                            : (e) => setJointSideField(1, "schedule", e.target.value)
+                                        }
+                                        placeholder={selectedPart1 ? "" : "e.g. SCH 40"}
+                                      />
+                                    </div>
+                                  </div>
+                                  {selectedPart1 ? (
+                                    <p className="text-[10px] text-base-content/50 leading-snug">
+                                      NPS and schedule follow the linked part. Clear Part 1 to enter custom values.
+                                    </p>
+                                  ) : null}
+                                </div>
+
+                                <div className="rounded-lg border border-base-300/70 bg-base-200/25 p-3 space-y-3">
+                                  <p className="text-xs font-semibold text-base-content/75 uppercase tracking-wide">Side 2</p>
+                                  {parts.length > 0 && (
+                                    <div className="form-control">
+                                      <label className="label py-0" htmlFor="side-partId2">
+                                        <span className="label-text text-sm">Part 2</span>
                                       </label>
                                       <select
                                         id="side-partId2"
                                         className="select select-bordered select-sm w-full"
                                         value={partId2}
-                                        onChange={(e) => {
-                                          const id = e.target.value || "";
-                                          setPartId2(id);
-                                          const p = parts.find((x) => x.id === id);
-                                          if (p?.heatNumber) {
-                                            setHeatNumber2((prev) =>
-                                              prev?.trim?.() ? prev : p.heatNumber
-                                            );
-                                          }
-                                        }}
+                                        onChange={(e) => handlePart2Select(e.target.value)}
                                       >
-                                        <option value="">— or type heat above</option>
+                                        <option value="">— No part (custom joint)</option>
                                         {parts
                                           .slice()
                                           .filter((p) => {
                                             const heat = (heatNumber2 ?? "").trim();
                                             if (!heat) return true;
                                             const partHeat = (p.heatNumber ?? "").trim();
-                                            // When a heat is typed, show:
-                                            // - parts with matching heat
-                                            // - parts with no heat yet
-                                            // - always include the currently selected part
                                             if (!partHeat) return true;
                                             return partHeat === heat || p.id === partId2;
                                           })
@@ -1085,7 +1122,7 @@ function SidePanelWeldForm({
                                             </option>
                                           ))}
                                       </select>
-                                      {showSync2 && onUpdatePartHeat && (
+                                      {showSync2 && onUpdatePartHeat && selectedPart2 && (
                                         <button
                                           type="button"
                                           className="btn btn-ghost btn-xs mt-1"
@@ -1097,82 +1134,77 @@ function SidePanelWeldForm({
                                         </button>
                                       )}
                                     </div>
-                                  </>
-                                )}
-                                <div className="border border-base-300 rounded-lg p-2 space-y-2 bg-base-200/50">
-                                  <p className="text-xs font-semibold text-base-content/90">
-                                    Joint NPS & schedule
-                                  </p>
-                                  <p className="text-[11px] text-base-content/70">
-                                    <span className="font-medium text-base-content/80">Side 1:</span>{" "}
-                                    {formatEffectiveJointSideSummary(effectiveJoint1)}
-                                  </p>
-                                  <p className="text-[11px] text-base-content/70">
-                                    <span className="font-medium text-base-content/80">Side 2:</span>{" "}
-                                    {formatEffectiveJointSideSummary(effectiveJoint2)}
-                                  </p>
-                                  <div className="grid grid-cols-2 gap-2">
+                                  )}
+                                  <div className="form-control">
+                                    <label className="label py-0" htmlFor="side-heatNumber2">
+                                      <span className="label-text text-sm">Heat number</span>
+                                    </label>
+                                    <input
+                                      id="side-heatNumber2"
+                                      type="text"
+                                      className="input input-bordered input-sm"
+                                      value={heatNumber2}
+                                      onChange={(e) => setHeatNumber2(e.target.value)}
+                                      placeholder="e.g. H12346"
+                                    />
+                                  </div>
+                                  {selectedPart2 && !selectedPart2.heatNumber && !trimmedHeat2 && (
+                                    <p className="text-xs text-base-content/60">
+                                      Type a heat number above and then assign it to Part {selectedPart2.displayNumber}.
+                                    </p>
+                                  )}
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                     <div className="form-control">
-                                      <label className="label py-0 min-h-0" htmlFor="jd-s1-nps">
-                                        <span className="label-text text-[10px]">Override side 1 NPS</span>
+                                      <label className="label py-0" htmlFor="fit-nps-2">
+                                        <span className="label-text text-xs">NPS</span>
                                       </label>
                                       <input
-                                        id="jd-s1-nps"
+                                        id="fit-nps-2"
                                         type="text"
-                                        className="input input-bordered input-xs w-full"
-                                        value={jointDimensionsNorm.side1.nps}
-                                        onChange={(e) => setJointSideField(1, "nps", e.target.value)}
-                                        placeholder="inherit"
+                                        readOnly={!!selectedPart2}
+                                        className={`input input-bordered input-sm w-full ${selectedPart2 ? "bg-base-200/90 text-base-content/75 cursor-default" : ""}`}
+                                        value={selectedPart2 ? effectiveJoint2.nps : jointDimensionsNorm.side2.nps}
+                                        onChange={
+                                          selectedPart2
+                                            ? undefined
+                                            : (e) => setJointSideField(2, "nps", e.target.value)
+                                        }
+                                        placeholder={selectedPart2 ? "" : "e.g. 2"}
                                       />
                                     </div>
                                     <div className="form-control">
-                                      <label className="label py-0 min-h-0" htmlFor="jd-s1-sch">
-                                        <span className="label-text text-[10px]">Override side 1 schedule</span>
+                                      <label className="label py-0" htmlFor="fit-sch-2">
+                                        <span className="label-text text-xs">Schedule</span>
                                       </label>
                                       <input
-                                        id="jd-s1-sch"
+                                        id="fit-sch-2"
                                         type="text"
-                                        className="input input-bordered input-xs w-full"
-                                        value={jointDimensionsNorm.side1.schedule}
-                                        onChange={(e) => setJointSideField(1, "schedule", e.target.value)}
-                                        placeholder="inherit"
-                                      />
-                                    </div>
-                                    <div className="form-control">
-                                      <label className="label py-0 min-h-0" htmlFor="jd-s2-nps">
-                                        <span className="label-text text-[10px]">Override side 2 NPS</span>
-                                      </label>
-                                      <input
-                                        id="jd-s2-nps"
-                                        type="text"
-                                        className="input input-bordered input-xs w-full"
-                                        value={jointDimensionsNorm.side2.nps}
-                                        onChange={(e) => setJointSideField(2, "nps", e.target.value)}
-                                        placeholder="inherit"
-                                      />
-                                    </div>
-                                    <div className="form-control">
-                                      <label className="label py-0 min-h-0" htmlFor="jd-s2-sch">
-                                        <span className="label-text text-[10px]">Override side 2 schedule</span>
-                                      </label>
-                                      <input
-                                        id="jd-s2-sch"
-                                        type="text"
-                                        className="input input-bordered input-xs w-full"
-                                        value={jointDimensionsNorm.side2.schedule}
-                                        onChange={(e) => setJointSideField(2, "schedule", e.target.value)}
-                                        placeholder="inherit"
+                                        readOnly={!!selectedPart2}
+                                        className={`input input-bordered input-sm w-full ${selectedPart2 ? "bg-base-200/90 text-base-content/75 cursor-default" : ""}`}
+                                        value={selectedPart2 ? effectiveJoint2.schedule : jointDimensionsNorm.side2.schedule}
+                                        onChange={
+                                          selectedPart2
+                                            ? undefined
+                                            : (e) => setJointSideField(2, "schedule", e.target.value)
+                                        }
+                                        placeholder={selectedPart2 ? "" : "e.g. SCH 40"}
                                       />
                                     </div>
                                   </div>
-                                  <button
-                                    type="button"
-                                    className="btn btn-ghost btn-xs"
-                                    onClick={() => setJointDimensions(createDefaultJointDimensions())}
-                                  >
-                                    Clear weld overrides
-                                  </button>
+                                  {selectedPart2 ? (
+                                    <p className="text-[10px] text-base-content/50 leading-snug">
+                                      NPS and schedule follow the linked part. Clear Part 2 to enter custom values.
+                                    </p>
+                                  ) : null}
                                 </div>
+
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost btn-xs w-full sm:w-auto"
+                                  onClick={() => setJointDimensions(createDefaultJointDimensions())}
+                                >
+                                  Clear custom NPS/schedule (both sides)
+                                </button>
                               </div>
                             )}
 
