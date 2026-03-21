@@ -6,7 +6,7 @@ import SidePanelLines from "@/components/SidePanelLines";
 import SidePanelSpools from "@/components/SidePanelSpools";
 import NdtRequirementsOverrideTable from "@/components/NdtRequirementsOverrideTable";
 import SettingsWpsRegistry from "@/components/settings/SettingsWpsRegistry";
-import SettingsVaultPanel from "@/components/settings/SettingsVaultPanel";
+import SettingsElectrodePanel from "@/components/settings/SettingsElectrodePanel";
 import SettingsMaterialCertificatesPanel from "@/components/settings/SettingsMaterialCertificatesPanel";
 import SettingsPersonnelRegistry from "@/components/settings/SettingsPersonnelRegistry";
 import SettingsDocumentCategoryRegistry from "@/components/settings/SettingsDocumentCategoryRegistry";
@@ -58,7 +58,6 @@ function ModalSettings({
   spools = [],
   parts = [],
   drawings = [],
-  /** Used to hint WPS codes typed on welds but missing from the library */
   weldPoints = [],
   onSave,
   onCompileDatabook,
@@ -82,9 +81,7 @@ function ModalSettings({
   const [projectWpsLibrary, setProjectWpsLibrary] = useState([]);
 
   const wqrUploadInputRef = useRef(null);
-  const wpsUploadInputRef = useRef(null);
   const wqrUploadTargetRef = useRef(null);
-  const wpsUploadTargetRef = useRef(null);
   /** Avoid resetting Personnel sidebar when parent props refresh while modal stays open (e.g. auto-save). */
   const parametersModalWasOpenRef = useRef(false);
 
@@ -118,7 +115,6 @@ function ModalSettings({
 
     if (justOpened) {
       wqrUploadTargetRef.current = null;
-      wpsUploadTargetRef.current = null;
       setActiveSection("project-ndt");
     }
   }, [settings, isOpen, projectMeta, systems, wpsLibrary]);
@@ -326,16 +322,12 @@ function ModalSettings({
     setProjectSystems(nextSystems);
   }
 
-  function handleAddWps(initialCode) {
-    const fromWeld = (initialCode && String(initialCode).trim()) || "";
-    const nextCode =
-      fromWeld ||
-      `WPS-${String(projectWpsLibrary.length + 1).padStart(3, "0")}`;
+  function handleAddWps() {
     const nextWpsLibrary = [
       ...projectWpsLibrary,
       {
         id: generateId(),
-        code: fromWeld ? fromWeld.toUpperCase() : nextCode,
+        code: "",
         title: "",
         description: "",
         documentId: null,
@@ -405,29 +397,6 @@ function ModalSettings({
       documents: [...documents, newDoc],
     });
     wqrUploadTargetRef.current = null;
-  }
-
-  async function handleUploadWpsDocument(wpsId, event) {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    const resolvedWpsId = wpsId || wpsUploadTargetRef.current;
-    if (!file || !resolvedWpsId) return;
-    const wpsEntry = projectWpsLibrary.find((entry) => entry.id === resolvedWpsId);
-    if (!wpsEntry) return;
-    const newDoc = await uploadLinkedDocument(file, "wps", wpsEntry.code || "WPS");
-    const nextWpsLibrary = projectWpsLibrary.map((entry) =>
-      entry.id === resolvedWpsId ? { ...entry, documentId: newDoc.id } : entry
-    );
-    setProjectWpsLibrary(nextWpsLibrary);
-    onSave?.({
-      drawingSettings: { ndtRequirements, weldingSpec },
-      personnel,
-      systems: projectSystems,
-      wpsLibrary: nextWpsLibrary,
-      electrodeLibrary: safeElectrodeLibrary,
-      documents: [...documents, newDoc],
-    });
-    wpsUploadTargetRef.current = null;
   }
 
   async function handleUploadMtcPdf(heat, file) {
@@ -515,7 +484,7 @@ function ModalSettings({
     {
       label: "Documents & QA",
       items: [
-        { key: "documents", label: "Document vault" },
+        { key: "electrodes", label: "Electrode register" },
         { key: "materials", label: "Material certificates" },
         { key: "painting-reports", label: "Painting reports" },
         { key: "ndt-reports", label: "NDT reports" },
@@ -739,21 +708,16 @@ function ModalSettings({
         {activeSection === "wps" && (
           <div className="mt-2 md:mt-0 space-y-3">
             <p className="text-xs text-base-content/70">
-              All project WPS rows and weld-only codes. Use <strong>Links</strong> to review welds and WQR codes tied to a procedure.
+              Project WPS list (title and description). Use <strong>Links</strong> to see welds and WQR codes tied to each entry. Assign a WPS to welds from the weld form.
             </p>
             <SettingsWpsRegistry
               wpsLibrary={projectWpsLibrary}
               weldPoints={weldPoints}
-              systems={projectSystems}
-              lines={lines}
-              spools={spools}
               personnel={personnel}
               wpsDocuments={wpsDocuments}
               onAddWps={handleAddWps}
               onUpdateWps={handleUpdateWps}
               onRemoveWps={handleRemoveWps}
-              wpsUploadInputRef={wpsUploadInputRef}
-              wpsUploadTargetRef={wpsUploadTargetRef}
             />
             <div className="modal-action mt-4">
               <button type="button" className="btn btn-ghost" onClick={onClose}>Close</button>
@@ -761,15 +725,11 @@ function ModalSettings({
           </div>
         )}
 
-        {activeSection === "documents" && (
+        {activeSection === "electrodes" && (
           <div className="mt-2 md:mt-0 space-y-3">
-            <p className="text-xs text-base-content/70">
-              Upload PDFs by category (WPS, WQR, MTC, electrodes, etc.). Electrode register links weld records to certificate PDFs.
-            </p>
-            <SettingsVaultPanel
+            <SettingsElectrodePanel
               documents={documents}
               electrodeLibrary={electrodeLibrary}
-              ndtReports={ndtReports}
               onSave={(payload) => {
                 onSave?.({
                   drawingSettings: { ndtRequirements, weldingSpec },
@@ -789,7 +749,9 @@ function ModalSettings({
               }}
             />
             <div className="modal-action mt-4">
-              <button type="button" className="btn btn-ghost" onClick={onClose}>Close</button>
+              <button type="button" className="btn btn-ghost" onClick={onClose}>
+                Close
+              </button>
             </div>
           </div>
         )}
@@ -801,8 +763,6 @@ function ModalSettings({
               documents={documents}
               weldPoints={weldPoints}
               parts={parts}
-              personnel={personnel}
-              wpsLibrary={projectWpsLibrary}
               onUpdateCertificates={(next) => {
                 onSave?.({
                   drawingSettings: { ndtRequirements, weldingSpec },
@@ -954,13 +914,6 @@ function ModalSettings({
           accept=".pdf,application/pdf"
           className="hidden"
           onChange={(e) => handleUploadWqrDocument(wqrUploadTargetRef.current, e)}
-        />
-        <input
-          ref={wpsUploadInputRef}
-          type="file"
-          accept=".pdf,application/pdf"
-          className="hidden"
-          onChange={(e) => handleUploadWpsDocument(wpsUploadTargetRef.current, e)}
         />
       </div>
       <form method="dialog" className="modal-backdrop">
