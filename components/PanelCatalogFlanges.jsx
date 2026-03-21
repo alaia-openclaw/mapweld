@@ -21,97 +21,87 @@ function rowMatchesFlangeSubtype(row, activeSubtypeId, subtypes) {
   return true;
 }
 
-function DropdownFlangesStandard({ standards, activeId, onChange }) {
-  const active = standards.find((s) => s.id === activeId);
+/**
+ * Reference: data/pipedata-catalog-tree.md — Schedule on bar for Weldneck / Lapped / long neck (B16.5).
+ * Standards without a flange-type submenu (e.g. B16.47) do not show Schedule on the bar in the reference.
+ */
+function showWallScheduleOnBar(subtypeId, subtypes) {
+  if (!subtypes?.length) return false;
+  if (!subtypeId) return true;
+  return ["weldneck", "lapped", "long-welding-neck"].includes(subtypeId);
+}
+
+function uniqueSortedStrings(values) {
+  const set = new Set();
+  for (const v of values) {
+    const s = v != null && String(v).trim() !== "" ? String(v).trim() : null;
+    if (s) set.add(s);
+  }
+  return Array.from(set).sort((a, b) =>
+    a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" })
+  );
+}
+
+/**
+ * Pipedata-style toolbar control: label on top, current value below, menu opens on click.
+ * Matches the “blue bar” dropdown pattern described in data/pipedata-catalog-tree.md.
+ */
+function FlangeToolbarDropdown({
+  label,
+  valueDisplay,
+  options,
+  activeId,
+  onSelect,
+  disabled = false,
+  placeholder = "—",
+  menuClassName = "",
+}) {
+  const active = options.find((o) => String(o.id) === String(activeId));
+  const display = active?.label ?? valueDisplay ?? placeholder;
+
   return (
-    <div className="dropdown dropdown-start w-full min-w-0 sm:max-w-md">
+    <div
+      className={`dropdown dropdown-start min-w-[7.5rem] max-w-[min(100vw-2rem,16rem)] flex-1 sm:flex-none ${
+        disabled ? "opacity-50 pointer-events-none" : ""
+      }`}
+    >
       <div
-        tabIndex={0}
+        tabIndex={disabled ? -1 : 0}
         role="button"
         className="btn btn-sm btn-outline border-base-300 bg-base-100 h-auto min-h-12 py-2 px-3 w-full flex flex-col items-stretch gap-0.5 normal-case font-normal"
       >
         <span className="text-[10px] font-semibold uppercase tracking-wide text-base-content/60 text-left">
-          Flange standard
+          {label}
         </span>
-        <span className="text-xs font-medium text-left whitespace-normal leading-snug">
-          {active?.label ?? "Select standard"}
+        <span className="text-xs font-medium text-left whitespace-normal leading-snug truncate">
+          {display}
         </span>
       </div>
-      <ul
-        tabIndex={0}
-        className="dropdown-content z-[40] menu p-2 shadow-lg bg-base-100 rounded-box w-[min(100vw-1.5rem,28rem)] max-h-[min(70vh,22rem)] overflow-y-auto border border-base-300 mt-1"
-      >
-        {standards.map((standard) => (
-          <li key={standard.id} className="w-full">
-            <button
-              type="button"
-              className={`w-full text-left whitespace-normal leading-snug py-2.5 min-h-0 h-auto rounded-lg text-xs ${
-                activeId === standard.id ? "active bg-primary text-primary-content font-medium" : ""
-              }`}
-              onClick={() => {
-                onChange(standard.id);
-                if (typeof document !== "undefined") (document.activeElement)?.blur?.();
-              }}
-            >
-              {standard.label}
-            </button>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function TabsPressureClass({ classes, activeClass, onChange }) {
-  if (!classes.length) return null;
-
-  return (
-    <div className="flex items-center gap-1 px-3 py-1 border-b border-base-300 bg-base-200/60">
-      <span className="text-xs font-semibold text-base-content/70 mr-1" title="Same as Rating in part selection">
-        Rating (class)
-      </span>
-      <div className="tabs tabs-sm tabs-boxed bg-base-100/80">
-        {classes.map((cls) => (
-          <button
-            key={cls.pressureClass}
-            type="button"
-            className={
-              activeClass === cls.pressureClass
-                ? "tab tab-active text-xs"
-                : "tab text-xs"
-            }
-            onClick={() => onChange(cls.pressureClass)}
-          >
-            {cls.pressureClass}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function TabsFlangeSubtype({ subtypes, activeSubtype, onChange }) {
-  if (!subtypes || !subtypes.length) return null;
-
-  return (
-    <div className="flex items-center gap-1 px-3 py-1 border-b border-base-300 bg-base-200/60">
-      <span className="text-xs font-semibold text-base-content/70 mr-1">
-        Flange type
-      </span>
-      <div className="tabs tabs-sm tabs-boxed bg-base-100/80">
-        {subtypes.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            className={
-              activeSubtype === t.id ? "tab tab-active text-xs" : "tab text-xs"
-            }
-            onClick={() => onChange(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      {!disabled && options.length > 0 ? (
+        <ul
+          tabIndex={0}
+          className={`dropdown-content z-[40] menu p-2 shadow-lg bg-base-100 rounded-box w-[min(100vw-1.5rem,18rem)] max-h-[min(70vh,22rem)] overflow-y-auto border border-base-300 mt-1 ${menuClassName}`}
+        >
+          {options.map((opt) => (
+            <li key={opt.id} className="w-full">
+              <button
+                type="button"
+                className={`w-full text-left whitespace-normal leading-snug py-2.5 min-h-0 h-auto rounded-lg text-xs ${
+                  String(activeId) === String(opt.id)
+                    ? "active bg-primary text-primary-content font-medium"
+                    : ""
+                }`}
+                onClick={() => {
+                  onSelect(opt.id);
+                  if (typeof document !== "undefined") document.activeElement?.blur?.();
+                }}
+              >
+                {opt.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }
@@ -200,11 +190,18 @@ function TableFlangeDimensions({
   standardLabel = "",
   flangeSubtypeId = "",
   subtypes = null,
+  activeSystem = "",
+  activeFaceType = "",
+  activeNps = "",
+  activeWall = "",
+  systemsCount = 1,
+  showWallBar = true,
 }) {
   const allRows = useMemo(() => {
     if (!selectedClass) return [];
     const rows = [];
     selectedClass.datasets.forEach((ds) => {
+      if (systemsCount > 1 && activeSystem && ds.system !== activeSystem) return;
       ds.rows.forEach((row) => {
         rows.push({
           ...row,
@@ -215,15 +212,25 @@ function TableFlangeDimensions({
       });
     });
     return rows;
-  }, [selectedClass, standardLabel]);
+  }, [selectedClass, standardLabel, activeSystem, systemsCount]);
 
   const filteredRows = useMemo(() => {
     return allRows.filter((row) => {
       if (search?.trim() && !matchFlangeRowSearch(row, search)) return false;
       if (!matchFlangeRowFilters(row, filters)) return false;
+      if (activeFaceType) {
+        const ft = row.attributes?.faceType;
+        if (String(ft ?? "").trim() !== activeFaceType) return false;
+      }
+      if (activeNps) {
+        if (String(row.nps ?? "").trim() !== activeNps) return false;
+      }
+      if (showWallBar && activeWall) {
+        if (flangeScheduleOrWall(row) !== activeWall) return false;
+      }
       return true;
     });
-  }, [allRows, search, filters]);
+  }, [allRows, search, filters, activeFaceType, activeNps, activeWall, showWallBar]);
 
   const rowsForSubtype = useMemo(() => {
     return filteredRows.filter((row) => rowMatchesFlangeSubtype(row, flangeSubtypeId, subtypes));
@@ -293,7 +300,7 @@ function PanelCatalogFlanges({ standards, initialStandardId, search = "", filter
   const [activeClassId, setActiveClassId] = useState(() => {
     const initialStandard =
       standards.find((s) => s.classes?.length) || standards[0];
-    return initialStandard?.classes?.[0]?.pressureClass ?? "";
+    return String(initialStandard?.classes?.[0]?.pressureClass ?? "");
   });
 
   const classes = useMemo(
@@ -307,15 +314,75 @@ function PanelCatalogFlanges({ standards, initialStandardId, search = "", filter
 
   useEffect(() => {
     const std = standards.find((s) => s.id === activeStandardId);
-    if (std?.subtypes?.length) {
-      setActiveSubtypeId(std.subtypes[0].id);
-    }
+    if (std?.subtypes?.length) setActiveSubtypeId(std.subtypes[0].id);
+    else setActiveSubtypeId("");
   }, [activeStandardId, standards]);
 
   const selectedClass = useMemo(
-    () => classes.find((cls) => cls.pressureClass === activeClassId) || classes[0],
+    () =>
+      classes.find((cls) => String(cls.pressureClass) === String(activeClassId)) ||
+      classes[0],
     [classes, activeClassId]
   );
+
+  const systemsInClass = useMemo(() => {
+    const ds = selectedClass?.datasets ?? [];
+    return uniqueSortedStrings(ds.map((d) => d.system));
+  }, [selectedClass]);
+
+  const [activeSystem, setActiveSystem] = useState("");
+
+  useEffect(() => {
+    if (systemsInClass.length) setActiveSystem(systemsInClass[0]);
+    else setActiveSystem("");
+  }, [selectedClass, systemsInClass]);
+
+  const [activeFaceType, setActiveFaceType] = useState("");
+  const [activeNps, setActiveNps] = useState("");
+  const [activeWall, setActiveWall] = useState("");
+
+  useEffect(() => {
+    setActiveFaceType("");
+    setActiveNps("");
+    setActiveWall("");
+  }, [activeClassId, activeStandardId, activeSubtypeId, activeSystem]);
+
+  const baseRowsForOptions = useMemo(() => {
+    if (!selectedClass) return [];
+    const rows = [];
+    selectedClass.datasets.forEach((ds) => {
+      if (systemsInClass.length > 1 && activeSystem && ds.system !== activeSystem) return;
+      ds.rows.forEach((row) => {
+        rows.push({
+          ...row,
+          system: ds.system,
+          standardLabel: activeStandard?.label ?? "",
+          pressureClass: selectedClass.pressureClass,
+        });
+      });
+    });
+    return rows.filter((row) =>
+      rowMatchesFlangeSubtype(row, activeSubtypeId, activeStandard?.subtypes)
+    );
+  }, [selectedClass, activeSystem, systemsInClass, activeSubtypeId, activeStandard]);
+
+  const uniqueFaceTypes = useMemo(
+    () => uniqueSortedStrings(baseRowsForOptions.map((r) => r.attributes?.faceType)),
+    [baseRowsForOptions]
+  );
+
+  const uniqueNps = useMemo(
+    () => uniqueSortedStrings(baseRowsForOptions.map((r) => r.nps)),
+    [baseRowsForOptions]
+  );
+
+  const uniqueWall = useMemo(
+    () => uniqueSortedStrings(baseRowsForOptions.map((r) => flangeScheduleOrWall(r))),
+    [baseRowsForOptions]
+  );
+
+  const showWallDropdown =
+    showWallScheduleOnBar(activeSubtypeId, activeStandard?.subtypes) && uniqueWall.length > 1;
 
   const [selectedRow, setSelectedRow] = useState(null);
 
@@ -323,32 +390,114 @@ function PanelCatalogFlanges({ standards, initialStandardId, search = "", filter
     setSelectedRow(row);
   };
 
+  const standardOptions = useMemo(
+    () => standards.map((s) => ({ id: s.id, label: s.label })),
+    [standards]
+  );
+
+  const classOptions = useMemo(
+    () =>
+      classes.map((cls) => ({
+        id: String(cls.pressureClass),
+        label: String(cls.pressureClass),
+      })),
+    [classes]
+  );
+
+  const subtypeOptions = useMemo(
+    () =>
+      (activeStandard?.subtypes ?? []).map((t) => ({
+        id: t.id,
+        label: t.label,
+      })),
+    [activeStandard]
+  );
+
+  const systemOptions = useMemo(
+    () => systemsInClass.map((sys) => ({ id: sys, label: sys })),
+    [systemsInClass]
+  );
+
+  const faceOptions = useMemo(
+    () => uniqueFaceTypes.map((ft) => ({ id: ft, label: ft })),
+    [uniqueFaceTypes]
+  );
+
+  const npsOptions = useMemo(
+    () => uniqueNps.map((n) => ({ id: n, label: n })),
+    [uniqueNps]
+  );
+
+  const wallOptions = useMemo(
+    () => uniqueWall.map((w) => ({ id: w, label: w })),
+    [uniqueWall]
+  );
+
   return (
     <div className="flex h-[calc(100dvh-7rem)] min-h-[420px] rounded-xl border border-base-300 bg-base-200/60 overflow-hidden">
       <div className="flex-1 flex flex-col min-w-0">
-        <div className="px-3 py-2 border-b border-base-300 bg-base-200/60 flex flex-wrap items-end gap-3">
-          <DropdownFlangesStandard
-            standards={standards}
+        <div className="px-3 py-2 border-b border-base-300 bg-base-200/60 flex flex-wrap items-end gap-2 gap-y-2">
+          <FlangeToolbarDropdown
+            label="Flange standard"
+            options={standardOptions}
             activeId={activeStandardId}
-            onChange={(id) => {
+            onSelect={(id) => {
               setActiveStandardId(id);
               const std = standards.find((s) => s.id === id);
               const firstClass = std?.classes?.[0];
-              setActiveClassId(firstClass?.pressureClass ?? "");
+              setActiveClassId(String(firstClass?.pressureClass ?? ""));
             }}
           />
+          {subtypeOptions.length > 1 ? (
+            <FlangeToolbarDropdown
+              label="Flange type"
+              options={subtypeOptions}
+              activeId={activeSubtypeId}
+              onSelect={setActiveSubtypeId}
+            />
+          ) : null}
+          {classOptions.length >= 1 ? (
+            <FlangeToolbarDropdown
+              label="Rating (class)"
+              options={classOptions}
+              activeId={activeClassId}
+              onSelect={setActiveClassId}
+            />
+          ) : null}
+          {systemOptions.length > 1 ? (
+            <FlangeToolbarDropdown
+              label="System"
+              options={systemOptions}
+              activeId={activeSystem}
+              onSelect={setActiveSystem}
+            />
+          ) : null}
+          {faceOptions.length > 1 ? (
+            <FlangeToolbarDropdown
+              label="Face type"
+              options={[{ id: "", label: "All" }, ...faceOptions]}
+              activeId={activeFaceType}
+              onSelect={(id) => setActiveFaceType(id)}
+            />
+          ) : null}
+          {npsOptions.length > 1 ? (
+            <FlangeToolbarDropdown
+              label="Size (NPS / NB)"
+              options={[{ id: "", label: "All sizes" }, ...npsOptions]}
+              activeId={activeNps}
+              onSelect={(id) => setActiveNps(id)}
+            />
+          ) : null}
+          {showWallDropdown ? (
+            <FlangeToolbarDropdown
+              label="Schedule / wall"
+              options={[{ id: "", label: "All" }, ...wallOptions]}
+              activeId={activeWall}
+              onSelect={(id) => setActiveWall(id)}
+            />
+          ) : null}
         </div>
-        <TabsFlangeSubtype
-          subtypes={activeStandard?.subtypes}
-          activeSubtype={activeSubtypeId}
-          onChange={setActiveSubtypeId}
-        />
-        <TabsPressureClass
-          classes={classes}
-          activeClass={selectedClass?.pressureClass}
-          onChange={setActiveClassId}
-        />
-        <div className="flex-1 grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)] gap-3 p-3">
+        <div className="flex-1 grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)] gap-3 p-3 min-h-0">
           <CardFlangeDrawing
             standard={activeStandard}
             activeSubtype={activeSubtypeId}
@@ -363,6 +512,12 @@ function PanelCatalogFlanges({ standards, initialStandardId, search = "", filter
             standardLabel={activeStandard?.label ?? ""}
             flangeSubtypeId={activeSubtypeId}
             subtypes={activeStandard?.subtypes}
+            activeSystem={activeSystem}
+            activeFaceType={activeFaceType}
+            activeNps={activeNps}
+            activeWall={activeWall}
+            systemsCount={systemsInClass.length}
+            showWallBar={showWallDropdown}
           />
         </div>
       </div>
@@ -371,4 +526,3 @@ function PanelCatalogFlanges({ standards, initialStandardId, search = "", filter
 }
 
 export default PanelCatalogFlanges;
-
