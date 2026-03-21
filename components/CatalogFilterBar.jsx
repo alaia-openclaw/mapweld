@@ -1,89 +1,36 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
 import { FILTER_PROPERTY_OPTIONS } from "@/lib/catalog-structure";
 
-function FilterValueMultiSelect({
-  filterId,
-  propertyId,
-  value,
-  options,
-  onChange,
-  onRemove,
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-
-  const selected = Array.isArray(value) ? value : value ? [value] : [];
-
-  useEffect(() => {
-    function handleClickOutside(e) {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    }
-    if (open) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
-    }
-  }, [open]);
-
-  function toggleOption(opt) {
-    const next = selected.includes(opt)
-      ? selected.filter((v) => v !== opt)
-      : [...selected, opt];
-    onChange(next);
+function normalizeFilterValue(value) {
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "";
+    return String(value[0] ?? "").trim();
   }
+  return value != null ? String(value).trim() : "";
+}
 
-  const label =
-    selected.length === 0
-      ? "Value"
-      : selected.length === 1
-        ? selected[0]
-        : `${selected.length} values`;
+function FilterValueSelect({ value, options, onChange, onRemove }) {
+  const selected = normalizeFilterValue(value);
 
   return (
-    <div className="relative" ref={ref}>
-      <button
-        type="button"
-        className="input input-xs input-bordered w-32 min-w-[6rem] text-left flex items-center justify-between gap-1"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        aria-haspopup="listbox"
+    <div className="flex items-center gap-1 min-w-0 w-full">
+      <select
+        className="select select-xs select-bordered flex-1 min-w-0 w-full"
+        value={options.includes(selected) ? selected : ""}
+        onChange={(e) => onChange(e.target.value)}
         aria-label="Filter value"
       >
-        <span className="truncate">{label}</span>
-        <span className="text-base-content/50 shrink-0">
-          {open ? "▾" : "▸"}
-        </span>
-      </button>
-      {open && (
-        <ul
-          className="dropdown-content menu p-1 mt-0.5 w-56 max-h-48 overflow-y-auto bg-base-100 border border-base-300 rounded-lg shadow-lg z-20"
-          role="listbox"
-        >
-          {options.length === 0 ? (
-            <li className="px-2 py-1 text-xs text-base-content/50">
-              No values in catalog
-            </li>
-          ) : (
-            options.map((opt) => (
-              <li key={opt}>
-                <label className="flex items-center gap-2 cursor-pointer py-1 px-2 rounded-md hover:bg-base-200">
-                  <input
-                    type="checkbox"
-                    className="checkbox checkbox-sm"
-                    checked={selected.includes(opt)}
-                    onChange={() => toggleOption(opt)}
-                  />
-                  <span className="text-sm">{opt}</span>
-                </label>
-              </li>
-            ))
-          )}
-        </ul>
-      )}
+        <option value="">Any</option>
+        {options.map((opt) => (
+          <option key={opt} value={opt}>
+            {opt}
+          </option>
+        ))}
+      </select>
       <button
         type="button"
-        className="btn btn-ghost btn-xs btn-square ml-0.5"
+        className="btn btn-ghost btn-xs btn-square shrink-0"
         onClick={onRemove}
         aria-label="Remove filter"
         title="Remove filter"
@@ -107,7 +54,7 @@ export default function CatalogFilterBar({
       {
         id: `f-${Date.now()}`,
         property: FILTER_PROPERTY_OPTIONS[0].id,
-        value: [],
+        value: "",
       },
     ]);
   }
@@ -124,7 +71,8 @@ export default function CatalogFilterBar({
 
   const hasActiveFilters = filters.some((f) => {
     const v = f.value;
-    return Array.isArray(v) ? v.length > 0 : v?.trim();
+    if (Array.isArray(v)) return v.length > 0;
+    return v != null && String(v).trim() !== "";
   });
 
   return (
@@ -145,12 +93,15 @@ export default function CatalogFilterBar({
         aria-label="Search catalog"
       />
       {filters.map((f) => (
-        <div key={f.id} className="flex items-center gap-1 flex-wrap">
+        <div
+          key={f.id}
+          className="flex flex-col gap-1 items-stretch min-w-[12rem] max-w-[min(100vw-2rem,20rem)] shrink-0"
+        >
           <select
-            className="select select-xs select-bordered w-32 max-w-[8rem]"
+            className="select select-xs select-bordered w-full"
             value={f.property}
             onChange={(e) =>
-              updateFilter(f.id, { property: e.target.value, value: [] })
+              updateFilter(f.id, { property: e.target.value, value: "" })
             }
             aria-label="Filter property"
           >
@@ -160,12 +111,10 @@ export default function CatalogFilterBar({
               </option>
             ))}
           </select>
-          <FilterValueMultiSelect
-            filterId={f.id}
-            propertyId={f.property}
+          <FilterValueSelect
             value={f.value}
             options={valueOptionsByProperty[f.property] ?? []}
-            onChange={(value) => updateFilter(f.id, { value })}
+            onChange={(next) => updateFilter(f.id, { value: next })}
             onRemove={() => removeFilter(f.id)}
           />
         </div>

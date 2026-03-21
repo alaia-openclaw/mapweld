@@ -36,12 +36,13 @@ export default function CatalogView({
 
   const counts = useMemo(
     () =>
-      computeCategoryCounts(
-        search,
-        filters,
-        { pipeEntries, fittingsEntries, flangesStandards }
-      ),
-    [search, filters, pipeEntries, fittingsEntries, flangesStandards]
+      computeCategoryCounts(search, filters, {
+        pipeEntries,
+        fittingsEntries,
+        flangesStandards,
+        tree,
+      }),
+    [search, filters, pipeEntries, fittingsEntries, flangesStandards, tree]
   );
 
   const valueOptionsByProperty = useMemo(
