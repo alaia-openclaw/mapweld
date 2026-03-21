@@ -16,6 +16,7 @@ import { findNodeById } from "@/lib/catalog-tree-path";
 import {
   parseFittingsSelectionId,
   filterFittingsBySubtype,
+  CATALOG_UNIT_SYSTEMS,
 } from "@/lib/catalog-structure";
 
 const FLANGED_VALVE_LEAF_IDS = new Set([
@@ -55,6 +56,7 @@ export default function CatalogContent({
   pipeEntries = [],
   fittingsEntries = [],
   onSelectCategory,
+  catalogUnitSystem = CATALOG_UNIT_SYSTEMS[0],
 }) {
   if (!selectedId) {
     return (
@@ -70,6 +72,7 @@ export default function CatalogContent({
         entries={pipeEntries}
         search={search}
         filters={filters}
+        catalogUnitSystem={catalogUnitSystem}
       />
     );
   }
@@ -90,6 +93,7 @@ export default function CatalogContent({
         initialStandardId={standardId}
         search={search}
         filters={filters}
+        catalogUnitSystem={catalogUnitSystem}
       />
     );
   }
@@ -208,6 +212,7 @@ export default function CatalogContent({
         entries={filtered}
         search={search}
         filters={filters}
+        catalogUnitSystem={catalogUnitSystem}
       />
     );
   }

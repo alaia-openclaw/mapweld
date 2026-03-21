@@ -1,17 +1,16 @@
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
-import { matchFlangeRowSearch, matchFlangeRowFilters } from "@/lib/catalog-structure";
+import {
+  matchFlangeRowSearch,
+  matchFlangeRowFilters,
+  CATALOG_UNIT_SYSTEMS,
+  getFlangePipeScheduleDisplay,
+} from "@/lib/catalog-structure";
 import { flangeDrawingFallbackImage } from "@/lib/flanges-config";
 
-/** Wall / schedule for display — matches filter property `schedule` in catalog-structure. */
-function flangeScheduleOrWall(row) {
-  const a = row.attributes || {};
-  const t = row.thickness;
-  if (t != null && String(t).trim() !== "") return String(t);
-  if (a.schedule != null && String(a.schedule).trim() !== "") return String(a.schedule);
-  if (a.thickness != null && String(a.thickness).trim() !== "") return String(a.thickness);
-  return "—";
+function flangePipeScheduleCell(row) {
+  return getFlangePipeScheduleDisplay(row) || "—";
 }
 
 function rowMatchesFlangeSubtype(row, activeSubtypeId, subtypes) {
@@ -190,18 +189,17 @@ function TableFlangeDimensions({
   standardLabel = "",
   flangeSubtypeId = "",
   subtypes = null,
-  activeSystem = "",
+  catalogUnitSystem = "",
   activeFaceType = "",
   activeNps = "",
   activeWall = "",
-  systemsCount = 1,
   showWallBar = true,
 }) {
   const allRows = useMemo(() => {
     if (!selectedClass) return [];
     const rows = [];
     selectedClass.datasets.forEach((ds) => {
-      if (systemsCount > 1 && activeSystem && ds.system !== activeSystem) return;
+      if (catalogUnitSystem && ds.system && ds.system !== catalogUnitSystem) return;
       ds.rows.forEach((row) => {
         rows.push({
           ...row,
@@ -212,7 +210,7 @@ function TableFlangeDimensions({
       });
     });
     return rows;
-  }, [selectedClass, standardLabel, activeSystem, systemsCount]);
+  }, [selectedClass, standardLabel, catalogUnitSystem]);
 
   const filteredRows = useMemo(() => {
     return allRows.filter((row) => {
@@ -226,7 +224,7 @@ function TableFlangeDimensions({
         if (String(row.nps ?? "").trim() !== activeNps) return false;
       }
       if (showWallBar && activeWall) {
-        if (flangeScheduleOrWall(row) !== activeWall) return false;
+        if (getFlangePipeScheduleDisplay(row) !== activeWall) return false;
       }
       return true;
     });
@@ -236,10 +234,21 @@ function TableFlangeDimensions({
     return filteredRows.filter((row) => rowMatchesFlangeSubtype(row, flangeSubtypeId, subtypes));
   }, [filteredRows, flangeSubtypeId, subtypes]);
 
-  if (!selectedClass || !allRows.length) {
+  if (!selectedClass) {
     return (
       <div className="flex items-center justify-center h-full text-xs text-base-content/60">
         Select a pressure class to see dimensions.
+      </div>
+    );
+  }
+
+  if (!allRows.length) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-1 h-full text-xs text-base-content/60 px-4 text-center">
+        <span>No dimensions for the selected unit system in this rating.</span>
+        <span className="text-[11px] text-base-content/50">
+          Switch <strong>Units</strong> (Imperial / Metric) in the catalog toolbar.
+        </span>
       </div>
     );
   }
@@ -251,7 +260,9 @@ function TableFlangeDimensions({
           <tr>
             <th>System</th>
             <th>NPS / NB</th>
-            <th title="Pipe schedule or flange wall thickness (same field as part catalog)">Schedule / wall</th>
+            <th title="ASME pipe schedule for the flange bore (e.g. STD, XS, 40, 80S). Not wall thickness.">
+              Pipe schedule
+            </th>
             <th>OD</th>
             <th>PCD</th>
           </tr>
@@ -267,7 +278,7 @@ function TableFlangeDimensions({
               >
                 <td>{row.system}</td>
                 <td>{row.nps}</td>
-                <td>{flangeScheduleOrWall(row)}</td>
+                <td>{flangePipeScheduleCell(row)}</td>
                 <td>{row.od ?? "—"}</td>
                 <td>{row.pcd ?? "—"}</td>
               </tr>
@@ -279,7 +290,13 @@ function TableFlangeDimensions({
   );
 }
 
-function PanelCatalogFlanges({ standards, initialStandardId, search = "", filters = [] }) {
+function PanelCatalogFlanges({
+  standards,
+  initialStandardId,
+  search = "",
+  filters = [],
+  catalogUnitSystem = CATALOG_UNIT_SYSTEMS[0],
+}) {
   const [activeStandardId, setActiveStandardId] = useState(() => {
     if (initialStandardId && standards.some((s) => s.id === initialStandardId))
       return initialStandardId;
@@ -325,18 +342,6 @@ function PanelCatalogFlanges({ standards, initialStandardId, search = "", filter
     [classes, activeClassId]
   );
 
-  const systemsInClass = useMemo(() => {
-    const ds = selectedClass?.datasets ?? [];
-    return uniqueSortedStrings(ds.map((d) => d.system));
-  }, [selectedClass]);
-
-  const [activeSystem, setActiveSystem] = useState("");
-
-  useEffect(() => {
-    if (systemsInClass.length) setActiveSystem(systemsInClass[0]);
-    else setActiveSystem("");
-  }, [selectedClass, systemsInClass]);
-
   const [activeFaceType, setActiveFaceType] = useState("");
   const [activeNps, setActiveNps] = useState("");
   const [activeWall, setActiveWall] = useState("");
@@ -345,13 +350,13 @@ function PanelCatalogFlanges({ standards, initialStandardId, search = "", filter
     setActiveFaceType("");
     setActiveNps("");
     setActiveWall("");
-  }, [activeClassId, activeStandardId, activeSubtypeId, activeSystem]);
+  }, [activeClassId, activeStandardId, activeSubtypeId, catalogUnitSystem]);
 
   const baseRowsForOptions = useMemo(() => {
     if (!selectedClass) return [];
     const rows = [];
     selectedClass.datasets.forEach((ds) => {
-      if (systemsInClass.length > 1 && activeSystem && ds.system !== activeSystem) return;
+      if (catalogUnitSystem && ds.system && ds.system !== catalogUnitSystem) return;
       ds.rows.forEach((row) => {
         rows.push({
           ...row,
@@ -364,7 +369,7 @@ function PanelCatalogFlanges({ standards, initialStandardId, search = "", filter
     return rows.filter((row) =>
       rowMatchesFlangeSubtype(row, activeSubtypeId, activeStandard?.subtypes)
     );
-  }, [selectedClass, activeSystem, systemsInClass, activeSubtypeId, activeStandard]);
+  }, [selectedClass, catalogUnitSystem, activeSubtypeId, activeStandard]);
 
   const uniqueFaceTypes = useMemo(
     () => uniqueSortedStrings(baseRowsForOptions.map((r) => r.attributes?.faceType)),
@@ -377,7 +382,10 @@ function PanelCatalogFlanges({ standards, initialStandardId, search = "", filter
   );
 
   const uniqueWall = useMemo(
-    () => uniqueSortedStrings(baseRowsForOptions.map((r) => flangeScheduleOrWall(r))),
+    () =>
+      uniqueSortedStrings(
+        baseRowsForOptions.map((r) => getFlangePipeScheduleDisplay(r)).filter(Boolean)
+      ),
     [baseRowsForOptions]
   );
 
@@ -411,11 +419,6 @@ function PanelCatalogFlanges({ standards, initialStandardId, search = "", filter
         label: t.label,
       })),
     [activeStandard]
-  );
-
-  const systemOptions = useMemo(
-    () => systemsInClass.map((sys) => ({ id: sys, label: sys })),
-    [systemsInClass]
   );
 
   const faceOptions = useMemo(
@@ -464,14 +467,6 @@ function PanelCatalogFlanges({ standards, initialStandardId, search = "", filter
               onSelect={setActiveClassId}
             />
           ) : null}
-          {systemOptions.length > 1 ? (
-            <FlangeToolbarDropdown
-              label="System"
-              options={systemOptions}
-              activeId={activeSystem}
-              onSelect={setActiveSystem}
-            />
-          ) : null}
           {faceOptions.length > 1 ? (
             <FlangeToolbarDropdown
               label="Face type"
@@ -490,7 +485,7 @@ function PanelCatalogFlanges({ standards, initialStandardId, search = "", filter
           ) : null}
           {showWallDropdown ? (
             <FlangeToolbarDropdown
-              label="Schedule / wall"
+              label="Pipe schedule"
               options={[{ id: "", label: "All" }, ...wallOptions]}
               activeId={activeWall}
               onSelect={(id) => setActiveWall(id)}
@@ -512,11 +507,10 @@ function PanelCatalogFlanges({ standards, initialStandardId, search = "", filter
             standardLabel={activeStandard?.label ?? ""}
             flangeSubtypeId={activeSubtypeId}
             subtypes={activeStandard?.subtypes}
-            activeSystem={activeSystem}
+            catalogUnitSystem={catalogUnitSystem}
             activeFaceType={activeFaceType}
             activeNps={activeNps}
             activeWall={activeWall}
-            systemsCount={systemsInClass.length}
             showWallBar={showWallDropdown}
           />
         </div>

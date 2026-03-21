@@ -10,6 +10,7 @@ import {
   computeCategoryCounts,
   injectFlangeChildren,
   getPropertyValueOptionsForAll,
+  CATALOG_UNIT_SYSTEMS,
 } from "@/lib/catalog-structure";
 
 export default function CatalogView({
@@ -33,6 +34,9 @@ export default function CatalogView({
   const [selectedId, setSelectedId] = useState(defaultSelected);
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState([]);
+  const [catalogUnitSystem, setCatalogUnitSystem] = useState(
+    () => CATALOG_UNIT_SYSTEMS[0]
+  );
 
   const counts = useMemo(
     () =>
@@ -41,8 +45,9 @@ export default function CatalogView({
         fittingsEntries,
         flangesStandards,
         tree,
+        catalogUnitSystem,
       }),
-    [search, filters, pipeEntries, fittingsEntries, flangesStandards, tree]
+    [search, filters, pipeEntries, fittingsEntries, flangesStandards, tree, catalogUnitSystem]
   );
 
   const valueOptionsByProperty = useMemo(
@@ -51,8 +56,9 @@ export default function CatalogView({
         pipeEntries,
         fittingsEntries,
         flangesStandards,
+        catalogUnitSystem,
       }),
-    [pipeEntries, fittingsEntries, flangesStandards]
+    [pipeEntries, fittingsEntries, flangesStandards, catalogUnitSystem]
   );
 
   return (
@@ -63,6 +69,8 @@ export default function CatalogView({
         filters={filters}
         onFiltersChange={setFilters}
         valueOptionsByProperty={valueOptionsByProperty}
+        catalogUnitSystem={catalogUnitSystem}
+        onCatalogUnitSystemChange={setCatalogUnitSystem}
       />
       <div className="flex flex-1 min-h-0">
         <CatalogSidebar
@@ -81,6 +89,7 @@ export default function CatalogView({
             pipeEntries={pipeEntries}
             fittingsEntries={fittingsEntries}
             onSelectCategory={setSelectedId}
+            catalogUnitSystem={catalogUnitSystem}
           />
         </div>
       </div>

@@ -1,14 +1,26 @@
 "use client";
 
 import { useMemo } from "react";
-import { matchEntrySearch, matchEntryFilters } from "@/lib/catalog-structure";
+import {
+  matchEntrySearch,
+  matchEntryFilters,
+  entryMatchesCatalogUnitSystem,
+} from "@/lib/catalog-structure";
 
-export default function PanelCatalogPipe({ entries, search = "", filters = [] }) {
+export default function PanelCatalogPipe({
+  entries,
+  search = "",
+  filters = [],
+  catalogUnitSystem,
+}) {
   const filtered = useMemo(() => {
     return entries.filter(
-      (e) => matchEntrySearch(e, search) && matchEntryFilters(e, filters)
+      (e) =>
+        entryMatchesCatalogUnitSystem(e, catalogUnitSystem) &&
+        matchEntrySearch(e, search) &&
+        matchEntryFilters(e, filters)
     );
-  }, [entries, search, filters]);
+  }, [entries, search, filters, catalogUnitSystem]);
 
   if (!entries.length) {
     return (

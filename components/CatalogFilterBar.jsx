@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { FILTER_PROPERTY_OPTIONS } from "@/lib/catalog-structure";
+import {
+  FILTER_PROPERTY_OPTIONS,
+  CATALOG_UNIT_SYSTEMS,
+} from "@/lib/catalog-structure";
 
 function normalizeSelectedValues(value) {
   if (Array.isArray(value)) {
@@ -122,6 +125,8 @@ export default function CatalogFilterBar({
   filters,
   onFiltersChange,
   valueOptionsByProperty = {},
+  catalogUnitSystem = CATALOG_UNIT_SYSTEMS[0],
+  onCatalogUnitSystemChange,
 }) {
   function addFilter() {
     onFiltersChange([
@@ -167,6 +172,31 @@ export default function CatalogFilterBar({
         onChange={(e) => onSearchChange(e.target.value)}
         aria-label="Search catalog"
       />
+      <div className="flex flex-col gap-0.5 shrink-0">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-base-content/60">
+          Units
+        </span>
+        <div
+          className="join join-horizontal border border-base-300 rounded-lg overflow-hidden"
+          role="group"
+          aria-label="Catalog unit system"
+        >
+          {CATALOG_UNIT_SYSTEMS.map((sys) => (
+            <button
+              key={sys}
+              type="button"
+              className={`btn btn-xs join-item min-h-8 px-3 font-medium ${
+                catalogUnitSystem === sys
+                  ? "btn-primary text-primary-content"
+                  : "btn-ghost bg-base-100"
+              }`}
+              onClick={() => onCatalogUnitSystemChange?.(sys)}
+            >
+              {sys}
+            </button>
+          ))}
+        </div>
+      </div>
       {filters.map((f) => (
         <div
           key={f.id}
