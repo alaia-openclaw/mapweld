@@ -72,6 +72,7 @@ export default function CatalogView({
         />
         <div className="flex-1 min-w-0 p-3 overflow-auto">
           <CatalogContent
+            tree={tree}
             selectedId={selectedId}
             search={search}
             filters={filters}

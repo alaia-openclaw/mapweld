@@ -1,24 +1,26 @@
 "use client";
 
-import { getOptionsForStep } from "@/lib/catalog-hierarchy";
+import { useEffect, useMemo } from "react";
+import {
+  getHierarchyForCategory,
+  getOptionsForStep,
+  expandHierarchyStateWithAutoFills,
+  hierarchyStateDiffers,
+} from "@/lib/catalog-hierarchy";
 import { getHierarchyStepDisplayLabel } from "@/lib/catalog-category-labels";
 
 /**
  * Cascading selects for one catalog category (shared by part form and add-defaults bar).
- * @param {string} catalogCategory
- * @param {object[]} hierarchySteps — from getHierarchyForCategory(catalogCategory)
- * @param {object} hierarchyState
- * @param {object[]} catalogEntriesForCategory
- * @param {(stepKey: string, value: string) => void} onHierarchyChange
- * @param {'form' | 'compact'} variant
- * @param {string} idPrefix — element id prefix
+ * Hides steps that only have one possible value (e.g. angle 90° for 90° elbows).
+ * Optional onHierarchyStateReplace commits auto-filled state (single-option steps).
  */
 export default function CatalogHierarchyStepSelects({
   catalogCategory,
-  hierarchySteps = [],
+  hierarchySteps: _ignored,
   hierarchyState = {},
   catalogEntriesForCategory = [],
   onHierarchyChange,
+  onHierarchyStateReplace,
   variant = "form",
   idPrefix = "hierarchy",
 }) {
@@ -27,13 +29,40 @@ export default function CatalogHierarchyStepSelects({
     ? "select select-bordered select-xs h-7 min-h-7 py-0.5 w-20 max-w-full text-xs"
     : "select select-bordered select-xs w-full";
 
+  const steps = useMemo(() => getHierarchyForCategory(catalogCategory), [catalogCategory]);
+
+  const expandedState = useMemo(
+    () =>
+      expandHierarchyStateWithAutoFills(catalogCategory, catalogEntriesForCategory, hierarchyState),
+    [catalogCategory, catalogEntriesForCategory, hierarchyState]
+  );
+
+  useEffect(() => {
+    if (!catalogCategory || !onHierarchyStateReplace) return;
+    if (hierarchyStateDiffers(hierarchyState, expandedState)) {
+      onHierarchyStateReplace(expandedState);
+    }
+  }, [catalogCategory, expandedState, hierarchyState, onHierarchyStateReplace]);
+
+  const visibleSteps = useMemo(() => {
+    return steps.filter((step) => {
+      const opts = getOptionsForStep(
+        catalogEntriesForCategory,
+        expandedState,
+        catalogCategory,
+        step.key
+      );
+      return opts.length > 1;
+    });
+  }, [catalogCategory, catalogEntriesForCategory, expandedState, steps]);
+
   return (
     <>
-      {hierarchySteps.map((step) => {
-        const value = hierarchyState[step.key] ?? "";
+      {visibleSteps.map((step) => {
+        const value = expandedState[step.key] ?? "";
         const options = getOptionsForStep(
           catalogEntriesForCategory,
-          hierarchyState,
+          expandedState,
           catalogCategory,
           step.key
         );

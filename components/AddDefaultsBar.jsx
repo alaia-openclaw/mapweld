@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import { PART_TYPE_LABELS, WELD_LOCATION_LABELS } from "@/lib/constants";
 import { getCategories } from "@/lib/part-catalog";
 import { getHierarchyForCategory } from "@/lib/catalog-hierarchy";
@@ -83,6 +83,13 @@ function AddDefaultsBar({
       hierarchyState: next,
     });
   }
+
+  const handleHierarchyStateReplace = useCallback(
+    (next) => {
+      onAddDefaultsChange?.({ ...addDefaults, hierarchyState: next });
+    },
+    [addDefaults, onAddDefaultsChange]
+  );
 
   return (
     <div
@@ -175,6 +182,7 @@ function AddDefaultsBar({
               hierarchyState={hierarchyState}
               catalogEntriesForCategory={catalogEntriesForCategory}
               onHierarchyChange={handleHierarchyChange}
+              onHierarchyStateReplace={handleHierarchyStateReplace}
               variant="compact"
               idPrefix="default"
             />

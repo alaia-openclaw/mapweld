@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { PART_TYPES, PART_TYPE_LABELS } from "@/lib/constants";
 import { getCategories, getCatalogEntry } from "@/lib/part-catalog";
 import {
@@ -238,6 +238,10 @@ function SidePanelPartForm({
     });
   }
 
+  const handleHierarchyStateReplace = useCallback((next) => {
+    setHierarchyState(next);
+  }, []);
+
   function setHeatMtcDocument(documentId) {
     if (!normalizedHeat || !onSaveMaterialCertificates) return;
     const nextCertificates = [...(materialCertificates || [])];
@@ -304,6 +308,7 @@ function SidePanelPartForm({
             hierarchyState={hierarchyState}
             catalogEntriesForCategory={catalogEntriesForCategory}
             onHierarchyChange={handleHierarchyChange}
+            onHierarchyStateReplace={handleHierarchyStateReplace}
             variant="form"
             idPrefix="part-hierarchy"
           />

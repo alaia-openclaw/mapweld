@@ -9,21 +9,14 @@ import PanelCatalogRingJointGaskets from "@/components/PanelCatalogRingJointGask
 import PanelCatalogFlangedValves from "@/components/PanelCatalogFlangedValves";
 import PanelCatalogButtweldedValves from "@/components/PanelCatalogButtweldedValves";
 import PanelCatalogThreadedValves from "@/components/PanelCatalogThreadedValves";
+import PanelCatalogSocketweldedValves from "@/components/PanelCatalogSocketweldedValves";
+import PanelCatalogBranchOverview from "@/components/PanelCatalogBranchOverview";
 import { THREADED_VALVE_TYPES } from "@/lib/threaded-valves-data";
+import { findNodeById } from "@/lib/catalog-tree-path";
 import {
   parseFittingsSelectionId,
   filterFittingsBySubtype,
 } from "@/lib/catalog-structure";
-
-function EmptyCategory({ categoryLabel }) {
-  return (
-    <div className="rounded-xl border border-base-300 bg-base-200/60 p-8 text-center">
-      <p className="text-base-content/70">
-        No data available for <strong>{categoryLabel}</strong> yet.
-      </p>
-    </div>
-  );
-}
 
 const FLANGED_VALVE_LEAF_IDS = new Set([
   "valves-flanged-gate",
@@ -54,6 +47,7 @@ const SOCKETWELDED_VALVE_LEAF_IDS = new Set([
 ]);
 
 export default function CatalogContent({
+  tree = [],
   selectedId,
   search = "",
   filters = [],
@@ -80,19 +74,16 @@ export default function CatalogContent({
     );
   }
 
-  if (selectedId === "flanges") {
-    return (
-      <div className="rounded-xl border border-base-300 bg-base-200/60 p-8 text-center text-base-content/70 text-sm">
-        Expand <strong>Flanges</strong> in the sidebar and choose a standard (e.g. <strong>ASME B16.5</strong>).
-      </div>
-    );
-  }
-
   if (selectedId?.startsWith("flange-")) {
     if (!flangesStandards.length) {
-      return <EmptyCategory categoryLabel="Flange" />;
+      return (
+        <div className="rounded-xl border border-base-300 bg-base-200/60 p-8 text-center text-sm text-base-content/70">
+          No flange reference data found. Ensure the Pipedata <code className="text-xs">Database</code> folder is
+          present.
+        </div>
+      );
     }
-    const standardId = selectedId.slice(7); // "flange-".length
+    const standardId = selectedId.slice(7);
     return (
       <PanelCatalogFlanges
         standards={flangesStandards}
@@ -100,14 +91,6 @@ export default function CatalogContent({
         search={search}
         filters={filters}
       />
-    );
-  }
-
-  if (selectedId === "fittings") {
-    return (
-      <div className="rounded-xl border border-base-300 bg-base-200/60 p-8 text-center text-base-content/70 text-sm">
-        Expand <strong>Fittings</strong> → choose a family (buttwelded, threaded, socketwelded, …), then a part type.
-      </div>
     );
   }
 
@@ -137,19 +120,6 @@ export default function CatalogContent({
     return <PanelCatalogRingJointGaskets selectionId={selectedId} search={search} />;
   }
 
-  if (
-    selectedId === "gasket" ||
-    selectedId === "gasket-nonmetallic-flat" ||
-    selectedId === "gasket-spiral-wound" ||
-    selectedId === "gasket-ring-joint"
-  ) {
-    return (
-      <div className="rounded-xl border border-base-300 bg-base-200/60 p-8 text-center text-base-content/70 text-sm">
-        Select a gasket type in the sidebar (e.g. <strong>Nonmetallic Flat</strong>, <strong>Spiral-Wound</strong>, or{" "}
-        <strong>Ring-Joint</strong> → type).
-      </div>
-    );
-  }
   if (FLANGED_VALVE_LEAF_IDS.has(selectedId)) {
     return (
       <PanelCatalogFlangedValves
@@ -173,6 +143,16 @@ export default function CatalogContent({
   if (THREADED_VALVE_LEAF_IDS.has(selectedId)) {
     return (
       <PanelCatalogThreadedValves
+        selectionId={selectedId}
+        search={search}
+        onSelectCategory={onSelectCategory}
+      />
+    );
+  }
+
+  if (SOCKETWELDED_VALVE_LEAF_IDS.has(selectedId)) {
+    return (
+      <PanelCatalogSocketweldedValves
         selectionId={selectedId}
         search={search}
         onSelectCategory={onSelectCategory}
@@ -207,33 +187,12 @@ export default function CatalogContent({
     );
   }
 
-  if (selectedId === "valves-socketwelded" || SOCKETWELDED_VALVE_LEAF_IDS.has(selectedId)) {
-    return <EmptyCategory categoryLabel="Socketwelded valves" />;
-  }
-
-  if (selectedId === "valves") {
+  if (selectedId === "valves-socketwelded") {
     return (
       <div className="rounded-xl border border-base-300 bg-base-200/60 p-8 text-center text-base-content/70 text-sm">
-        Expand <strong>Valves</strong> → choose a connection type (flanged, buttwelded, threaded, or socketwelded), then
-        pick a valve type.
+        Select a socketwelded valve type in the sidebar (e.g. <strong>Socketwelded Gate Valve</strong>).
       </div>
     );
-  }
-  if (selectedId === "line-blanks" || selectedId.startsWith("line-blanks-")) {
-    return <EmptyCategory categoryLabel="Line Blanks" />;
-  }
-
-  if (
-    selectedId.startsWith("strainers-") ||
-    selectedId.startsWith("wb-") ||
-    selectedId.startsWith("nuts-") ||
-    selectedId.startsWith("spacing-") ||
-    selectedId.startsWith("safe-spans-") ||
-    selectedId.startsWith("pipe-flex-") ||
-    selectedId === "pressure-temperature-ratings" ||
-    selectedId === "asme-composite"
-  ) {
-    return <EmptyCategory categoryLabel="Pipedata reference tables" />;
   }
 
   const fittingsParsed = parseFittingsSelectionId(selectedId);
@@ -251,6 +210,30 @@ export default function CatalogContent({
         filters={filters}
       />
     );
+  }
+
+  if (tree?.length) {
+    const node = findNodeById(tree, selectedId);
+    if (node?.children?.length) {
+      return (
+        <PanelCatalogBranchOverview
+          tree={tree}
+          selectedId={selectedId}
+          onSelectChild={onSelectCategory}
+        />
+      );
+    }
+    if (node && !node.children?.length) {
+      return (
+        <div className="rounded-xl border border-base-300 bg-base-200/60 p-8 text-center">
+          <p className="font-semibold text-base-content">{node.label}</p>
+          <p className="mt-2 text-sm text-base-content/70">
+            No spreadsheet-style table is bundled for this catalog entry. Use pipe, flanges, fittings, gaskets, or
+            valves for data-backed tables when the reference database is installed.
+          </p>
+        </div>
+      );
+    }
   }
 
   return (
