@@ -101,7 +101,7 @@ function SettingsElectrodePanel({ documents = [], electrodeLibrary = [], weldPoi
     if (!entry) return;
     const uploaded = {
       id: generateId("doc"),
-      title: (entry.code || file.name || "Electrode").replace(/\.pdf$/i, ""),
+      title: file.name || entry.code || "Electrode",
       category: "electrode",
       fileName: file.name,
       mimeType: file.type || "application/pdf",

@@ -23,6 +23,8 @@ import {
   getInheritedWpsSource,
   getResolvedWpsCode,
   getWpsLibraryEntryById,
+  getWpsLibraryEntryEffectiveCode,
+  findWpsLibraryEntriesMatchingUserText,
 } from "@/lib/wps-resolution";
 import { comparePartDisplayNumbers } from "@/lib/part-display-number";
 import {
@@ -97,13 +99,6 @@ function SidePanelWeldForm({
   const [wpsUiMode, setWpsUiMode] = useState("inherit");
   /** Optional `wpsLibrary` row id — synced when picking a preset code (managed in Settings for PDF link). */
   const [linkedWpsEntryId, setLinkedWpsEntryId] = useState("");
-  /** Shown in the field when the weld has no stored WPS and UI mode is inherit (resolution uses line/system). */
-  const displayWps = useMemo(() => {
-    const trimmed = (wps || "").trim();
-    if (trimmed) return wps;
-    if (wpsUiMode === "inherit") return inheritedWpsCode;
-    return wps;
-  }, [wps, wpsUiMode, inheritedWpsCode]);
   const [weldListSearch, setWeldListSearch] = useState("");
   const [weldListLocation, setWeldListLocation] = useState("all");
   const [weldListMissing, setWeldListMissing] = useState("all");
@@ -194,12 +189,24 @@ function SidePanelWeldForm({
     () => (Array.isArray(wpsLibrary) ? wpsLibrary : []),
     [wpsLibrary]
   );
-  const wpsPresetCodes = useMemo(
-    () =>
-      [...new Set(libraryWpsEntries.map((entry) => (entry?.code || "").trim()).filter(Boolean))]
-        .sort((a, b) => a.localeCompare(b)),
-    [libraryWpsEntries]
-  );
+  /** Library rows that have a usable code (code or title). */
+  const libraryWpsRows = useMemo(() => {
+    return libraryWpsEntries
+      .map((entry) => ({ entry, effective: getWpsLibraryEntryEffectiveCode(entry) }))
+      .filter((row) => row.effective)
+      .sort((a, b) => a.effective.localeCompare(b.effective));
+  }, [libraryWpsEntries]);
+
+  /** Value for the WPS `<select>`: inherit, a library id, or manual. */
+  const wpsSelectValue = useMemo(() => {
+    const trimmed = (wps || "").trim();
+    if (!trimmed && wpsUiMode === "inherit") return "__inherit__";
+    if (linkedWpsEntryId) {
+      const linked = libraryWpsEntries.find((e) => e.id === linkedWpsEntryId);
+      if (linked && getWpsLibraryEntryEffectiveCode(linked)) return `library:${linkedWpsEntryId}`;
+    }
+    return "__manual__";
+  }, [wps, wpsUiMode, linkedWpsEntryId, libraryWpsEntries]);
 
   const weldListSearchNorm = (weldListSearch || "").trim().toLowerCase();
   const filteredWeldPoints = useMemo(() => {
@@ -240,16 +247,60 @@ function SidePanelWeldForm({
     if (!linkedWpsEntryId) return;
     const entry = getWpsLibraryEntryById(libraryWpsEntries, linkedWpsEntryId);
     const nextTrim = (nextCode || "").trim();
-    if (!entry || (entry.code || "").trim() !== nextTrim) setLinkedWpsEntryId("");
+    if (!entry || getWpsLibraryEntryEffectiveCode(entry) !== nextTrim) setLinkedWpsEntryId("");
   }
 
-  function applyPresetWpsCode(code) {
-    const v = (code || "").trim();
+  function applyLibraryWpsEntry(entryId) {
+    const entry = libraryWpsEntries.find((e) => e.id === entryId);
+    if (!entry) return;
+    const v = getWpsLibraryEntryEffectiveCode(entry);
+    if (!v) return;
     setWps(v);
     setWpsUiMode("preset");
-    const matches = libraryWpsEntries.filter((e) => (e.code || "").trim() === v);
-    if (matches.length === 1) setLinkedWpsEntryId(matches[0].id);
-    else setLinkedWpsEntryId("");
+    setLinkedWpsEntryId(entry.id);
+  }
+
+  function handleWpsTextChange(next) {
+    const t = next.trim();
+    if (!t) {
+      setWps("");
+      setWpsUiMode("inherit");
+      setLinkedWpsEntryId("");
+      return;
+    }
+    const matches = findWpsLibraryEntriesMatchingUserText(libraryWpsEntries, t);
+    const pick =
+      matches.length > 0
+        ? [...matches].sort((a, b) => (a.id || "").localeCompare(b.id || ""))[0]
+        : null;
+    if (pick) {
+      const canonical = getWpsLibraryEntryEffectiveCode(pick);
+      setWps(canonical);
+      setWpsUiMode("preset");
+      setLinkedWpsEntryId(pick.id);
+    } else {
+      setWps(next);
+      setWpsUiMode("custom");
+      syncLinkedWpsAfterCodeChange(next);
+    }
+  }
+
+  function handleWpsSelectChange(e) {
+    const v = e.target.value;
+    if (v === "__inherit__") {
+      setWps("");
+      setWpsUiMode("inherit");
+      setLinkedWpsEntryId("");
+      return;
+    }
+    if (v === "__manual__") {
+      setWpsUiMode("custom");
+      setLinkedWpsEntryId("");
+      return;
+    }
+    if (v.startsWith("library:")) {
+      applyLibraryWpsEntry(v.slice("library:".length));
+    }
   }
   const fitterOptions = useMemo(
     () =>
@@ -350,9 +401,21 @@ function SidePanelWeldForm({
     const wpsTrim = (weld.wps || "").trim();
     setWps(weld.wps || "");
     setLinkedWpsEntryId(weld.wpsLibraryEntryId || "");
-    if (!wpsTrim) setWpsUiMode("inherit");
-    else if (wpsPresetCodes.includes(wpsTrim)) setWpsUiMode("preset");
-    else setWpsUiMode("custom");
+    if (!wpsTrim) {
+      setWpsUiMode("inherit");
+    } else if (weld.wpsLibraryEntryId && getWpsLibraryEntryById(libraryWpsEntries, weld.wpsLibraryEntryId)) {
+      setWpsUiMode("preset");
+    } else {
+      const matches = findWpsLibraryEntriesMatchingUserText(libraryWpsEntries, wpsTrim);
+      if (matches.length >= 1) {
+        const pick = [...matches].sort((a, b) => (a.id || "").localeCompare(b.id || ""))[0];
+        setWpsUiMode("preset");
+        setLinkedWpsEntryId(pick.id);
+        setWps(getWpsLibraryEntryEffectiveCode(pick));
+      } else {
+        setWpsUiMode("custom");
+      }
+    }
     setFitterName(weld.fitterName || "");
     setDateFitUp(weld.dateFitUp || "");
     setHeatNumber1(weld.heatNumber1 || "");
@@ -381,7 +444,7 @@ function SidePanelWeldForm({
     setNdtResultOutcome(weld.ndtResultOutcome || {});
     setNdtResultManualOverride(weld.ndtResultManualOverride || {});
     setNdtResultOverrideUnlocked(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- wpsUiMode uses wpsPresetCodes only when switching to this weld
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only reset local form when switching weld
   }, [weld]);
 
   useEffect(() => {
@@ -833,87 +896,56 @@ function SidePanelWeldForm({
                                     {sectionKey === "general" && (
                                       <>
                                         <div className="form-control">
-                                          <label className="label pb-0.5" htmlFor="side-wps">
+                                          <label className="label pb-0.5" htmlFor="side-wps-select">
                                             <span className="label-text">WPS</span>
                                           </label>
-                                          <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
-                                            <input
-                                              id="side-wps"
-                                              type="text"
-                                              className="input input-bordered input-xs flex-1 min-w-0"
-                                              list={
-                                                wpsPresetCodes.length > 0
-                                                  ? `side-wps-datalist-${weld?.id ?? "x"}`
-                                                  : undefined
-                                              }
-                                              value={displayWps}
-                                              onChange={(e) => {
-                                                const next = e.target.value;
-                                                setWps(next);
-                                                const t = next.trim();
-                                                if (!t) {
-                                                  setWpsUiMode("inherit");
-                                                  setLinkedWpsEntryId("");
-                                                } else if (wpsPresetCodes.includes(t)) {
-                                                  setWpsUiMode("preset");
-                                                  const matches = libraryWpsEntries.filter(
-                                                    (entry) => (entry.code || "").trim() === t
-                                                  );
-                                                  if (matches.length === 1) setLinkedWpsEntryId(matches[0].id);
-                                                  else setLinkedWpsEntryId("");
-                                                } else {
-                                                  setWpsUiMode("custom");
-                                                  syncLinkedWpsAfterCodeChange(next);
-                                                }
-                                              }}
-                                              autoComplete="off"
+                                          <div className="flex flex-col gap-2">
+                                            <select
+                                              id="side-wps-select"
+                                              className="select select-bordered select-xs w-full min-w-0"
+                                              value={wpsSelectValue}
+                                              onChange={handleWpsSelectChange}
                                               aria-describedby={
-                                                wpsUiMode === "inherit" &&
-                                                !(wps || "").trim() &&
-                                                inheritedWpsCode &&
-                                                inheritedWpsSource
-                                                  ? "side-wps-inherit-hint"
-                                                  : undefined
+                                                wpsSelectValue === "__manual__" ? "side-wps-manual-hint" : undefined
                                               }
-                                            />
-                                            {wpsPresetCodes.length > 0 && (
-                                              <datalist id={`side-wps-datalist-${weld?.id ?? "x"}`}>
-                                                {wpsPresetCodes.map((code) => (
-                                                  <option key={code} value={code} />
-                                                ))}
-                                              </datalist>
-                                            )}
-                                            {wpsPresetCodes.length > 0 && (
-                                              <select
-                                                className="select select-bordered select-xs w-full sm:w-40 shrink-0"
-                                                aria-label="Pick WPS from project library"
-                                                defaultValue=""
-                                                onChange={(e) => {
-                                                  const v = e.target.value;
-                                                  if (v) applyPresetWpsCode(v);
-                                                  e.target.selectedIndex = 0;
-                                                }}
-                                              >
-                                                <option value="">Library…</option>
-                                                {wpsPresetCodes.map((code) => (
-                                                  <option key={code} value={code}>
-                                                    {code}
-                                                </option>
-                                                ))}
-                                              </select>
+                                            >
+                                              <option value="__inherit__">
+                                                {inheritedWpsCode
+                                                  ? `Inherit (${inheritedWpsSource === "line" ? "line" : inheritedWpsSource === "system" ? "system" : "line/system"}) — ${inheritedWpsCode}`
+                                                  : "Inherit line/system default (none set)"}
+                                              </option>
+                                              {libraryWpsRows.length > 0 && (
+                                                <optgroup label="Registered WPS">
+                                                  {libraryWpsRows.map(({ entry, effective }) => (
+                                                    <option key={entry.id} value={`library:${entry.id}`}>
+                                                      {effective}
+                                                      {(entry.description || "").trim()
+                                                        ? ` — ${(entry.description || "").trim().slice(0, 48)}${(entry.description || "").trim().length > 48 ? "…" : ""}`
+                                                        : ""}
+                                                    </option>
+                                                  ))}
+                                                </optgroup>
+                                              )}
+                                              <option value="__manual__">Other (manual entry)…</option>
+                                            </select>
+                                            {wpsSelectValue === "__manual__" && (
+                                              <>
+                                                <input
+                                                  id="side-wps-manual"
+                                                  type="text"
+                                                  className="input input-bordered input-xs w-full min-w-0"
+                                                  value={wps}
+                                                  onChange={(e) => handleWpsTextChange(e.target.value)}
+                                                  placeholder="Type a WPS name or code"
+                                                  autoComplete="off"
+                                                />
+                                                <p id="side-wps-manual-hint" className="text-xs text-base-content/50">
+                                                  Not in the project list above — stored as typed. Choose a registered
+                                                  row when you want a linked certificate in Settings.
+                                                </p>
+                                              </>
                                             )}
                                           </div>
-                                          {wpsUiMode === "inherit" &&
-                                            !(wps || "").trim() &&
-                                            inheritedWpsCode &&
-                                            inheritedWpsSource && (
-                                              <p
-                                                id="side-wps-inherit-hint"
-                                                className="text-xs text-base-content/50 mt-1"
-                                              >
-                                                Inherited from {inheritedWpsSource === "line" ? "line" : "system"}
-                                              </p>
-                                            )}
                                         </div>
                                         <div className="grid grid-cols-2 gap-4">
                                           <div className="form-control">

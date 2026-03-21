@@ -14,7 +14,7 @@ function AddDefaultsBar({
   onAddDefaultsChange,
   spools = [],
   lines = [],
-  /** Lines linked to the active drawing (for new spool default line). */
+  /** Lines present on the current PDF page (line/spool markers on this page) — limits default line for new spools. */
   linesForSpoolDefault = null,
   systems = [],
   className = "",

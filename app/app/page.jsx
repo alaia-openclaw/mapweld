@@ -38,7 +38,12 @@ import { findCatalogEntry } from "@/lib/part-catalog";
 import { getMergedCatalogEntries, leafIdToCatalogCategory } from "@/lib/catalog-leaf-resolve";
 import { findEntryByHierarchy } from "@/lib/catalog-hierarchy";
 import { assignPartDisplayNumbersForAllDrawings } from "@/lib/part-display-number";
-import { getWeldName, getWeldOverallStatus, computeNdtSelection } from "@/lib/weld-utils";
+import {
+  getWeldName,
+  getWeldOverallStatus,
+  computeNdtSelection,
+  assignWeldNumbersPerDrawing,
+} from "@/lib/weld-utils";
 import { formatNdtRequirements, NDT_REPORT_STATUS } from "@/lib/constants";
 import { exportWeldsToExcel } from "@/lib/excel-export";
 import { applyReportToWelds } from "@/lib/ndt-utils";
@@ -47,6 +52,7 @@ import ProjectSetupHub from "@/components/ProjectSetupHub";
 import ProjectSetupWizard from "@/components/ProjectSetupWizard";
 import { createDefaultDatabookConfig, normalizeDatabookConfig } from "@/lib/databook-sections";
 import { getNextUniqueLineName } from "@/lib/line-utils";
+import { syncWpsLibraryOnWeldSave } from "@/lib/wps-resolution";
 import { NdtScopeProvider } from "@/contexts/NdtScopeContext";
 
 const PDFViewerDynamic = dynamic(() => import("@/components/PDFViewer"), {
@@ -334,7 +340,11 @@ export default function WeldTrackerApp() {
       let newWeld;
       const loc = addDefaults?.weldLocation || "shop";
       setWeldPoints((prev) => {
-        const maxNum = prev.reduce((m, w) => Math.max(m, w.weldNumber ?? 0), 0);
+        const did = activeDrawingId ?? null;
+        const maxNum = prev.reduce((m, w) => {
+          if ((w.drawingId ?? null) !== did) return m;
+          return Math.max(m, w.weldNumber ?? 0);
+        }, 0);
         newWeld = {
           ...createDefaultWeld(),
           id: generateId(),
@@ -786,10 +796,12 @@ export default function WeldTrackerApp() {
   }, []);
 
   const handleSaveWeld = useCallback((updatedWeld) => {
-    setWeldPoints((prev) =>
-      prev.map((w) => (w.id === updatedWeld.id ? updatedWeld : w))
-    );
-    setFormWeld(updatedWeld);
+    setWpsLibrary((prevLib) => {
+      const { mergedWeld, nextWpsLibrary } = syncWpsLibraryOnWeldSave(updatedWeld, prevLib);
+      setWeldPoints((prev) => prev.map((w) => (w.id === mergedWeld.id ? mergedWeld : w)));
+      setFormWeld(mergedWeld);
+      return nextWpsLibrary;
+    });
   }, []);
 
   const handleClosePanel = useCallback(() => {
@@ -861,7 +873,11 @@ export default function WeldTrackerApp() {
 
   /** Settings → Structure → Welds: update weld without touching canvas selection state. */
   const handleSaveWeldFromSettings = useCallback((updatedWeld) => {
-    setWeldPoints((prev) => prev.map((w) => (w.id === updatedWeld.id ? updatedWeld : w)));
+    setWpsLibrary((prevLib) => {
+      const { mergedWeld, nextWpsLibrary } = syncWpsLibraryOnWeldSave(updatedWeld, prevLib);
+      setWeldPoints((prev) => prev.map((w) => (w.id === mergedWeld.id ? mergedWeld : w)));
+      return nextWpsLibrary;
+    });
   }, []);
 
   const handleDeleteWeldFromSettings = useCallback((weld) => {
@@ -965,6 +981,8 @@ export default function WeldTrackerApp() {
           }))
           .filter((doc) => !!doc.base64)
       : [];
+
+    assignWeldNumbersPerDrawing(normalizedWelds);
 
     return {
       ...data,
@@ -1858,33 +1876,6 @@ export default function WeldTrackerApp() {
     addOrMoveLineMarkerOnCurrentPage(lineId, null);
   }, [ensureLineLinkedToCurrentDrawing, addOrMoveLineMarkerOnCurrentPage]);
 
-  const handleCreateLineOnCurrentDrawing = useCallback((systemId = null) => {
-    if (!activeDrawingId) return null;
-    const id = `line-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-    setLines((prev) => {
-      const name = getNextUniqueLineName(prev);
-      return [
-        ...prev,
-        {
-          id,
-          systemId: systemId || null,
-          name,
-          wps: "",
-          fluidType: "",
-          pressure: "",
-          diameterRange: "",
-          thickness: "",
-          material: "",
-          drawingIds: [activeDrawingId],
-          ndtRequirements: [],
-        },
-      ];
-    });
-    ensureLineLinkedToCurrentDrawing(id);
-    addOrMoveLineMarkerOnCurrentPage(id, null);
-    return id;
-  }, [activeDrawingId, ensureLineLinkedToCurrentDrawing, addOrMoveLineMarkerOnCurrentPage]);
-
   const selectionScrollKey = [
     selectedWeldId,
     selectedSpoolMarkerId,
@@ -1934,7 +1925,6 @@ export default function WeldTrackerApp() {
               drawingSettings,
               onSaveLines: handleSaveAllLines,
               onSaveSpools: handleSaveAllSpools,
-              onCreateLineOnCurrentPage: handleCreateLineOnCurrentDrawing,
               onLinkLineToCurrentPage: handleLinkLineToCurrentDrawing,
               appMode,
             },
@@ -1983,7 +1973,6 @@ export default function WeldTrackerApp() {
       spools,
       handleSaveAllLines,
       handleSaveAllSpools,
-      handleCreateLineOnCurrentDrawing,
       handleLinkLineToCurrentDrawing,
       appMode,
       parts,
@@ -2333,7 +2322,7 @@ export default function WeldTrackerApp() {
                           onAddDefaultsChange={setAddDefaults}
                           spools={spoolsOnCurrentPage}
                           lines={lines}
-                          linesForSpoolDefault={linesLinkedToActiveDrawing}
+                          linesForSpoolDefault={linesOnCurrentPage}
                           systems={systems}
                           className="shadow-lg"
                         />
@@ -2519,7 +2508,6 @@ export default function WeldTrackerApp() {
                             isOpen
                             onToggle={() => {}}
                             onSaveLines={handleSaveVisibleLines}
-                            onCreateLineOnCurrentPage={handleCreateLineOnCurrentDrawing}
                             onLinkLineToCurrentPage={handleLinkLineToCurrentDrawing}
                             onSaveSpools={handleSaveVisibleSpools}
                             appMode={appMode}
@@ -2729,7 +2717,6 @@ export default function WeldTrackerApp() {
                 isOpen={true}
                 onToggle={() => {}}
                 onSaveLines={handleSaveVisibleLines}
-                onCreateLineOnCurrentPage={handleCreateLineOnCurrentDrawing}
                 onLinkLineToCurrentPage={handleLinkLineToCurrentDrawing}
                 onSaveSpools={handleSaveVisibleSpools}
                 appMode={appMode}

@@ -265,7 +265,7 @@ function SidePanelPartForm({
     if (!file || !normalizedHeat || !onSaveDocuments || !onSaveMaterialCertificates) return;
     const uploadedDoc = {
       id: `doc-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-      title: `${normalizedHeat} MTC`,
+      title: file.name || `${normalizedHeat} MTC`,
       category: "mtc",
       fileName: file.name || `${normalizedHeat}-mtc.pdf`,
       mimeType: file.type || "application/pdf",

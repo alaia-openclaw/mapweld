@@ -35,7 +35,7 @@ function fileToBase64(file) {
 /**
  * @typedef {object} ModalSettingsStructureIntegration
  * @property {object} [drawings] — props for SidePanelDrawings (except hideHeader, isOpen, onToggle)
- * @property {object} [lines] — lines, spools, onSaveLines, onSaveSpools, onCreateLineOnCurrentPage, onLinkLineToCurrentPage, appMode
+ * @property {object} [lines] — lines, spools, onSaveLines, onSaveSpools, onLinkLineToCurrentPage, appMode
  * @property {object} [spools] — spools, parts, lines, spoolMarkers, weldPoints, weldStatusByWeldId, getWeldName, onSave, onAssignWeldToSpool, onAssignPartToSpool, appMode
  * @property {object} [welds] — project-wide weld table: weldPoints, weldStatusByWeldId, getWeldName, spools, parts, lines, personnel, wpsLibrary, electrodeLibrary, drawingSettings, ndtAutoLabel, appMode, onSave, onDelete, onUpdatePartHeat
  */
@@ -419,7 +419,7 @@ function ModalSettings({
     if (!file || !resolvedId) return;
     const entry = projectWpsLibrary.find((item) => item.id === resolvedId);
     if (!entry) return;
-    const newDoc = await uploadLinkedDocument(file, "wps", entry.title || "WPS");
+    const newDoc = await uploadLinkedDocument(file, "wps", "WPS");
     const nextWpsLibrary = projectWpsLibrary.map((e) =>
       e.id === resolvedId ? { ...e, documentId: newDoc.id } : e
     );
@@ -446,7 +446,7 @@ function ModalSettings({
     const base64 = await fileToBase64(file);
     return {
       id: generateId(),
-      title: (fallbackTitle || file.name || "").replace(/\.pdf$/i, ""),
+      title: file.name || fallbackTitle || "",
       category,
       fileName: file.name || `${fallbackTitle || "document"}.pdf`,
       mimeType: file.type || "application/pdf",
@@ -483,7 +483,7 @@ function ModalSettings({
     const base64 = await fileToBase64(file);
     const newDoc = {
       id: generateId(),
-      title: `${heat} MTC`,
+      title: file.name || `${heat} MTC`,
       category: "mtc",
       fileName: file.name || `${heat}.pdf`,
       mimeType: file.type || "application/pdf",
@@ -525,7 +525,7 @@ function ModalSettings({
     const base64 = await fileToBase64(file);
     const newDoc = {
       id: generateId(),
-      title: (file.name || "MTC").replace(/\.pdf$/i, ""),
+      title: file.name || "MTC",
       category: "mtc",
       fileName: file.name || "mtc.pdf",
       mimeType: file.type || "application/pdf",

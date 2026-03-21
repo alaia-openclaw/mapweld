@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { getNextUniqueLineName } from "@/lib/line-utils";
 import { formatNdtRequirements } from "@/lib/constants";
 import NdtRequirementsOverrideTable from "@/components/NdtRequirementsOverrideTable";
 
@@ -11,7 +10,6 @@ function SidePanelLines({
   selectedLineId = null,
   allLines = [],
   onSaveLines,
-  onCreateLineOnCurrentPage,
   onLinkLineToCurrentPage,
   spools = [],
   onSaveSpools,
@@ -26,7 +24,6 @@ function SidePanelLines({
   const [expandedLineId, setExpandedLineId] = useState(null);
   const [spoolMenuLineId, setSpoolMenuLineId] = useState(null);
   const [lineMenuGroupId, setLineMenuGroupId] = useState(null);
-  const [quickSystemId, setQuickSystemId] = useState("");
 
   const [editLineName, setEditLineName] = useState("");
   const [editFluidType, setEditFluidType] = useState("");
@@ -60,33 +57,6 @@ function SidePanelLines({
       setExpandedLineId(selectedLineId);
     }
   }, [selectedLineId, lines]);
-
-  function handleAddLine(systemId) {
-    if (typeof onCreateLineOnCurrentPage === "function") {
-      const createdId = onCreateLineOnCurrentPage(systemId || null);
-      if (createdId) setExpandedLineId(createdId);
-      return;
-    }
-    const id = `line-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-    const name = getNextUniqueLineName(allLines || lines);
-    onSaveLines?.([
-      ...lines,
-      {
-        id,
-        systemId,
-        name,
-        wps: "",
-        fluidType: "",
-        pressure: "",
-        diameterRange: "",
-        thickness: "",
-        material: "",
-        drawingIds: [],
-        ndtRequirements: [],
-      },
-    ]);
-    setExpandedLineId(id);
-  }
 
   function handleUpdateLine(id) {
     onSaveLines?.(
@@ -214,39 +184,10 @@ function SidePanelLines({
       {isOpen && (
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden w-full min-w-0 h-0 basis-0">
           <div className={`flex-1 min-h-0 overflow-y-scroll overflow-x-auto p-2 min-w-0 pb-12 overscroll-contain [scrollbar-gutter:stable] ${hideHeader ? "mobile-no-scrollbar" : ""}`}>
-            {appMode === "edition" && (
-              <div className="bg-base-100 border border-base-300 rounded-lg p-2 space-y-2 mb-2">
-                <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] gap-2 items-end">
-                  <div className="form-control">
-                    <label className="label py-0 min-h-0">
-                      <span className="label-text text-xs">System for new line</span>
-                    </label>
-                    <select
-                      className="select select-bordered select-xs w-full"
-                      value={quickSystemId}
-                      onChange={(e) => setQuickSystemId(e.target.value)}
-                    >
-                      <option value="">No system</option>
-                      {systems.map((system) => (
-                        <option key={system.id} value={system.id}>
-                          {system.name || "Unnamed system"}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-xs"
-                    onClick={() => handleAddLine(quickSystemId || null)}
-                  >
-                    + Add new line
-                  </button>
-                </div>
-              </div>
-            )}
             {lines.length === 0 && (
               <p className="text-xs text-base-content/60 mb-2">
-                No lines on this page yet. Use <strong>+ Link line</strong> under a system to place an existing line, or create a new one above.
+                No lines on this page yet. Use the line marker tool on the drawing to create a line, or{" "}
+                <strong>+ Link line</strong> under a system to place an existing line.
               </p>
             )}
             <ul className="space-y-3">

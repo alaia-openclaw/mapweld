@@ -51,7 +51,6 @@ export default function CatalogContent({
   tree = [],
   selectedId,
   search = "",
-  filters = [],
   flangesStandards = [],
   pipeEntries = [],
   fittingsEntries = [],
@@ -68,12 +67,7 @@ export default function CatalogContent({
 
   if (selectedId === "pipe") {
     return (
-      <PanelCatalogPipe
-        entries={pipeEntries}
-        search={search}
-        filters={filters}
-        catalogUnitSystem={catalogUnitSystem}
-      />
+      <PanelCatalogPipe entries={pipeEntries} search={search} catalogUnitSystem={catalogUnitSystem} />
     );
   }
 
@@ -92,7 +86,6 @@ export default function CatalogContent({
         standards={flangesStandards}
         initialStandardId={standardId}
         search={search}
-        filters={filters}
         catalogUnitSystem={catalogUnitSystem}
       />
     );
@@ -208,12 +201,7 @@ export default function CatalogContent({
       subtypeId
     );
     return (
-      <PanelCatalogFittings
-        entries={filtered}
-        search={search}
-        filters={filters}
-        catalogUnitSystem={catalogUnitSystem}
-      />
+      <PanelCatalogFittings entries={filtered} search={search} catalogUnitSystem={catalogUnitSystem} />
     );
   }
 
