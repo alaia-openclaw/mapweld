@@ -39,10 +39,24 @@ function mapUiLeafToCatalog(leafId) {
       notes: "No catalog data yet (filter returns empty).",
     };
   }
-  if (id === "gasket" || id === "valves" || id === "line-blanks") {
+  if (id.startsWith("valves-flanged-")) {
     return {
       mapsToCatalogCategory: "",
-      notes: "Placeholder leaf; no part-catalog entries yet.",
+      notes: "Flanged valves reference UI (static dimensions); not in part-catalog.json.",
+    };
+  }
+  if (id.startsWith("valves-buttwelded-")) {
+    return {
+      mapsToCatalogCategory: "",
+      notes: "Buttwelded valves reference UI (static dimensions); not in part-catalog.json.",
+    };
+  }
+  if (id === "valves" || id === "valves-flanged" || id === "valves-buttwelded" || id === "gasket" || id === "line-blanks") {
+    return {
+      mapsToCatalogCategory: "",
+      notes: id.startsWith("valves")
+        ? "Expand to a valve subgroup and leaf type."
+        : "Placeholder leaf; no part-catalog entries yet.",
     };
   }
   return { mapsToCatalogCategory: "", notes: "" };

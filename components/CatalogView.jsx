@@ -78,6 +78,7 @@ export default function CatalogView({
             flangesStandards={flangesStandards}
             pipeEntries={pipeEntries}
             fittingsEntries={fittingsEntries}
+            onSelectCategory={setSelectedId}
           />
         </div>
       </div>
