@@ -9,7 +9,6 @@ import SettingsWpsRegistry from "@/components/settings/SettingsWpsRegistry";
 import SettingsVaultPanel from "@/components/settings/SettingsVaultPanel";
 import SettingsMaterialCertificatesPanel from "@/components/settings/SettingsMaterialCertificatesPanel";
 import SettingsPersonnelRegistry from "@/components/settings/SettingsPersonnelRegistry";
-import SettingsWqrRegistry from "@/components/settings/SettingsWqrRegistry";
 import SettingsDocumentCategoryRegistry from "@/components/settings/SettingsDocumentCategoryRegistry";
 import SettingsNdtReportsRegistry from "@/components/settings/SettingsNdtReportsRegistry";
 import SettingsDatabookExportPanel from "@/components/settings/SettingsDatabookExportPanel";
@@ -190,12 +189,35 @@ function ModalSettings({
     });
   }
 
-  function handleAddWqrRow() {
+  function handleAddWqrForWelder(welderId) {
     const newWqr = { id: generateId(), code: "", documentId: null, description: "" };
     pushProjectSave({
       personnel: {
         ...personnel,
         wqrs: [...wqrs, newWqr],
+        welders: welders.map((w) =>
+          w.id === welderId
+            ? { ...w, wqrIds: [...(w.wqrIds || []), newWqr.id] }
+            : w
+        ),
+      },
+    });
+  }
+
+  /** Remove WQR from this welder; drop the WQR record if no welder references it. */
+  function handleUnlinkWqrFromWelder(welderId, wqrId) {
+    const nextWelders = welders.map((w) =>
+      w.id === welderId
+        ? { ...w, wqrIds: (w.wqrIds || []).filter((id) => id !== wqrId) }
+        : w
+    );
+    const stillReferenced = nextWelders.some((w) => (w.wqrIds || []).includes(wqrId));
+    const nextWqrs = stillReferenced ? wqrs : wqrs.filter((q) => q.id !== wqrId);
+    pushProjectSave({
+      personnel: {
+        ...personnel,
+        welders: nextWelders,
+        wqrs: nextWqrs,
       },
     });
   }
@@ -209,7 +231,13 @@ function ModalSettings({
     });
   }
 
-  function handleRemoveWqr(wqrId) {
+  function handleDeleteWqrFromProject(wqrId) {
+    if (
+      !confirm(
+        "Delete this WQR from the project? It will be removed from all welders and welding records will lose this link."
+      )
+    )
+      return;
     pushProjectSave({
       personnel: {
         ...personnel,
@@ -218,20 +246,6 @@ function ModalSettings({
           ...w,
           wqrIds: (w.wqrIds || []).filter((id) => id !== wqrId),
         })),
-      },
-    });
-  }
-
-  function handleToggleWelderWqr(welderId, wqrId, add) {
-    const welder = welders.find((w) => w.id === welderId);
-    if (!welder) return;
-    const nextIds = add
-      ? [...new Set([...(welder.wqrIds || []), wqrId])]
-      : (welder.wqrIds || []).filter((id) => id !== wqrId);
-    pushProjectSave({
-      personnel: {
-        ...personnel,
-        welders: welders.map((w) => (w.id === welderId ? { ...w, wqrIds: nextIds } : w)),
       },
     });
   }
@@ -496,7 +510,6 @@ function ModalSettings({
       items: [
         { key: "wps", label: "WPS" },
         { key: "personnel", label: "Personnel" },
-        { key: "wqr", label: "WQR" },
       ],
     },
     {
@@ -597,36 +610,23 @@ function ModalSettings({
             <SettingsPersonnelRegistry
               fitters={fitters}
               welders={welders}
+              wqrs={wqrs}
+              wqrDocuments={wqrDocuments}
+              weldPoints={weldPoints}
+              systems={projectSystems}
+              lines={lines}
+              spools={spools}
+              wpsLibrary={projectWpsLibrary}
               onAddFitter={handleAddFitterName}
               onRemoveFitter={handleRemoveFitter}
               onUpdateFitterName={handleUpdateFitterName}
               onAddWelder={handleAddWelderName}
               onRemoveWelder={handleRemoveWelder}
               onUpdateWelderName={handleUpdateWelderName}
-            />
-            <div className="modal-action mt-4">
-              <button type="button" className="btn btn-ghost" onClick={onClose}>
-                Close
-              </button>
-            </div>
-          </div>
-        )}
-
-        {activeSection === "wqr" && (
-          <div className="mt-2 md:mt-0 space-y-3">
-            <SettingsWqrRegistry
-              wqrs={wqrs}
-              welders={welders}
-              weldPoints={weldPoints}
-              systems={projectSystems}
-              lines={lines}
-              spools={spools}
-              wpsLibrary={projectWpsLibrary}
-              wqrDocuments={wqrDocuments}
-              onAddWqr={handleAddWqrRow}
+              onAddWqrForWelder={handleAddWqrForWelder}
               onUpdateWqr={handleUpdateWqr}
-              onRemoveWqr={handleRemoveWqr}
-              onToggleWelderWqr={handleToggleWelderWqr}
+              onUnlinkWqrFromWelder={handleUnlinkWqrFromWelder}
+              onDeleteWqr={handleDeleteWqrFromProject}
               wqrUploadInputRef={wqrUploadInputRef}
               wqrUploadTargetRef={wqrUploadTargetRef}
             />

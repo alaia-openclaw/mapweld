@@ -41,3 +41,50 @@ Recorded from the Pipedata UI as provided for MapWeld catalog alignment. Updated
 4. Swage and Pipe Nipples
 
 _(Sub-sub levels under each fitting type: pending — paste next.)_
+
+## Gaskets → subcategories
+
+1. Nonmetallic Flat Gaskets
+2. Spiral-Wound Gaskets
+3. Ring-Joint Gaskets
+
+## Valves → subcategories
+
+1. Flanged Valves
+2. Buttwelded Valves
+3. Threaded Valves
+4. Socketwelded Valves
+
+## Pipe → subcategories (Pipedata UI)
+
+Mutually exclusive options (radio buttons):
+
+1. Pipe by Schedule
+2. Pipe by Wall Thickness
+
+### MapWeld preference (design note)
+
+For MapWeld, prefer a **submenu by standard** later (e.g. ASME Pipe, DIN pipe, JIS, …) rather than leading with this schedule vs wall-thickness split as the primary branch.
+
+## Nuts → subcategories
+
+1. UNC Nuts
+2. ISO Nuts
+
+## Strainers → subcategories
+
+1. Y Type Strainer
+2. Basket Type Strainer
+3. Witch Hat Type Strainer
+4. Top Hat Type Strainer
+5. Bath Tub Type Strainer
+
+## Safe Spans → subcategories
+
+1. Rack Spans
+2. Process Area Spans
+
+## Pipe Flexibility → subcategories
+
+1. Pipe Loop
+2. Distance to First Guide
