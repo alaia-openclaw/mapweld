@@ -82,6 +82,8 @@ function ModalSettings({
 
   const wqrUploadInputRef = useRef(null);
   const wqrUploadTargetRef = useRef(null);
+  const wpsUploadInputRef = useRef(null);
+  const wpsUploadTargetRef = useRef(null);
   /** Avoid resetting Personnel sidebar when parent props refresh while modal stays open (e.g. auto-save). */
   const parametersModalWasOpenRef = useRef(false);
 
@@ -246,6 +248,26 @@ function ModalSettings({
     });
   }
 
+  /** Reassign WQR to another welder (single owner in UI). */
+  function handleMoveWqrToWelder(wqrId, targetWelderId) {
+    if (!wqrId || !targetWelderId) return;
+    const nextWelders = welders.map((w) => ({
+      ...w,
+      wqrIds: (w.wqrIds || []).filter((id) => id !== wqrId),
+    }));
+    const nextWelders2 = nextWelders.map((w) =>
+      w.id === targetWelderId
+        ? { ...w, wqrIds: [...new Set([...(w.wqrIds || []), wqrId])] }
+        : w
+    );
+    pushProjectSave({
+      personnel: {
+        ...personnel,
+        welders: nextWelders2,
+      },
+    });
+  }
+
   async function handleAddVaultDocument(category, file) {
     const newDoc = await uploadLinkedDocument(file, category, file.name);
     pushProjectSave({ documents: [...(documents || []), newDoc] });
@@ -362,6 +384,36 @@ function ModalSettings({
     setProjectWpsLibrary(nextWpsLibrary);
   }
 
+  async function handleUploadWpsDocument(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    const resolvedId = wpsUploadTargetRef.current;
+    if (!file || !resolvedId) return;
+    const entry = projectWpsLibrary.find((item) => item.id === resolvedId);
+    if (!entry) return;
+    const newDoc = await uploadLinkedDocument(file, "wps", entry.title || "WPS");
+    const nextWpsLibrary = projectWpsLibrary.map((e) =>
+      e.id === resolvedId ? { ...e, documentId: newDoc.id } : e
+    );
+    setProjectWpsLibrary(nextWpsLibrary);
+    onSave?.({
+      drawingSettings: { ndtRequirements, weldingSpec },
+      personnel,
+      systems: projectSystems,
+      projectMeta: {
+        projectName: metaProjectName,
+        client: metaClient,
+        spec: metaSpec,
+        revision: metaRevision,
+        date: metaDate,
+      },
+      wpsLibrary: nextWpsLibrary,
+      electrodeLibrary: safeElectrodeLibrary,
+      documents: [...(documents || []), newDoc],
+    });
+    wpsUploadTargetRef.current = null;
+  }
+
   async function uploadLinkedDocument(file, category, fallbackTitle) {
     const base64 = await fileToBase64(file);
     return {
@@ -436,6 +488,36 @@ function ModalSettings({
       electrodeLibrary: safeElectrodeLibrary,
       documents: nextDocs,
       materialCertificates: list,
+    });
+  }
+
+  /** MTC PDF without a heat — listed in Material certificates §1 until assigned to a heat. */
+  async function handleUploadOrphanMtcPdf(file) {
+    if (!file) return;
+    const base64 = await fileToBase64(file);
+    const newDoc = {
+      id: generateId(),
+      title: (file.name || "MTC").replace(/\.pdf$/i, ""),
+      category: "mtc",
+      fileName: file.name || "mtc.pdf",
+      mimeType: file.type || "application/pdf",
+      base64,
+      createdAt: new Date().toISOString(),
+    };
+    onSave?.({
+      drawingSettings: { ndtRequirements, weldingSpec },
+      personnel,
+      systems: projectSystems,
+      projectMeta: {
+        projectName: metaProjectName,
+        client: metaClient,
+        spec: metaSpec,
+        revision: metaRevision,
+        date: metaDate,
+      },
+      wpsLibrary: projectWpsLibrary,
+      electrodeLibrary: safeElectrodeLibrary,
+      documents: [...(documents || []), newDoc],
     });
   }
 
@@ -596,6 +678,7 @@ function ModalSettings({
               onUpdateWqr={handleUpdateWqr}
               onUnlinkWqrFromWelder={handleUnlinkWqrFromWelder}
               onDeleteWqr={handleDeleteWqrFromProject}
+              onMoveWqrToWelder={handleMoveWqrToWelder}
               wqrUploadInputRef={wqrUploadInputRef}
               wqrUploadTargetRef={wqrUploadTargetRef}
             />
@@ -707,9 +790,6 @@ function ModalSettings({
 
         {activeSection === "wps" && (
           <div className="mt-2 md:mt-0 space-y-3">
-            <p className="text-xs text-base-content/70">
-              Project WPS list (title and description). Use <strong>Links</strong> to see welds and WQR codes tied to each entry. Assign a WPS to welds from the weld form.
-            </p>
             <SettingsWpsRegistry
               wpsLibrary={projectWpsLibrary}
               weldPoints={weldPoints}
@@ -718,6 +798,17 @@ function ModalSettings({
               onAddWps={handleAddWps}
               onUpdateWps={handleUpdateWps}
               onRemoveWps={handleRemoveWps}
+              onRequestWpsUpload={(wpsId) => {
+                wpsUploadTargetRef.current = wpsId;
+                wpsUploadInputRef.current?.click();
+              }}
+            />
+            <input
+              ref={wpsUploadInputRef}
+              type="file"
+              accept=".pdf,application/pdf"
+              className="hidden"
+              onChange={handleUploadWpsDocument}
             />
             <div className="modal-action mt-4">
               <button type="button" className="btn btn-ghost" onClick={onClose}>Close</button>
@@ -730,6 +821,7 @@ function ModalSettings({
             <SettingsElectrodePanel
               documents={documents}
               electrodeLibrary={electrodeLibrary}
+              weldPoints={weldPoints}
               onSave={(payload) => {
                 onSave?.({
                   drawingSettings: { ndtRequirements, weldingSpec },
@@ -781,6 +873,7 @@ function ModalSettings({
                 });
               }}
               onUploadMtcPdf={handleUploadMtcPdf}
+              onUploadOrphanMtcPdf={handleUploadOrphanMtcPdf}
             />
             <div className="modal-action mt-4">
               <button type="button" className="btn btn-ghost" onClick={onClose}>Close</button>

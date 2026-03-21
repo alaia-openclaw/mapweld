@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useRef, useCallback, useState } from "react";
+import { TRACEABILITY } from "@/lib/traceability-groups";
+import SettingsTraceabilitySection from "@/components/settings/SettingsTraceabilitySection";
 
 function generateId(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -43,9 +45,11 @@ function SettingsMaterialCertificatesPanel({
   parts = [],
   onUpdateCertificates,
   onUploadMtcPdf,
+  onUploadOrphanMtcPdf,
 }) {
   const mtcUploadInputRef = useRef(null);
   const mtcUploadHeatRef = useRef("");
+  const orphanMtcUploadInputRef = useRef(null);
 
   const mtcDocuments = useMemo(() => documents.filter((d) => d?.category === "mtc"), [documents]);
 
@@ -208,21 +212,40 @@ function SettingsMaterialCertificatesPanel({
     );
   }
 
+  const th = TRACEABILITY.heat;
+
   return (
     <div className="space-y-4 min-w-0">
       <p className="text-xs text-base-content/70">
-        Material certificates grouped by status: PDF without part links, heats missing MTC PDF, and heats with MTC
-        PDF linked.
+        Heat / MTC traceability uses the same three groups as WPS, WQR, and electrodes: PDF on file vs project use,
+        then full part linkage.
       </p>
 
-      {/* 1 — MTC loaded but not attributed to a part */}
-      <section className="space-y-2">
-        <h4 className="text-xs font-semibold uppercase tracking-wide text-base-content/70 border-b border-base-300 pb-1">
-          1 · MTC PDF loaded — not linked to any part
-        </h4>
-        <p className="text-[11px] text-base-content/55">
-          Certificate PDF is set, but no part is checked below. Link parts that use this heat.
-        </p>
+      <SettingsTraceabilitySection number={1} title={th.g1.title} description={th.g1.description}>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            ref={orphanMtcUploadInputRef}
+            type="file"
+            accept=".pdf,application/pdf"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (!file) return;
+              onUploadOrphanMtcPdf?.(file);
+            }}
+          />
+          <button
+            type="button"
+            className="btn btn-outline btn-xs"
+            onClick={() => orphanMtcUploadInputRef.current?.click()}
+          >
+            Upload MTC PDF (no heat yet)
+          </button>
+          <span className="text-[10px] text-base-content/45">
+            Adds to this list; assign to a heat when ready.
+          </span>
+        </div>
 
         {orphanMtcDocuments.length > 0 && (
           <div className="space-y-2">
@@ -248,16 +271,9 @@ function SettingsMaterialCertificatesPanel({
             {heatsPdfNoParts.map((heat) => renderHeatRow(heat, { showPdfSelect: true, showLoad: true }))}
           </ul>
         )}
-      </section>
+      </SettingsTraceabilitySection>
 
-      {/* 2 — Heat in use, no MTC PDF */}
-      <section className="space-y-2">
-        <h4 className="text-xs font-semibold uppercase tracking-wide text-base-content/70 border-b border-base-300 pb-1">
-          2 · Heat in use — no MTC PDF
-        </h4>
-        <p className="text-[11px] text-base-content/55">
-          Heats referenced on parts or welds without a linked certificate PDF yet.
-        </p>
+      <SettingsTraceabilitySection number={2} title={th.g2.title} description={th.g2.description}>
         {heatsNoPdf.length === 0 ? (
           <p className="text-sm text-base-content/50">None in this group.</p>
         ) : (
@@ -265,16 +281,9 @@ function SettingsMaterialCertificatesPanel({
             {heatsNoPdf.map((heat) => renderHeatRow(heat, { showPdfSelect: true, showLoad: true }))}
           </ul>
         )}
-      </section>
+      </SettingsTraceabilitySection>
 
-      {/* 3 — Heat with MTC PDF + part links */}
-      <section className="space-y-2">
-        <h4 className="text-xs font-semibold uppercase tracking-wide text-base-content/70 border-b border-base-300 pb-1">
-          3 · Heat with MTC PDF — linked to parts
-        </h4>
-        <p className="text-[11px] text-base-content/55">
-          Heats with a certificate PDF and at least one part attributed for traceability.
-        </p>
+      <SettingsTraceabilitySection number={3} title={th.g3.title} description={th.g3.description}>
         {heatsPdfWithParts.length === 0 ? (
           <p className="text-sm text-base-content/50">None in this group yet.</p>
         ) : (
@@ -282,7 +291,7 @@ function SettingsMaterialCertificatesPanel({
             {heatsPdfWithParts.map((heat) => renderHeatRow(heat, { showPdfSelect: true, showLoad: true }))}
           </ul>
         )}
-      </section>
+      </SettingsTraceabilitySection>
 
       <input
         ref={mtcUploadInputRef}
