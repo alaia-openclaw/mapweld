@@ -269,7 +269,7 @@ function SidePanelPartForm({
           </label>
           <select
             id="part-catalog-category"
-            className="select select-bordered select-sm w-full"
+            className="select select-bordered select-xs w-full"
             value={catalogCategory}
             onChange={(e) => handleCatalogCategoryChange(e.target.value)}
           >
@@ -299,7 +299,7 @@ function SidePanelPartForm({
               </label>
               <select
                 id="part-type"
-                className="select select-bordered select-sm w-full"
+                className="select select-bordered select-xs w-full"
                 value={partType}
                 onChange={(e) => setPartType(e.target.value)}
               >
@@ -314,7 +314,7 @@ function SidePanelPartForm({
               <input
                 id="part-nps"
                 type="text"
-                className="input input-bordered input-sm w-full min-w-0"
+                className="input input-bordered input-xs w-full min-w-0"
                 value={nps}
                 onChange={(e) => setNps(e.target.value)}
                 placeholder="e.g. 2, 4, 6"
@@ -327,7 +327,7 @@ function SidePanelPartForm({
               <input
                 id="part-thickness"
                 type="text"
-                className="input input-bordered input-sm w-full min-w-0"
+                className="input input-bordered input-xs w-full min-w-0"
                 value={thickness}
                 onChange={(e) => setThickness(e.target.value)}
                 placeholder="e.g. SCH 40"
@@ -342,7 +342,7 @@ function SidePanelPartForm({
           <input
             id="part-variation"
             type="text"
-            className="input input-bordered input-sm w-full min-w-0"
+            className="input input-bordered input-xs w-full min-w-0"
             value={variation}
             onChange={(e) => setVariation(e.target.value)}
             placeholder="Case-by-case note"
@@ -355,7 +355,7 @@ function SidePanelPartForm({
           <input
             id="part-material"
             type="text"
-            className="input input-bordered input-sm w-full min-w-0"
+            className="input input-bordered input-xs w-full min-w-0"
             value={materialGrade}
             onChange={(e) => setMaterialGrade(e.target.value)}
             placeholder="e.g. A106 Gr.B"
@@ -368,7 +368,7 @@ function SidePanelPartForm({
           <input
             id="part-length"
             type="text"
-            className="input input-bordered input-sm w-full min-w-0"
+            className="input input-bordered input-xs w-full min-w-0"
             value={length}
             onChange={(e) => setLength(e.target.value)}
             placeholder="e.g. 500 mm"
@@ -381,7 +381,7 @@ function SidePanelPartForm({
             </label>
             <select
               id="part-spool"
-              className="select select-bordered select-sm w-full"
+              className="select select-bordered select-xs w-full"
               value={spoolId}
               onChange={(e) => setSpoolId(e.target.value)}
             >
@@ -401,7 +401,7 @@ function SidePanelPartForm({
           <input
             id="part-heatNumber"
             type="text"
-            className="input input-bordered input-sm"
+            className="input input-bordered input-xs"
             value={heatNumber}
             onChange={(e) => setHeatNumber(e.target.value)}
             placeholder="e.g. H12345"
@@ -414,7 +414,7 @@ function SidePanelPartForm({
           <div className="flex gap-1">
             <select
               id="part-mtc"
-              className="select select-bordered select-sm flex-1"
+              className="select select-bordered select-xs flex-1"
               value={linkedMtc?.documentId || ""}
               onChange={(e) => setHeatMtcDocument(e.target.value)}
               disabled={!normalizedHeat}

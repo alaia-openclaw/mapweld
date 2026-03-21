@@ -447,7 +447,7 @@ function ModalSettings({
               <input
                 id="weldingSpec"
                 type="text"
-                className="input input-bordered"
+                className="input input-bordered input-xs"
                 value={weldingSpec}
                 onChange={(e) => setWeldingSpec(e.target.value)}
                 placeholder="e.g. WPS-001, ASME IX"
@@ -508,7 +508,7 @@ function ModalSettings({
                     <form onSubmit={handleAddFitter} className="flex gap-2">
                       <input
                         type="text"
-                        className="input input-bordered input-sm flex-1"
+                        className="input input-bordered input-xs flex-1"
                         value={fitterName}
                         onChange={(e) => setFitterName(e.target.value)}
                         placeholder="Fitter name"
@@ -552,7 +552,7 @@ function ModalSettings({
                       <form onSubmit={handleAddWelder} className="flex gap-2 mb-2">
                         <input
                           type="text"
-                          className="input input-bordered input-sm flex-1"
+                          className="input input-bordered input-xs flex-1"
                           value={welderName}
                           onChange={(e) => setWelderName(e.target.value)}
                           placeholder="Welder name"
@@ -594,7 +594,7 @@ function ModalSettings({
                           <span className="label-text text-xs">Select welder</span>
                         </label>
                         <select
-                          className="select select-bordered select-sm"
+                          className="select select-bordered select-xs"
                           value={editingWelderId || ""}
                           onChange={(e) => setEditingWelderId(e.target.value || null)}
                         >
@@ -611,7 +611,7 @@ function ModalSettings({
                           <form onSubmit={handleAddWqr} className="flex gap-2 mt-2">
                             <input
                               type="text"
-                              className="input input-bordered input-sm flex-1"
+                              className="input input-bordered input-xs flex-1"
                               value={wqrCode}
                               onChange={(e) => setWqrCode(e.target.value)}
                               placeholder="WQR code"
@@ -706,23 +706,23 @@ function ModalSettings({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="form-control">
                 <label className="label"><span className="label-text">Project name</span></label>
-                <input type="text" className="input input-bordered" value={metaProjectName} onChange={(e) => setMetaProjectName(e.target.value)} placeholder="e.g. Platform A Piping" />
+                <input type="text" className="input input-bordered input-xs" value={metaProjectName} onChange={(e) => setMetaProjectName(e.target.value)} placeholder="e.g. Platform A Piping" />
               </div>
               <div className="form-control">
                 <label className="label"><span className="label-text">Client</span></label>
-                <input type="text" className="input input-bordered" value={metaClient} onChange={(e) => setMetaClient(e.target.value)} placeholder="e.g. Acme Corp" />
+                <input type="text" className="input input-bordered input-xs" value={metaClient} onChange={(e) => setMetaClient(e.target.value)} placeholder="e.g. Acme Corp" />
               </div>
               <div className="form-control">
                 <label className="label"><span className="label-text">Spec / Standard</span></label>
-                <input type="text" className="input input-bordered" value={metaSpec} onChange={(e) => setMetaSpec(e.target.value)} placeholder="e.g. ASME B31.3" />
+                <input type="text" className="input input-bordered input-xs" value={metaSpec} onChange={(e) => setMetaSpec(e.target.value)} placeholder="e.g. ASME B31.3" />
               </div>
               <div className="form-control">
                 <label className="label"><span className="label-text">Revision</span></label>
-                <input type="text" className="input input-bordered" value={metaRevision} onChange={(e) => setMetaRevision(e.target.value)} placeholder="e.g. Rev A" />
+                <input type="text" className="input input-bordered input-xs" value={metaRevision} onChange={(e) => setMetaRevision(e.target.value)} placeholder="e.g. Rev A" />
               </div>
               <div className="form-control">
                 <label className="label"><span className="label-text">Date</span></label>
-                <input type="date" className="input input-bordered" value={metaDate} onChange={(e) => setMetaDate(e.target.value)} />
+                <input type="date" className="input input-bordered input-xs" value={metaDate} onChange={(e) => setMetaDate(e.target.value)} />
               </div>
             </div>
 
@@ -738,14 +738,14 @@ function ModalSettings({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     <input
                       type="text"
-                      className="input input-bordered input-sm"
+                      className="input input-bordered input-xs"
                       value={system.name || ""}
                       onChange={(e) => handleUpdateSystem(system.id, { name: e.target.value })}
                       placeholder="System name"
                     />
                     <input
                       type="text"
-                      className="input input-bordered input-sm"
+                      className="input input-bordered input-xs"
                       value={system.description || ""}
                       onChange={(e) => handleUpdateSystem(system.id, { description: e.target.value })}
                       placeholder="Description"
@@ -757,7 +757,7 @@ function ModalSettings({
                     </label>
                     <input
                       type="text"
-                      className="input input-bordered input-sm w-full"
+                      className="input input-bordered input-xs w-full"
                       value={system.wps || ""}
                       onChange={(e) => handleUpdateSystem(system.id, { wps: e.target.value })}
                       placeholder="e.g. WPS-001 — optional; lines can override"
@@ -803,7 +803,7 @@ function ModalSettings({
                 <input
                   id="wps-lib-filter"
                   type="search"
-                  className="input input-bordered input-sm w-full"
+                  className="input input-bordered input-xs w-full"
                   value={wpsLibraryFilter}
                   onChange={(e) => setWpsLibraryFilter(e.target.value)}
                   placeholder="Code or title…"
@@ -820,14 +820,14 @@ function ModalSettings({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     <input
                       type="text"
-                      className="input input-bordered input-sm"
+                      className="input input-bordered input-xs"
                       value={entry.code || ""}
                       onChange={(e) => handleUpdateWps(entry.id, { code: e.target.value.toUpperCase() })}
                       placeholder="WPS code"
                     />
                     <input
                       type="text"
-                      className="input input-bordered input-sm"
+                      className="input input-bordered input-xs"
                       value={entry.title || ""}
                       onChange={(e) => handleUpdateWps(entry.id, { title: e.target.value })}
                       placeholder="WPS title"
@@ -840,7 +840,7 @@ function ModalSettings({
                       </label>
                       <div className="flex gap-1">
                         <select
-                          className="select select-bordered select-sm flex-1"
+                          className="select select-bordered select-xs flex-1"
                           value={entry.documentId || ""}
                           onChange={(e) => handleUpdateWps(entry.id, { documentId: e.target.value || null })}
                         >

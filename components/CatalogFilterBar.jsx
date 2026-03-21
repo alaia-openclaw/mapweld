@@ -44,7 +44,7 @@ function FilterValueMultiSelect({
     <div className="relative" ref={ref}>
       <button
         type="button"
-        className="input input-sm input-bordered w-32 min-w-[6rem] text-left flex items-center justify-between gap-1"
+        className="input input-xs input-bordered w-32 min-w-[6rem] text-left flex items-center justify-between gap-1"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-haspopup="listbox"
@@ -139,7 +139,7 @@ export default function CatalogFilterBar({
         id="catalog-search"
         type="search"
         placeholder="Search any property…"
-        className="input input-sm input-bordered w-48 min-w-[8rem]"
+        className="input input-xs input-bordered w-48 min-w-[8rem]"
         value={search}
         onChange={(e) => onSearchChange(e.target.value)}
         aria-label="Search catalog"
@@ -147,7 +147,7 @@ export default function CatalogFilterBar({
       {filters.map((f) => (
         <div key={f.id} className="flex items-center gap-1 flex-wrap">
           <select
-            className="select select-sm select-bordered w-32 max-w-[8rem]"
+            className="select select-xs select-bordered w-32 max-w-[8rem]"
             value={f.property}
             onChange={(e) =>
               updateFilter(f.id, { property: e.target.value, value: [] })

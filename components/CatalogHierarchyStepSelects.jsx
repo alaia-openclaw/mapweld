@@ -25,7 +25,7 @@ export default function CatalogHierarchyStepSelects({
   const isCompact = variant === "compact";
   const selectCls = isCompact
     ? "select select-bordered select-xs h-7 min-h-7 py-0.5 w-20 max-w-full text-xs"
-    : "select select-bordered select-sm w-full";
+    : "select select-bordered select-xs w-full";
 
   return (
     <>

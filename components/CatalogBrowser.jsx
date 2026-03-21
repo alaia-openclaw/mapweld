@@ -153,7 +153,7 @@ function CatalogBrowser({ categories, entries }) {
         <div className="flex flex-col gap-1">
           <span className="text-xs font-medium text-base-content/60">Category</span>
           <select
-            className="select select-bordered select-sm min-w-[10rem]"
+            className="select select-bordered select-xs min-w-[10rem]"
             value={categoryId}
             onChange={(e) => handleCategoryChange(e.target.value)}
           >
@@ -167,7 +167,7 @@ function CatalogBrowser({ categories, entries }) {
         <div className="flex flex-col gap-1">
           <span className="text-xs font-medium text-base-content/60">Part type</span>
           <select
-            className="select select-bordered select-sm min-w-[10rem]"
+            className="select select-bordered select-xs min-w-[10rem]"
             value={partType}
             onChange={(e) => {
               setPartType(e.target.value);
@@ -186,7 +186,7 @@ function CatalogBrowser({ categories, entries }) {
         <div className="flex flex-col gap-1">
           <span className="text-xs font-medium text-base-content/60">NPS</span>
           <select
-            className="select select-bordered select-sm min-w-[6rem]"
+            className="select select-bordered select-xs min-w-[6rem]"
             value={nps}
             onChange={(e) => {
               setNps(e.target.value);
@@ -204,7 +204,7 @@ function CatalogBrowser({ categories, entries }) {
         <div className="flex flex-col gap-1">
           <span className="text-xs font-medium text-base-content/60">Thickness</span>
           <select
-            className="select select-bordered select-sm min-w-[6rem]"
+            className="select select-bordered select-xs min-w-[6rem]"
             value={thickness}
             onChange={(e) => setThickness(e.target.value)}
           >

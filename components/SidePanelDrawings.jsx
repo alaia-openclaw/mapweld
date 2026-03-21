@@ -142,7 +142,7 @@ function SidePanelDrawings({
                             </label>
                             <input
                               type="text"
-                              className="input input-sm input-bordered w-full min-w-0"
+                              className="input input-xs input-bordered w-full min-w-0"
                               value={editRevision}
                               onChange={(e) => setEditRevision(e.target.value)}
                               onBlur={() => handleSaveRevision(dwg.id)}

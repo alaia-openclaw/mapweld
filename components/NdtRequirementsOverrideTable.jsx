@@ -29,7 +29,7 @@ export default function NdtRequirementsOverrideTable({
 }) {
   const [customMethod, setCustomMethod] = useState("");
   const compact = variant === "compact";
-  const inputCls = compact ? "input input-bordered input-xs w-14" : "input input-bordered input-sm w-16";
+  const inputCls = compact ? "input input-bordered input-xs w-14" : "input input-bordered input-xs w-16";
   const rowPad = compact ? "p-1.5 gap-1" : "p-2 gap-2";
   const labelCls = compact ? "text-[10px]" : "text-xs";
 
@@ -129,7 +129,7 @@ export default function NdtRequirementsOverrideTable({
       <div className="flex gap-1 items-center">
         <input
           type="text"
-          className={`input input-bordered flex-1 min-w-0 ${compact ? "input-xs" : "input-sm"}`}
+          className={`input input-bordered flex-1 min-w-0 input-xs`}
           value={customMethod}
           onChange={(e) => setCustomMethod(e.target.value)}
           placeholder="Custom (e.g. PWHT)"

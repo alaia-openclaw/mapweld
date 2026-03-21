@@ -583,7 +583,7 @@ function ModalDatabookBuilder({
                         </label>
                         <div className="flex gap-1">
                           <select
-                            className="select select-bordered select-sm w-full"
+                            className="select select-bordered select-xs w-full"
                             value={selectedDocId}
                             onChange={(e) => linkSectionDocument(section.id, e.target.value)}
                             disabled={!isIncluded}
@@ -710,14 +710,14 @@ function ModalDatabookBuilder({
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2">
                     <input
                       type="text"
-                      className="input input-bordered input-sm"
+                      className="input input-bordered input-xs"
                       value={uploadTitle}
                       onChange={(e) => setUploadTitle(e.target.value)}
                       placeholder="Optional title override"
                     />
                     {vaultCategoryFilter === "all" ? (
                       <select
-                        className="select select-bordered select-sm"
+                        className="select select-bordered select-xs"
                         value={uploadCategory}
                         onChange={(e) => setUploadCategory(e.target.value)}
                       >
@@ -730,7 +730,7 @@ function ModalDatabookBuilder({
                     ) : (
                       <input
                         type="text"
-                        className="input input-bordered input-sm"
+                        className="input input-bordered input-xs"
                         value={getCategoryLabel(vaultCategoryFilter)}
                         disabled
                         readOnly
@@ -740,7 +740,7 @@ function ModalDatabookBuilder({
                       type="file"
                       accept=".pdf,application/pdf"
                       multiple
-                      className="file-input file-input-bordered file-input-sm w-full"
+                      className="file-input file-input-bordered file-input-xs w-full"
                       onChange={handleUploadFiles}
                       disabled={isUploading}
                     />
@@ -767,14 +767,14 @@ function ModalDatabookBuilder({
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                             <input
                               type="text"
-                              className="input input-bordered input-sm"
+                              className="input input-bordered input-xs"
                               value={entry.code || ""}
                               onChange={(e) => handleUpdateElectrode(entry.id, { code: e.target.value.toUpperCase() })}
                               placeholder="Electrode code"
                             />
                             <input
                               type="text"
-                              className="input input-bordered input-sm"
+                              className="input input-bordered input-xs"
                               value={entry.title || ""}
                               onChange={(e) => handleUpdateElectrode(entry.id, { title: e.target.value })}
                               placeholder="Description"
@@ -787,7 +787,7 @@ function ModalDatabookBuilder({
                               </label>
                               <div className="flex gap-1">
                                 <select
-                                  className="select select-bordered select-sm flex-1"
+                                  className="select select-bordered select-xs flex-1"
                                   value={entry.documentId || ""}
                                   onChange={(e) => handleUpdateElectrode(entry.id, { documentId: e.target.value || null })}
                                 >
@@ -871,7 +871,7 @@ function ModalDatabookBuilder({
                   </label>
                   <input
                     type="text"
-                    className="input input-bordered input-sm w-full"
+                    className="input input-bordered input-xs w-full"
                     value={localConfig.revision || ""}
                     onChange={(e) => setLocalConfig((prev) => ({ ...prev, revision: e.target.value }))}
                     placeholder="e.g. Rev A"
@@ -883,7 +883,7 @@ function ModalDatabookBuilder({
                   </label>
                   <input
                     type="text"
-                    className="input input-bordered input-sm w-full"
+                    className="input input-bordered input-xs w-full"
                     value={localConfig.issuedBy || ""}
                     onChange={(e) => setLocalConfig((prev) => ({ ...prev, issuedBy: e.target.value }))}
                     placeholder="Name / role"
@@ -895,7 +895,7 @@ function ModalDatabookBuilder({
                   </label>
                   <input
                     type="date"
-                    className="input input-bordered input-sm w-full"
+                    className="input input-bordered input-xs w-full"
                     value={localConfig.issuedAt || ""}
                     onChange={(e) => setLocalConfig((prev) => ({ ...prev, issuedAt: e.target.value }))}
                   />

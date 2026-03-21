@@ -110,7 +110,7 @@ function ModalWeldForm({
               </label>
               <select
                 id="weldType"
-                className="select select-bordered min-h-12"
+                className="select select-bordered select-xs"
                 value={weldType}
                 onChange={(e) => setWeldType(e.target.value)}
               >
@@ -127,7 +127,7 @@ function ModalWeldForm({
               </label>
               <select
                 id="weldLocation"
-                className="select select-bordered min-h-12"
+                className="select select-bordered select-xs"
                 value={weldLocation}
                 onChange={(e) => setWeldLocation(e.target.value)}
               >
@@ -149,7 +149,7 @@ function ModalWeldForm({
               <input
                 id="welderName"
                 type="text"
-                className="input input-bordered min-h-12"
+                className="input input-bordered input-xs"
                 value={welderName}
                 onChange={(e) => setWelderName(e.target.value)}
                 placeholder="e.g. John D."
@@ -162,7 +162,7 @@ function ModalWeldForm({
               <input
                 id="weldingDate"
                 type="date"
-                className="input input-bordered min-h-12"
+                className="input input-bordered input-xs"
                 value={weldingDate}
                 onChange={(e) => setWeldingDate(e.target.value)}
               />
@@ -178,7 +178,7 @@ function ModalWeldForm({
               <input
                 id="fitterName"
                 type="text"
-                className="input input-bordered min-h-12"
+                className="input input-bordered input-xs"
                 value={fitterName}
                 onChange={(e) => setFitterName(e.target.value)}
                 placeholder="e.g. Jane S."
@@ -191,7 +191,7 @@ function ModalWeldForm({
               <input
                 id="dateFitUp"
                 type="date"
-                className="input input-bordered min-h-12"
+                className="input input-bordered input-xs"
                 value={dateFitUp}
                 onChange={(e) => setDateFitUp(e.target.value)}
               />
@@ -207,7 +207,7 @@ function ModalWeldForm({
               <input
                 id="partNumber1"
                 type="text"
-                className="input input-bordered min-h-12"
+                className="input input-bordered input-xs"
                 value={partNumber1}
                 onChange={(e) => setPartNumber1(e.target.value)}
                 placeholder="e.g. P001"
@@ -220,7 +220,7 @@ function ModalWeldForm({
               <input
                 id="heatNumber1"
                 type="text"
-                className="input input-bordered min-h-12"
+                className="input input-bordered input-xs"
                 value={heatNumber1}
                 onChange={(e) => setHeatNumber1(e.target.value)}
                 placeholder="e.g. H12345"
@@ -233,7 +233,7 @@ function ModalWeldForm({
               <input
                 id="partNumber2"
                 type="text"
-                className="input input-bordered min-h-12"
+                className="input input-bordered input-xs"
                 value={partNumber2}
                 onChange={(e) => setPartNumber2(e.target.value)}
                 placeholder="e.g. P002"
@@ -246,7 +246,7 @@ function ModalWeldForm({
               <input
                 id="heatNumber2"
                 type="text"
-                className="input input-bordered min-h-12"
+                className="input input-bordered input-xs"
                 value={heatNumber2}
                 onChange={(e) => setHeatNumber2(e.target.value)}
                 placeholder="e.g. H12346"
@@ -262,7 +262,7 @@ function ModalWeldForm({
               </label>
               <select
                 id="ndtRequired"
-                className="select select-bordered min-h-12"
+                className="select select-bordered select-xs"
                 value={ndtRequired}
                 onChange={(e) => setNdtRequired(e.target.value)}
               >
@@ -295,7 +295,7 @@ function ModalWeldForm({
                 </label>
                 <select
                   id="spoolId"
-                className="select select-bordered min-h-12"
+                className="select select-bordered select-xs"
                 value={spoolId}
                   onChange={(e) => setSpoolId(e.target.value)}
                 >

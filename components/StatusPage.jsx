@@ -151,12 +151,12 @@ function StatusPage({
           <input
             type="search"
             placeholder="Search…"
-            className="input input-bordered input-sm w-40 max-w-full"
+            className="input input-bordered input-xs w-40 max-w-full"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
           <select
-            className="select select-bordered select-sm"
+            className="select select-bordered select-xs"
             value={filterLocation}
             onChange={(e) => setFilterLocation(e.target.value)}
             title="Weld location filter"

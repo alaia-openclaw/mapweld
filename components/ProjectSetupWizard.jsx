@@ -201,7 +201,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                   <label className="label py-1"><span className="label-text">Project name</span></label>
                   <input
                     type="text"
-                    className="input input-bordered input-sm w-full"
+                    className="input input-bordered input-xs w-full"
                     value={projectName}
                     onChange={(e) => setProjectName(e.target.value)}
                     placeholder="e.g. Platform A Piping"
@@ -211,7 +211,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                   <label className="label py-1"><span className="label-text">Client</span></label>
                   <input
                     type="text"
-                    className="input input-bordered input-sm w-full"
+                    className="input input-bordered input-xs w-full"
                     value={metaClient}
                     onChange={(e) => setMetaClient(e.target.value)}
                     placeholder="e.g. Acme Corp"
@@ -221,7 +221,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                   <label className="label py-1"><span className="label-text">Spec / standard</span></label>
                   <input
                     type="text"
-                    className="input input-bordered input-sm w-full"
+                    className="input input-bordered input-xs w-full"
                     value={metaSpec}
                     onChange={(e) => setMetaSpec(e.target.value)}
                     placeholder="e.g. ASME B31.3"
@@ -231,7 +231,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                   <label className="label py-1"><span className="label-text">Revision</span></label>
                   <input
                     type="text"
-                    className="input input-bordered input-sm w-full"
+                    className="input input-bordered input-xs w-full"
                     value={metaRevision}
                     onChange={(e) => setMetaRevision(e.target.value)}
                     placeholder="e.g. Rev A"
@@ -241,7 +241,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                   <label className="label py-1"><span className="label-text">Date</span></label>
                   <input
                     type="date"
-                    className="input input-bordered input-sm w-full"
+                    className="input input-bordered input-xs w-full"
                     value={metaDate}
                     onChange={(e) => setMetaDate(e.target.value)}
                   />
@@ -258,7 +258,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                 <form onSubmit={handleAddFitter} className="flex gap-2 mb-2">
                   <input
                     type="text"
-                    className="input input-bordered input-sm flex-1"
+                    className="input input-bordered input-xs flex-1"
                     value={fitterInput}
                     onChange={(e) => setFitterInput(e.target.value)}
                     placeholder="Fitter name"
@@ -283,7 +283,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                 <form onSubmit={handleAddWelder} className="flex gap-2 mb-2">
                   <input
                     type="text"
-                    className="input input-bordered input-sm flex-1"
+                    className="input input-bordered input-xs flex-1"
                     value={welderInput}
                     onChange={(e) => setWelderInput(e.target.value)}
                     placeholder="Welder name"
@@ -316,7 +316,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                 <h4 className="font-medium text-sm mb-2">WQR codes (per welder)</h4>
                 <div className="flex flex-wrap gap-2 mb-2">
                   <select
-                    className="select select-bordered select-sm flex-1 min-w-[8rem]"
+                    className="select select-bordered select-xs flex-1 min-w-[8rem]"
                     value={editingWelderId || ""}
                     onChange={(e) => setEditingWelderId(e.target.value || null)}
                   >
@@ -330,7 +330,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                   <form onSubmit={handleAddWqr} className="flex gap-2 flex-1 min-w-[12rem]">
                     <input
                       type="text"
-                      className="input input-bordered input-sm flex-1"
+                      className="input input-bordered input-xs flex-1"
                       value={wqrCodeInput}
                       onChange={(e) => setWqrCodeInput(e.target.value)}
                       placeholder="WQR code"
@@ -385,7 +385,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                         type="number"
                         min={0}
                         max={100}
-                        className="input input-bordered input-sm w-14"
+                        className="input input-bordered input-xs w-14"
                         value={r.pctShop ?? r.pct ?? 100}
                         onChange={(e) => updateNdtRow(r.method, "shop", e.target.value)}
                       />
@@ -397,7 +397,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                         type="number"
                         min={0}
                         max={100}
-                        className="input input-bordered input-sm w-14"
+                        className="input input-bordered input-xs w-14"
                         value={r.pctField ?? r.pct ?? 100}
                         onChange={(e) => updateNdtRow(r.method, "field", e.target.value)}
                       />
@@ -420,7 +420,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
               <div className="flex gap-2 flex-wrap">
                 <input
                   type="text"
-                  className="input input-bordered input-sm flex-1 min-w-[8rem]"
+                  className="input input-bordered input-xs flex-1 min-w-[8rem]"
                   value={customNdtMethod}
                   onChange={(e) => setCustomNdtMethod(e.target.value.toUpperCase())}
                   placeholder="Custom code (e.g. PWHT)"
@@ -441,7 +441,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                 <label className="label py-1"><span className="label-text">Welding spec</span></label>
                 <input
                   type="text"
-                  className="input input-bordered input-sm w-full"
+                  className="input input-bordered input-xs w-full"
                   value={weldingSpec}
                   onChange={(e) => setWeldingSpec(e.target.value)}
                   placeholder="e.g. WPS-001, ASME IX"
@@ -477,7 +477,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <input
                         type="text"
-                        className="input input-bordered input-sm"
+                        className="input input-bordered input-xs"
                         value={sys.name}
                         onChange={(e) =>
                           setSystems((prev) => prev.map((s) => (s.id === sys.id ? { ...s, name: e.target.value } : s)))
@@ -486,7 +486,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                       />
                       <input
                         type="text"
-                        className="input input-bordered input-sm"
+                        className="input input-bordered input-xs"
                         value={sys.description || ""}
                         onChange={(e) =>
                           setSystems((prev) =>
@@ -498,7 +498,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                     </div>
                     <input
                       type="text"
-                      className="input input-bordered input-sm w-full"
+                      className="input input-bordered input-xs w-full"
                       value={sys.wps || ""}
                       onChange={(e) =>
                         setSystems((prev) =>
@@ -544,7 +544,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <input
                         type="text"
-                        className="input input-bordered input-sm"
+                        className="input input-bordered input-xs"
                         value={entry.code}
                         onChange={(e) =>
                           setWpsEntries((prev) =>
@@ -555,7 +555,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                       />
                       <input
                         type="text"
-                        className="input input-bordered input-sm"
+                        className="input input-bordered input-xs"
                         value={entry.title}
                         onChange={(e) =>
                           setWpsEntries((prev) =>

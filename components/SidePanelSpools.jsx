@@ -360,7 +360,7 @@ function SidePanelSpools({
                             </label>
                             <input
                               type="text"
-                              className="input input-sm input-bordered w-full min-w-0"
+                              className="input input-xs input-bordered w-full min-w-0"
                               value={editName}
                               onChange={(e) => setEditName(e.target.value)}
                               onBlur={() => handleUpdate(s.id)}
@@ -375,7 +375,7 @@ function SidePanelSpools({
                               <input
                                 type="text"
                                 inputMode="numeric"
-                                className="input input-sm input-bordered flex-1 min-w-0 w-0"
+                                className="input input-xs input-bordered flex-1 min-w-0 w-0"
                                 value={editDimX}
                                 onChange={(e) => setEditDimX(e.target.value)}
                                 onBlur={() => handleUpdate(s.id)}
@@ -384,7 +384,7 @@ function SidePanelSpools({
                               <input
                                 type="text"
                                 inputMode="numeric"
-                                className="input input-sm input-bordered flex-1 min-w-0 w-0"
+                                className="input input-xs input-bordered flex-1 min-w-0 w-0"
                                 value={editDimY}
                                 onChange={(e) => setEditDimY(e.target.value)}
                                 onBlur={() => handleUpdate(s.id)}
@@ -393,7 +393,7 @@ function SidePanelSpools({
                               <input
                                 type="text"
                                 inputMode="numeric"
-                                className="input input-sm input-bordered flex-1 min-w-0 w-0"
+                                className="input input-xs input-bordered flex-1 min-w-0 w-0"
                                 value={editDimZ}
                                 onChange={(e) => setEditDimZ(e.target.value)}
                                 onBlur={() => handleUpdate(s.id)}
@@ -408,7 +408,7 @@ function SidePanelSpools({
                             <input
                               type="text"
                               inputMode="decimal"
-                              className="input input-sm input-bordered w-full min-w-0"
+                              className="input input-xs input-bordered w-full min-w-0"
                               value={editWeight}
                               onChange={(e) => setEditWeight(e.target.value)}
                               onBlur={() => handleUpdate(s.id)}
@@ -423,14 +423,14 @@ function SidePanelSpools({
                               <input
                                 type="text"
                                 inputMode="decimal"
-                                className="input input-sm input-bordered flex-1 min-w-0"
+                                className="input input-xs input-bordered flex-1 min-w-0"
                                 value={editPressureValue}
                                 onChange={(e) => setEditPressureValue(e.target.value)}
                                 onBlur={() => handleUpdate(s.id)}
                                 placeholder="Value"
                               />
                               <select
-                                className="select select-bordered select-sm flex-shrink-0 w-16"
+                                className="select select-bordered select-xs flex-shrink-0 w-16"
                                 value={editPressureUnit}
                                 onChange={(e) => {
                                   setEditPressureUnit(e.target.value);
@@ -448,7 +448,7 @@ function SidePanelSpools({
                                 <span className="label-text text-xs">Line</span>
                               </label>
                               <select
-                                className="select select-bordered select-sm w-full"
+                                className="select select-bordered select-xs w-full"
                                 value={editLineId}
                                 onChange={(e) => {
                                   setEditLineId(e.target.value);
