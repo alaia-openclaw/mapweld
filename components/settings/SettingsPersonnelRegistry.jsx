@@ -36,6 +36,8 @@ function RowWarningIcon({ title }) {
 /**
  * Fitters, welders, and WQR in simple lists. Stray names on welds are called out in alerts;
  * each row can show a warning icon when something is missing (PDF, assignment, registry mismatch).
+ *
+ * @param {'full' | 'fitters' | 'welders-wqr'} [variant='full'] — split Settings sections: fit-up vs welding.
  */
 function SettingsPersonnelRegistry({
   fitters = [],
@@ -47,6 +49,7 @@ function SettingsPersonnelRegistry({
   lines = [],
   spools = [],
   wpsLibrary = [],
+  variant = "full",
   onAddFitter,
   onRemoveFitter,
   onUpdateFitterName,
@@ -61,6 +64,8 @@ function SettingsPersonnelRegistry({
   wqrUploadInputRef,
   wqrUploadTargetRef,
 }) {
+  const showFitters = variant === "full" || variant === "fitters";
+  const showWeldersWqr = variant === "full" || variant === "welders-wqr";
   const [fitterInput, setFitterInput] = useState("");
   const [welderInput, setWelderInput] = useState("");
   const [expandedWqrId, setExpandedWqrId] = useState(null);
@@ -277,12 +282,25 @@ function SettingsPersonnelRegistry({
 
   return (
     <div className="space-y-6 min-w-0 text-xs">
-      <p className="text-[11px] text-base-content/65 leading-snug">
-        Fitters, welders, and WQR qualifications. Alerts flag names on welds that are not in your list; WQR rows show
-        icons when a PDF or welder assignment is missing.
-      </p>
+      {variant === "full" && (
+        <p className="text-[11px] text-base-content/65 leading-snug">
+          Fitters, welders, and WQR qualifications. Alerts flag names on welds that are not in your list; WQR rows show
+          icons when a PDF or welder assignment is missing.
+        </p>
+      )}
+      {variant === "fitters" && (
+        <p className="text-[11px] text-base-content/65 leading-snug">
+          Fitter names used on fit-up records. Alerts flag names on welds that are not in your list.
+        </p>
+      )}
+      {variant === "welders-wqr" && (
+        <p className="text-[11px] text-base-content/65 leading-snug">
+          Welders and WQR qualifications. WQR rows show icons when a PDF or welder assignment is missing.
+        </p>
+      )}
 
       {/* ——— Fitters ——— */}
+      {showFitters && (
       <div className="space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
           <h4 className="font-medium text-sm text-base-content/90">Fitters</h4>
@@ -368,8 +386,10 @@ function SettingsPersonnelRegistry({
           </table>
         </div>
       </div>
+      )}
 
       {/* ——— Welders ——— */}
+      {showWeldersWqr && (
       <div className="space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
           <h4 className="font-medium text-sm text-base-content/90">Welders</h4>
@@ -470,8 +490,10 @@ function SettingsPersonnelRegistry({
           </table>
         </div>
       </div>
+      )}
 
       {/* ——— WQR ——— */}
+      {showWeldersWqr && (
       <div className="space-y-3">
         <div className="flex flex-col sm:flex-row gap-2 sm:items-end sm:justify-between">
           <h4 className="font-medium text-sm text-base-content/90">WQR qualifications</h4>
@@ -527,6 +549,7 @@ function SettingsPersonnelRegistry({
           </table>
         </div>
       </div>
+      )}
     </div>
   );
 }

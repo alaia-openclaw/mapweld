@@ -124,7 +124,6 @@ export default function WeldTrackerApp() {
     sessionDraft: null,
   });
   const [showParameters, setShowParameters] = useState(false);
-  const [isCompilingDatabook, setIsCompilingDatabook] = useState(false);
   const [showProjects, setShowProjects] = useState(false);
   const [showNdtPanel, setShowNdtPanel] = useState(false);
   const [showStatusPage, setShowStatusPage] = useState(false);
@@ -860,6 +859,15 @@ export default function WeldTrackerApp() {
     setActiveSidePanel((p) => (p === "welds" ? null : p));
   }, []);
 
+  /** Settings → Structure → Welds: update weld without touching canvas selection state. */
+  const handleSaveWeldFromSettings = useCallback((updatedWeld) => {
+    setWeldPoints((prev) => prev.map((w) => (w.id === updatedWeld.id ? updatedWeld : w)));
+  }, []);
+
+  const handleDeleteWeldFromSettings = useCallback((weld) => {
+    setWeldPoints((prev) => prev.filter((w) => w.id !== weld.id));
+  }, []);
+
   const draftSaveTimeoutRef = useRef(null);
   const persistSessionDraftRef = useRef(async () => ({ ok: true, skipped: true }));
 
@@ -1500,46 +1508,6 @@ export default function WeldTrackerApp() {
     });
   }, [weldPoints, pdfFilename, spools, parts, personnel, drawingSettings, projectMeta, ndtContext, drawings]);
 
-  const handleCompileDatabook = useCallback(async () => {
-    setIsCompilingDatabook(true);
-    try {
-      const { compileDatabookPdf } = await import("@/lib/databook-pdf");
-      compileDatabookPdf({
-        databookConfig: normalizeDatabookConfig(databookConfig),
-        documents,
-        projectMeta,
-        drawings,
-        systems,
-        lines,
-        weldPoints,
-        spools,
-        parts,
-        personnel,
-        drawingSettings,
-        wpsLibrary,
-        materialCertificates,
-        ndtReports,
-      });
-    } finally {
-      setIsCompilingDatabook(false);
-    }
-  }, [
-    databookConfig,
-    documents,
-    projectMeta,
-    drawings,
-    systems,
-    lines,
-    weldPoints,
-    spools,
-    parts,
-    personnel,
-    drawingSettings,
-    wpsLibrary,
-    materialCertificates,
-    ndtReports,
-  ]);
-
   const weldStatusByWeldId = useMemo(() => {
     const map = new Map();
     weldPoints.forEach((w) => {
@@ -1947,8 +1915,8 @@ export default function WeldTrackerApp() {
   }, [selectionScrollKey]); // eslint-disable-line react-hooks/exhaustive-deps -- scroll only when selection id changes, not when dragging markers
 
   const settingsStructureIntegration = useMemo(
-    () =>
-      pdfBlob
+    () => ({
+      ...(pdfBlob
         ? {
             drawings: {
               drawings,
@@ -1984,7 +1952,25 @@ export default function WeldTrackerApp() {
               appMode,
             },
           }
-        : null,
+        : {}),
+      welds: {
+        weldPoints,
+        weldStatusByWeldId,
+        getWeldName,
+        spools,
+        parts,
+        lines,
+        personnel,
+        wpsLibrary,
+        electrodeLibrary,
+        drawingSettings,
+        appMode,
+        ndtAutoLabel: formatNdtRequirements(drawingSettings.ndtRequirements),
+        onSave: handleSaveWeldFromSettings,
+        onDelete: handleDeleteWeldFromSettings,
+        onUpdatePartHeat: handleUpdatePartHeat,
+      },
+    }),
     [
       pdfBlob,
       drawings,
@@ -2007,6 +1993,12 @@ export default function WeldTrackerApp() {
       handleAssignWeldToSpool,
       handleAssignPartToSpool,
       drawingSettings,
+      personnel,
+      wpsLibrary,
+      electrodeLibrary,
+      handleSaveWeldFromSettings,
+      handleDeleteWeldFromSettings,
+      handleUpdatePartHeat,
     ]
   );
 
@@ -2828,7 +2820,6 @@ export default function WeldTrackerApp() {
         wpsLibrary={wpsLibrary}
         electrodeLibrary={electrodeLibrary}
         documents={documents}
-        databookConfig={databookConfig}
         materialCertificates={materialCertificates}
         ndtReports={ndtReports}
         ndtRequests={ndtRequests}
@@ -2838,8 +2829,6 @@ export default function WeldTrackerApp() {
         drawings={drawings}
         weldPoints={weldPoints}
         structureIntegration={settingsStructureIntegration}
-        onCompileDatabook={handleCompileDatabook}
-        isCompilingDatabook={isCompilingDatabook}
         onSave={({
           drawingSettings: s,
           personnel: p,
@@ -2850,8 +2839,8 @@ export default function WeldTrackerApp() {
           electrodeLibrary: electrodes,
           documents: docs,
           materialCertificates: mc,
-          databookConfig: dc,
           ndtReports: nr,
+          ndtRequests: nreq,
           weldPoints: wp,
         }) => {
           if (s != null) setDrawingSettings(s);
@@ -2863,8 +2852,8 @@ export default function WeldTrackerApp() {
           if (electrodes != null) setElectrodeLibrary(electrodes);
           if (docs != null) setDocuments(docs);
           if (mc != null) setMaterialCertificates(mc);
-          if (dc != null) setDatabookConfig(dc);
           if (nr != null) setNdtReports(nr);
+          if (nreq != null) setNdtRequests(nreq);
           if (wp != null) setWeldPoints(wp);
         }}
       />

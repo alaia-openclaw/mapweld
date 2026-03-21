@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import SidePanelDrawings from "@/components/SidePanelDrawings";
 import SidePanelLines from "@/components/SidePanelLines";
 import SidePanelSpools from "@/components/SidePanelSpools";
+import SidePanelWeldForm from "@/components/SidePanelWeldForm";
 import NdtRequirementsOverrideTable from "@/components/NdtRequirementsOverrideTable";
 import SettingsWpsRegistry from "@/components/settings/SettingsWpsRegistry";
 import SettingsElectrodePanel from "@/components/settings/SettingsElectrodePanel";
@@ -11,10 +12,9 @@ import SettingsMaterialCertificatesPanel from "@/components/settings/SettingsMat
 import SettingsPersonnelRegistry from "@/components/settings/SettingsPersonnelRegistry";
 import SettingsDocumentCategoryRegistry from "@/components/settings/SettingsDocumentCategoryRegistry";
 import SettingsNdtReportsRegistry from "@/components/settings/SettingsNdtReportsRegistry";
-import SettingsDatabookExportPanel from "@/components/settings/SettingsDatabookExportPanel";
+import SettingsNdtRequestsRegistry from "@/components/settings/SettingsNdtRequestsRegistry";
 import { getWeldName } from "@/lib/weld-utils";
 import { migrateNdtRequirementsRows } from "@/lib/ndt-requirements-rows";
-import { normalizeDatabookConfig } from "@/lib/databook-sections";
 
 function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -37,6 +37,7 @@ function fileToBase64(file) {
  * @property {object} [drawings] — props for SidePanelDrawings (except hideHeader, isOpen, onToggle)
  * @property {object} [lines] — lines, spools, onSaveLines, onSaveSpools, onCreateLineOnCurrentPage, onLinkLineToCurrentPage, appMode
  * @property {object} [spools] — spools, parts, lines, spoolMarkers, weldPoints, weldStatusByWeldId, getWeldName, onSave, onAssignWeldToSpool, onAssignPartToSpool, appMode
+ * @property {object} [welds] — project-wide weld table: weldPoints, weldStatusByWeldId, getWeldName, spools, parts, lines, personnel, wpsLibrary, electrodeLibrary, drawingSettings, ndtAutoLabel, appMode, onSave, onDelete, onUpdatePartHeat
  */
 
 function ModalSettings({
@@ -50,7 +51,6 @@ function ModalSettings({
   wpsLibrary = [],
   electrodeLibrary = [],
   documents = [],
-  databookConfig = null,
   materialCertificates = [],
   ndtReports = [],
   ndtRequests = [],
@@ -60,12 +60,13 @@ function ModalSettings({
   drawings = [],
   weldPoints = [],
   onSave,
-  onCompileDatabook,
-  isCompilingDatabook = false,
-  /** When set, tree includes Drawings / Systems & lines / Spools with full-project editors */
+  /** When set, tree includes Drawings / Systems & lines / Spools / Welds with full-project editors */
   structureIntegration = null,
 }) {
-  const [activeSection, setActiveSection] = useState("project-ndt");
+  const [activeSection, setActiveSection] = useState("project-info");
+  /** Isolated weld picker state for Settings → Structure → Welds (avoid coupling to main canvas selection). */
+  const [settingsWeldFormWeld, setSettingsWeldFormWeld] = useState(null);
+  const [settingsWeldSelectedId, setSettingsWeldSelectedId] = useState(null);
 
   // Default NDT state
   const [ndtRequirements, setNdtRequirements] = useState([]);
@@ -117,9 +118,18 @@ function ModalSettings({
 
     if (justOpened) {
       wqrUploadTargetRef.current = null;
-      setActiveSection("project-ndt");
+      setActiveSection("project-info");
+      setSettingsWeldFormWeld(null);
+      setSettingsWeldSelectedId(null);
     }
   }, [settings, isOpen, projectMeta, systems, wpsLibrary]);
+
+  useEffect(() => {
+    if (activeSection !== "welds" || !isOpen) {
+      setSettingsWeldFormWeld(null);
+      setSettingsWeldSelectedId(null);
+    }
+  }, [activeSection, isOpen]);
 
   function pushProjectSave(overrides = {}) {
     onSave?.({
@@ -301,6 +311,24 @@ function ModalSettings({
       electrodeLibrary: safeElectrodeLibrary,
       ndtReports: nextReports,
       weldPoints: nextWelds,
+    });
+  }
+
+  function handlePersistNdtRequests({ ndtRequests: nextRequests }) {
+    onSave?.({
+      drawingSettings: { ndtRequirements, weldingSpec },
+      personnel,
+      systems: projectSystems,
+      projectMeta: {
+        projectName: metaProjectName,
+        client: metaClient,
+        spec: metaSpec,
+        revision: metaRevision,
+        date: metaDate,
+      },
+      wpsLibrary: projectWpsLibrary,
+      electrodeLibrary: safeElectrodeLibrary,
+      ndtRequests: nextRequests,
     });
   }
 
@@ -547,45 +575,51 @@ function ModalSettings({
 
   if (!isOpen) return null;
 
+  const structureItems = [
+    { key: "systems", label: "Systems" },
+    ...(structureIntegration?.drawings ? [{ key: "drawings", label: "Drawings" }] : []),
+    ...(structureIntegration?.lines ? [{ key: "lines", label: "Systems & lines" }] : []),
+    ...(structureIntegration?.spools ? [{ key: "spools", label: "Spools" }] : []),
+    ...(structureIntegration?.welds ? [{ key: "welds", label: "Welds" }] : []),
+  ];
+
   const navGroups = [
     {
-      label: "Project",
+      label: "PROJECT",
       items: [
-        { key: "project-ndt", label: "NDT & spec" },
         { key: "project-info", label: "Project info" },
-        { key: "systems", label: "Systems" },
-      ],
-    },
-    {
-      label: "Libraries",
-      items: [
-        { key: "wps", label: "WPS" },
-        { key: "personnel", label: "Personnel" },
-      ],
-    },
-    {
-      label: "Documents & QA",
-      items: [
-        { key: "electrodes", label: "Electrode register" },
-        { key: "materials", label: "Material certificates" },
-        { key: "painting-reports", label: "Painting reports" },
-        { key: "ndt-reports", label: "NDT reports" },
         { key: "itp", label: "ITP" },
-        { key: "databook-export", label: "Databook export" },
       ],
     },
-    ...(structureIntegration
-      ? [
-          {
-            label: "Structure",
-            items: [
-              { key: "drawings", label: "Drawings" },
-              { key: "lines", label: "Systems & lines" },
-              { key: "spools", label: "Spools" },
-            ],
-          },
-        ]
-      : []),
+    {
+      label: "STRUCTURE",
+      items: structureItems,
+    },
+    {
+      label: "WELDING",
+      items: [
+        { type: "heading", label: "General" },
+        { key: "wps", label: "WPS" },
+        { type: "heading", label: "Fit-up" },
+        { key: "personnel-fitters", label: "Fitter personnel" },
+        { key: "materials", label: "Material register" },
+        { type: "heading", label: "Welding" },
+        { key: "personnel-welders", label: "Welder personnel & WQR" },
+        { key: "electrodes", label: "Electrode register" },
+        { type: "heading", label: "Inspection" },
+        { key: "ndt-requests", label: "NDT requests" },
+        { key: "ndt-reports", label: "NDT reports" },
+        { key: "ndt-personnel-docs", label: "NDT personnel" },
+        { key: "ndt-calibration-docs", label: "NDT calibration" },
+      ],
+    },
+    {
+      label: "OTHER",
+      items: [
+        { key: "painting-reports", label: "Paint report" },
+        { key: "release-qc", label: "Release QC report" },
+      ],
+    },
   ];
 
   return (
@@ -593,7 +627,7 @@ function ModalSettings({
       <div className="modal-box w-full min-w-80 max-w-6xl max-h-[90vh] flex flex-col p-0 sm:p-6 gap-0 overflow-hidden">
         <div className="px-4 pt-4 sm:px-0 sm:pt-0 shrink-0">
           <h3 className="font-bold text-lg">Settings</h3>
-          <p className="text-xs text-base-content/60 mt-1">Project defaults, personnel, structure, and libraries</p>
+          <p className="text-xs text-base-content/60 mt-1">Project info, structure, welding, and documents</p>
         </div>
 
         <div className="flex flex-1 min-h-0 flex-col md:flex-row gap-0 md:gap-4 mt-3 border-t border-base-300 md:border-0">
@@ -606,49 +640,62 @@ function ModalSettings({
                 <p className="hidden md:block text-[10px] font-semibold uppercase tracking-wide text-base-content/50 px-1 pt-1 pb-0.5">
                   {group.label}
                 </p>
-                <ul className="flex md:flex-col gap-0.5">
-                  {group.items.map(({ key, label }) => (
-                    <li key={key} className="flex-shrink-0">
+                <div className="flex md:flex-col gap-0.5">
+                  {group.items.map((item) =>
+                    item.type === "heading" ? (
+                      <p
+                        key={`${group.label}-${item.label}`}
+                        className="block text-[9px] font-semibold uppercase tracking-wide text-base-content/40 px-1 pt-1.5 pb-0"
+                      >
+                        {item.label}
+                      </p>
+                    ) : (
                       <button
+                        key={item.key}
                         type="button"
-                        onClick={() => setActiveSection(key)}
-                        className={`btn btn-xs justify-start font-normal whitespace-nowrap md:w-full h-8 min-h-8 ${
-                          activeSection === key ? "btn-primary" : "btn-ghost"
+                        onClick={() => setActiveSection(item.key)}
+                        className={`btn btn-xs justify-start font-normal whitespace-nowrap md:w-full h-8 min-h-8 flex-shrink-0 ${
+                          activeSection === item.key ? "btn-primary" : "btn-ghost"
                         }`}
                       >
-                        {label}
+                        {item.label}
                       </button>
-                    </li>
-                  ))}
-                </ul>
+                    )
+                  )}
+                </div>
               </div>
             ))}
           </nav>
 
           <div className="flex-1 min-h-0 min-w-0 overflow-y-auto px-4 pb-4 md:px-0 md:pr-1">
-        {activeSection === "project-ndt" && (
-          <div className="mt-2 md:mt-0">
-            <NdtRequirementsOverrideTable
-              scope="project"
-              title="NDT / QC checks"
-              hint="Add methods with % required. Default methods are VT, MPI, RT, UT; add custom tests (e.g. PWHT). Shop % / Field % apply by weld location."
-              rows={ndtRequirements}
-              onChange={setNdtRequirements}
+        {activeSection === "personnel-fitters" && (
+          <div className="mt-2 md:mt-0 space-y-4">
+            <SettingsPersonnelRegistry
+              variant="fitters"
+              fitters={fitters}
+              welders={welders}
+              wqrs={wqrs}
+              wqrDocuments={wqrDocuments}
+              weldPoints={weldPoints}
+              systems={projectSystems}
+              lines={lines}
+              spools={spools}
+              wpsLibrary={projectWpsLibrary}
+              onAddFitter={handleAddFitterName}
+              onRemoveFitter={handleRemoveFitter}
+              onUpdateFitterName={handleUpdateFitterName}
+              onAddWelder={handleAddWelderName}
+              onRemoveWelder={handleRemoveWelder}
+              onUpdateWelderName={handleUpdateWelderName}
+              onAddWqrForWelder={handleAddWqrForWelder}
+              onUpdateWqr={handleUpdateWqr}
+              onUnlinkWqrFromWelder={handleUnlinkWqrFromWelder}
+              onDeleteWqr={handleDeleteWqrFromProject}
+              onMoveWqrToWelder={handleMoveWqrToWelder}
+              wqrUploadInputRef={wqrUploadInputRef}
+              wqrUploadTargetRef={wqrUploadTargetRef}
             />
-            <div className="form-control mt-4">
-              <label className="label" htmlFor="weldingSpec">
-                <span className="label-text">Welding spec</span>
-              </label>
-              <input
-                id="weldingSpec"
-                type="text"
-                className="input input-bordered input-xs"
-                value={weldingSpec}
-                onChange={(e) => setWeldingSpec(e.target.value)}
-                placeholder="e.g. WPS-001, ASME IX"
-              />
-            </div>
-            <div className="modal-action">
+            <div className="modal-action mt-4">
               <button type="button" className="btn btn-ghost" onClick={onClose}>
                 Close
               </button>
@@ -656,9 +703,10 @@ function ModalSettings({
           </div>
         )}
 
-        {activeSection === "personnel" && (
+        {activeSection === "personnel-welders" && (
           <div className="mt-2 md:mt-0 space-y-4">
             <SettingsPersonnelRegistry
+              variant="welders-wqr"
               fitters={fitters}
               welders={welders}
               wqrs={wqrs}
@@ -898,6 +946,24 @@ function ModalSettings({
           </div>
         )}
 
+        {activeSection === "ndt-requests" && (
+          <div className="mt-2 md:mt-0 space-y-3">
+            <SettingsNdtRequestsRegistry
+              ndtRequests={ndtRequests}
+              ndtReports={ndtReports}
+              weldPoints={weldPoints}
+              drawingSettings={settings}
+              getWeldName={(w) => getWeldName(w, weldPoints)}
+              onPersist={handlePersistNdtRequests}
+            />
+            <div className="modal-action mt-4">
+              <button type="button" className="btn btn-ghost" onClick={onClose}>
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+
         {activeSection === "ndt-reports" && (
           <div className="mt-2 md:mt-0 space-y-3">
             <SettingsNdtReportsRegistry
@@ -907,6 +973,57 @@ function ModalSettings({
               drawingSettings={settings}
               getWeldName={(w) => getWeldName(w, weldPoints)}
               onPersist={handlePersistNdt}
+            />
+            <div className="modal-action mt-4">
+              <button type="button" className="btn btn-ghost" onClick={onClose}>
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+
+        {activeSection === "ndt-personnel-docs" && (
+          <div className="mt-2 md:mt-0 space-y-3">
+            <SettingsDocumentCategoryRegistry
+              category="ndt_qualification"
+              documents={documents}
+              onUpdateDocument={handleUpdateVaultDocument}
+              onRemoveDocument={handleRemoveVaultDocument}
+              onAddDocumentFromFile={(file) => handleAddVaultDocument("ndt_qualification", file)}
+            />
+            <div className="modal-action mt-4">
+              <button type="button" className="btn btn-ghost" onClick={onClose}>
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+
+        {activeSection === "ndt-calibration-docs" && (
+          <div className="mt-2 md:mt-0 space-y-3">
+            <SettingsDocumentCategoryRegistry
+              category="ndt_calibration"
+              documents={documents}
+              onUpdateDocument={handleUpdateVaultDocument}
+              onRemoveDocument={handleRemoveVaultDocument}
+              onAddDocumentFromFile={(file) => handleAddVaultDocument("ndt_calibration", file)}
+            />
+            <div className="modal-action mt-4">
+              <button type="button" className="btn btn-ghost" onClick={onClose}>
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+
+        {activeSection === "release-qc" && (
+          <div className="mt-2 md:mt-0 space-y-3">
+            <SettingsDocumentCategoryRegistry
+              category="final_release"
+              documents={documents}
+              onUpdateDocument={handleUpdateVaultDocument}
+              onRemoveDocument={handleRemoveVaultDocument}
+              onAddDocumentFromFile={(file) => handleAddVaultDocument("final_release", file)}
             />
             <div className="modal-action mt-4">
               <button type="button" className="btn btn-ghost" onClick={onClose}>
@@ -933,33 +1050,37 @@ function ModalSettings({
           </div>
         )}
 
-        {activeSection === "databook-export" && (
-          <div className="mt-2 md:mt-0 space-y-3">
-            <SettingsDatabookExportPanel
-              databookConfig={databookConfig}
-              onChange={(next) => {
-                onSave?.({
-                  drawingSettings: { ndtRequirements, weldingSpec },
-                  personnel,
-                  systems: projectSystems,
-                  projectMeta: {
-                    projectName: metaProjectName,
-                    client: metaClient,
-                    spec: metaSpec,
-                    revision: metaRevision,
-                    date: metaDate,
-                  },
-                  wpsLibrary: projectWpsLibrary,
-                  electrodeLibrary: safeElectrodeLibrary,
-                  databookConfig: normalizeDatabookConfig(next),
-                });
+        {structureIntegration?.welds && activeSection === "welds" && (
+          <div className="mt-2 md:mt-0 min-h-[min(70vh,520px)] flex flex-col border border-base-300 rounded-lg overflow-hidden bg-base-100">
+            <SidePanelWeldForm
+              hideHeader
+              isOpen
+              onToggle={() => {}}
+              weldPoints={structureIntegration.welds.weldPoints}
+              weld={settingsWeldFormWeld}
+              selectedWeldId={settingsWeldSelectedId}
+              onSelectWeld={(w) => {
+                setSettingsWeldFormWeld(w);
+                setSettingsWeldSelectedId(w?.id ?? null);
               }}
-              onCompile={onCompileDatabook}
-              isCompiling={isCompilingDatabook}
+              onBackToList={() => {
+                setSettingsWeldFormWeld(null);
+                setSettingsWeldSelectedId(null);
+              }}
+              onSave={structureIntegration.welds.onSave}
+              onDelete={structureIntegration.welds.onDelete}
+              appMode={structureIntegration.welds.appMode}
+              spools={structureIntegration.welds.spools}
+              parts={structureIntegration.welds.parts}
+              onUpdatePartHeat={structureIntegration.welds.onUpdatePartHeat}
+              personnel={structureIntegration.welds.personnel}
+              wpsLibrary={structureIntegration.welds.wpsLibrary}
+              electrodeLibrary={structureIntegration.welds.electrodeLibrary}
+              ndtAutoLabel={structureIntegration.welds.ndtAutoLabel}
+              drawingSettings={structureIntegration.welds.drawingSettings}
+              weldStatusByWeldId={structureIntegration.welds.weldStatusByWeldId}
+              getWeldName={structureIntegration.welds.getWeldName}
             />
-            <div className="modal-action mt-4">
-              <button type="button" className="btn btn-ghost" onClick={onClose}>Close</button>
-            </div>
           </div>
         )}
 
