@@ -2824,6 +2824,7 @@ export default function WeldTrackerApp() {
         databookConfig={databookConfig}
         materialCertificates={materialCertificates}
         ndtReports={ndtReports}
+        ndtRequests={ndtRequests}
         lines={lines}
         spools={spools}
         parts={parts}
@@ -2843,6 +2844,8 @@ export default function WeldTrackerApp() {
           documents: docs,
           materialCertificates: mc,
           databookConfig: dc,
+          ndtReports: nr,
+          weldPoints: wp,
         }) => {
           if (s != null) setDrawingSettings(s);
           if (p != null) setPersonnel(p);
@@ -2854,6 +2857,8 @@ export default function WeldTrackerApp() {
           if (docs != null) setDocuments(docs);
           if (mc != null) setMaterialCertificates(mc);
           if (dc != null) setDatabookConfig(dc);
+          if (nr != null) setNdtReports(nr);
+          if (wp != null) setWeldPoints(wp);
         }}
       />
 

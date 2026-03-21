@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import SidePanelDrawings from "@/components/SidePanelDrawings";
 import SidePanelLines from "@/components/SidePanelLines";
 import SidePanelSpools from "@/components/SidePanelSpools";
@@ -8,8 +8,12 @@ import NdtRequirementsOverrideTable from "@/components/NdtRequirementsOverrideTa
 import SettingsWpsRegistry from "@/components/settings/SettingsWpsRegistry";
 import SettingsVaultPanel from "@/components/settings/SettingsVaultPanel";
 import SettingsMaterialCertificatesPanel from "@/components/settings/SettingsMaterialCertificatesPanel";
-import SettingsNdtReportsPanel from "@/components/settings/SettingsNdtReportsPanel";
+import SettingsPersonnelRegistry from "@/components/settings/SettingsPersonnelRegistry";
+import SettingsWqrRegistry from "@/components/settings/SettingsWqrRegistry";
+import SettingsDocumentCategoryRegistry from "@/components/settings/SettingsDocumentCategoryRegistry";
+import SettingsNdtReportsRegistry from "@/components/settings/SettingsNdtReportsRegistry";
 import SettingsDatabookExportPanel from "@/components/settings/SettingsDatabookExportPanel";
+import { getWeldName } from "@/lib/weld-utils";
 import { migrateNdtRequirementsRows } from "@/lib/ndt-requirements-rows";
 import { normalizeDatabookConfig } from "@/lib/databook-sections";
 
@@ -50,6 +54,7 @@ function ModalSettings({
   databookConfig = null,
   materialCertificates = [],
   ndtReports = [],
+  ndtRequests = [],
   lines = [],
   spools = [],
   parts = [],
@@ -77,12 +82,6 @@ function ModalSettings({
   const [projectSystems, setProjectSystems] = useState([]);
   const [projectWpsLibrary, setProjectWpsLibrary] = useState([]);
 
-  // Personnel state
-  const [personnelSubtab, setPersonnelSubtab] = useState("fitters");
-  const [fitterName, setFitterName] = useState("");
-  const [welderName, setWelderName] = useState("");
-  const [editingWelderId, setEditingWelderId] = useState(null);
-  const [wqrCode, setWqrCode] = useState("");
   const wqrUploadInputRef = useRef(null);
   const wpsUploadInputRef = useRef(null);
   const wqrUploadTargetRef = useRef(null);
@@ -119,100 +118,157 @@ function ModalSettings({
     setProjectWpsLibrary(Array.isArray(wpsLibrary) ? wpsLibrary : []);
 
     if (justOpened) {
-      setPersonnelSubtab("fitters");
-      setEditingWelderId(null);
       wqrUploadTargetRef.current = null;
       wpsUploadTargetRef.current = null;
       setActiveSection("project-ndt");
     }
   }, [settings, isOpen, projectMeta, systems, wpsLibrary]);
 
-  // Personnel
-  function handleAddFitter(e) {
-    e.preventDefault();
-    if (!fitterName.trim()) return;
+  function pushProjectSave(overrides = {}) {
     onSave?.({
       drawingSettings: { ndtRequirements, weldingSpec },
+      personnel,
+      systems: projectSystems,
+      projectMeta: {
+        projectName: metaProjectName,
+        client: metaClient,
+        spec: metaSpec,
+        revision: metaRevision,
+        date: metaDate,
+      },
+      wpsLibrary: projectWpsLibrary,
+      electrodeLibrary: safeElectrodeLibrary,
+      ...overrides,
+    });
+  }
+
+  function handleAddFitterName(name) {
+    pushProjectSave({
       personnel: {
         ...personnel,
-        fitters: [...fitters, { id: generateId(), name: fitterName.trim() }],
+        fitters: [...fitters, { id: generateId(), name }],
       },
     });
-    setFitterName("");
+  }
+
+  function handleUpdateFitterName(id, name) {
+    pushProjectSave({
+      personnel: {
+        ...personnel,
+        fitters: fitters.map((f) => (f.id === id ? { ...f, name } : f)),
+      },
+    });
   }
 
   function handleRemoveFitter(id) {
-    onSave?.({
-      drawingSettings: { ndtRequirements, weldingSpec },
+    pushProjectSave({
       personnel: { ...personnel, fitters: fitters.filter((f) => f.id !== id) },
     });
   }
 
-  function handleAddWelder(e) {
-    e.preventDefault();
-    if (!welderName.trim()) return;
-    onSave?.({
-      drawingSettings: { ndtRequirements, weldingSpec },
+  function handleAddWelderName(name) {
+    pushProjectSave({
       personnel: {
         ...personnel,
-        welders: [...welders, { id: generateId(), name: welderName.trim(), wqrIds: [] }],
+        welders: [...welders, { id: generateId(), name, wqrIds: [] }],
       },
     });
-    setWelderName("");
+  }
+
+  function handleUpdateWelderName(id, name) {
+    pushProjectSave({
+      personnel: {
+        ...personnel,
+        welders: welders.map((w) => (w.id === id ? { ...w, name } : w)),
+      },
+    });
   }
 
   function handleRemoveWelder(id) {
-    onSave?.({
-      drawingSettings: { ndtRequirements, weldingSpec },
+    pushProjectSave({
       personnel: { ...personnel, welders: welders.filter((w) => w.id !== id) },
     });
-    setEditingWelderId(null);
   }
 
-  function handleAddWqr(e) {
-    e.preventDefault();
-    if (!wqrCode.trim() || !editingWelderId) return;
-    const newWqr = { id: generateId(), code: wqrCode.trim(), documentId: null };
-    const welder = welders.find((w) => w.id === editingWelderId);
-    if (!welder) return;
-    onSave?.({
-      drawingSettings: { ndtRequirements, weldingSpec },
+  function handleAddWqrRow() {
+    const newWqr = { id: generateId(), code: "", documentId: null, description: "" };
+    pushProjectSave({
       personnel: {
         ...personnel,
         wqrs: [...wqrs, newWqr],
-        welders: welders.map((w) =>
-          w.id === editingWelderId
-            ? { ...w, wqrIds: [...(w.wqrIds || []), newWqr.id] }
-            : w
-        ),
-      },
-    });
-    setWqrCode("");
-  }
-
-  function handleUpdateWqrDocument(wqrId, documentId) {
-    onSave?.({
-      drawingSettings: { ndtRequirements, weldingSpec },
-      personnel: {
-        ...personnel,
-        wqrs: wqrs.map((wqr) =>
-          wqr.id === wqrId ? { ...wqr, documentId: documentId || null } : wqr
-        ),
       },
     });
   }
 
-  function handleRemoveWqrFromWelder(welderId, wqrId) {
-    onSave?.({
-      drawingSettings: { ndtRequirements, weldingSpec },
+  function handleUpdateWqr(wqrId, updates) {
+    pushProjectSave({
       personnel: {
         ...personnel,
-        welders: welders.map((w) =>
-          w.id === welderId
-            ? { ...w, wqrIds: (w.wqrIds || []).filter((id) => id !== wqrId) }
-            : w
-        ),
+        wqrs: wqrs.map((wqr) => (wqr.id === wqrId ? { ...wqr, ...updates } : wqr)),
       },
+    });
+  }
+
+  function handleRemoveWqr(wqrId) {
+    pushProjectSave({
+      personnel: {
+        ...personnel,
+        wqrs: wqrs.filter((w) => w.id !== wqrId),
+        welders: welders.map((w) => ({
+          ...w,
+          wqrIds: (w.wqrIds || []).filter((id) => id !== wqrId),
+        })),
+      },
+    });
+  }
+
+  function handleToggleWelderWqr(welderId, wqrId, add) {
+    const welder = welders.find((w) => w.id === welderId);
+    if (!welder) return;
+    const nextIds = add
+      ? [...new Set([...(welder.wqrIds || []), wqrId])]
+      : (welder.wqrIds || []).filter((id) => id !== wqrId);
+    pushProjectSave({
+      personnel: {
+        ...personnel,
+        welders: welders.map((w) => (w.id === welderId ? { ...w, wqrIds: nextIds } : w)),
+      },
+    });
+  }
+
+  async function handleAddVaultDocument(category, file) {
+    const newDoc = await uploadLinkedDocument(file, category, file.name);
+    pushProjectSave({ documents: [...(documents || []), newDoc] });
+  }
+
+  function handleUpdateVaultDocument(docId, updates) {
+    pushProjectSave({
+      documents: (documents || []).map((d) => (d.id === docId ? { ...d, ...updates } : d)),
+    });
+  }
+
+  function handleRemoveVaultDocument(docId) {
+    pushProjectSave({
+      documents: (documents || []).filter((d) => d.id !== docId),
+    });
+  }
+
+  function handlePersistNdt({ ndtReports: nextReports, weldPoints: nextWelds }) {
+    onSave?.({
+      drawingSettings: { ndtRequirements, weldingSpec },
+      personnel,
+      systems: projectSystems,
+      projectMeta: {
+        projectName: metaProjectName,
+        client: metaClient,
+        spec: metaSpec,
+        revision: metaRevision,
+        date: metaDate,
+      },
+      wpsLibrary: projectWpsLibrary,
+      electrodeLibrary: safeElectrodeLibrary,
+      ndtReports: nextReports,
+      weldPoints: nextWelds,
     });
   }
 
@@ -440,6 +496,7 @@ function ModalSettings({
       items: [
         { key: "wps", label: "WPS" },
         { key: "personnel", label: "Personnel" },
+        { key: "wqr", label: "WQR" },
       ],
     },
     {
@@ -447,7 +504,9 @@ function ModalSettings({
       items: [
         { key: "documents", label: "Document vault" },
         { key: "materials", label: "Material certificates" },
+        { key: "painting-reports", label: "Painting reports" },
         { key: "ndt-reports", label: "NDT reports" },
+        { key: "itp", label: "ITP" },
         { key: "databook-export", label: "Databook export" },
       ],
     },
@@ -535,233 +594,42 @@ function ModalSettings({
 
         {activeSection === "personnel" && (
           <div className="mt-2 md:mt-0 space-y-4">
-            <p className="text-sm text-base-content/70">
-              Manage fitters, welders, and welder qualifications (WQR). Welding records on each weld use these
-              registrations — link WQR PDFs here; the weld form only picks from welders and codes you define.
-            </p>
-
-            <div className="grid grid-cols-1 md:grid-cols-[14rem_minmax(0,1fr)] gap-3">
-              <aside className="border border-base-300 rounded-lg bg-base-100 p-2 h-fit">
-                <ul className="menu menu-sm">
-                  <li>
-                    <button
-                      type="button"
-                      className={personnelSubtab === "fitters" ? "active" : ""}
-                      onClick={() => setPersonnelSubtab("fitters")}
-                    >
-                      Fitters
-                    </button>
-                  </li>
-                  <li>
-                    <button
-                      type="button"
-                      className={personnelSubtab === "welders" ? "active" : ""}
-                      onClick={() => setPersonnelSubtab("welders")}
-                    >
-                      Welders & WQR
-                    </button>
-                  </li>
-                  <li>
-                    <button
-                      type="button"
-                      className={personnelSubtab === "ndt" ? "active" : ""}
-                      onClick={() => setPersonnelSubtab("ndt")}
-                    >
-                      NDT personnel
-                    </button>
-                  </li>
-                </ul>
-              </aside>
-
-              <div className="min-w-0">
-                {personnelSubtab === "fitters" && (
-                  <div className="space-y-2">
-                    <h4 className="font-medium text-sm">Fitters</h4>
-                    <form onSubmit={handleAddFitter} className="flex gap-2">
-                      <input
-                        type="text"
-                        className="input input-bordered input-xs flex-1"
-                        value={fitterName}
-                        onChange={(e) => setFitterName(e.target.value)}
-                        placeholder="Fitter name"
-                      />
-                      <button type="submit" className="btn btn-primary btn-sm">
-                        Add
-                      </button>
-                    </form>
-                    <ul className="space-y-1">
-                      {fitters.map((f) => (
-                        <li
-                          key={f.id}
-                          className="flex items-center justify-between gap-2 p-2 bg-base-200 rounded-lg text-sm"
-                        >
-                          <span>{f.name}</span>
-                          <button
-                            type="button"
-                            className="btn btn-ghost btn-xs text-error"
-                            onClick={() => handleRemoveFitter(f.id)}
-                          >
-                            Remove
-                          </button>
-                        </li>
-                      ))}
-                      {fitters.length === 0 && (
-                        <p className="text-sm text-base-content/50">No fitters yet.</p>
-                      )}
-                    </ul>
-                  </div>
-                )}
-
-                {personnelSubtab === "welders" && (
-                  <div className="space-y-3">
-                    <div className="rounded-lg border border-base-300/70 bg-info/5 p-3 text-xs text-base-content/80 leading-relaxed">
-                      <strong className="text-info">WPS vs WQR:</strong> Procedure PDFs and WPS codes live under{" "}
-                      <strong>Settings → WPS</strong>. Welder qualifications (WQR codes + PDFs) are managed
-                      below — each welder can hold multiple WQRs used when filling welding records on welds.
-                    </div>
-                    <div>
-                      <h4 className="font-medium text-sm mb-2">Welders</h4>
-                      <form onSubmit={handleAddWelder} className="flex gap-2 mb-2">
-                        <input
-                          type="text"
-                          className="input input-bordered input-xs flex-1"
-                          value={welderName}
-                          onChange={(e) => setWelderName(e.target.value)}
-                          placeholder="Welder name"
-                        />
-                        <button type="submit" className="btn btn-primary btn-sm">
-                          Add
-                        </button>
-                      </form>
-                      <ul className="space-y-1">
-                        {welders.map((w) => (
-                          <li
-                            key={w.id}
-                            className="flex items-center justify-between gap-2 p-2 bg-base-200 rounded-lg text-sm"
-                          >
-                            <span>{w.name}</span>
-                            <button
-                              type="button"
-                              className="btn btn-ghost btn-xs text-error"
-                              onClick={() => handleRemoveWelder(w.id)}
-                            >
-                              Remove
-                            </button>
-                          </li>
-                        ))}
-                        {welders.length === 0 && (
-                          <p className="text-sm text-base-content/50">No welders yet.</p>
-                        )}
-                      </ul>
-                    </div>
-
-                    <div>
-                      <h4 className="font-medium text-sm mb-2">WQR per welder</h4>
-                      <p className="text-xs text-base-content/60 mb-2">
-                        Add a WQR code for the selected welder, then link the qualification PDF from your vault (or upload).
-                        Those pairs appear as presets on the weld <strong>Welding</strong> section.
-                      </p>
-                      <div className="form-control">
-                        <label className="label py-0">
-                          <span className="label-text text-xs">Select welder</span>
-                        </label>
-                        <select
-                          className="select select-bordered select-xs"
-                          value={editingWelderId || ""}
-                          onChange={(e) => setEditingWelderId(e.target.value || null)}
-                        >
-                          <option value="">Choose welder</option>
-                          {welders.map((w) => (
-                            <option key={w.id} value={w.id}>
-                              {w.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      {editingWelderId && (
-                        <>
-                          <form onSubmit={handleAddWqr} className="flex gap-2 mt-2">
-                            <input
-                              type="text"
-                              className="input input-bordered input-xs flex-1"
-                              value={wqrCode}
-                              onChange={(e) => setWqrCode(e.target.value)}
-                              placeholder="WQR code"
-                            />
-                            <button type="submit" className="btn btn-primary btn-sm">
-                              Add
-                            </button>
-                          </form>
-                          <ul className="space-y-1 mt-2">
-                            {(welders.find((w) => w.id === editingWelderId)?.wqrIds || []).map((wqrId) => {
-                              const wqr = wqrs.find((q) => q.id === wqrId);
-                              return wqr ? (
-                                <li key={wqr.id} className="p-2 bg-base-200 rounded text-sm space-y-1">
-                                  <div className="flex items-center justify-between gap-2">
-                                    <span>{wqr.code}</span>
-                                    <button
-                                      type="button"
-                                      className="btn btn-ghost btn-xs text-error"
-                                      onClick={() => handleRemoveWqrFromWelder(editingWelderId, wqr.id)}
-                                    >
-                                      Remove
-                                    </button>
-                                  </div>
-                                  <div className="form-control">
-                                    <label className="label py-0">
-                                      <span className="label-text text-xs">Linked WQR PDF</span>
-                                    </label>
-                                    <div className="flex gap-1">
-                                      <select
-                                        className="select select-bordered select-xs flex-1"
-                                        value={wqr.documentId || ""}
-                                        onChange={(e) => handleUpdateWqrDocument(wqr.id, e.target.value)}
-                                      >
-                                        <option value="">No PDF linked</option>
-                                        {wqrDocuments.map((doc) => (
-                                          <option key={doc.id} value={doc.id}>
-                                            {doc.title || doc.fileName}
-                                          </option>
-                                        ))}
-                                      </select>
-                                      {!wqr.documentId && (
-                                        <button
-                                          type="button"
-                                          className="btn btn-ghost btn-xs"
-                                          onClick={() => {
-                                            wqrUploadTargetRef.current = wqr.id;
-                                            wqrUploadInputRef.current?.click();
-                                          }}
-                                        >
-                                          Load
-                                        </button>
-                                      )}
-                                    </div>
-                                  </div>
-                                </li>
-                              ) : null;
-                            })}
-                          </ul>
-                          {(welders.find((w) => w.id === editingWelderId)?.wqrIds || []).length === 0 && (
-                            <p className="text-sm text-base-content/50 mt-1">No WQR for this welder.</p>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {personnelSubtab === "ndt" && (
-                  <div className="space-y-2">
-                    <h4 className="font-medium text-sm">NDT personnel</h4>
-                    <p className="text-sm text-base-content/60">
-                      Placeholder submenu reserved for future NDT operator / inspector qualification management.
-                    </p>
-                  </div>
-                )}
-              </div>
+            <SettingsPersonnelRegistry
+              fitters={fitters}
+              welders={welders}
+              onAddFitter={handleAddFitterName}
+              onRemoveFitter={handleRemoveFitter}
+              onUpdateFitterName={handleUpdateFitterName}
+              onAddWelder={handleAddWelderName}
+              onRemoveWelder={handleRemoveWelder}
+              onUpdateWelderName={handleUpdateWelderName}
+            />
+            <div className="modal-action mt-4">
+              <button type="button" className="btn btn-ghost" onClick={onClose}>
+                Close
+              </button>
             </div>
+          </div>
+        )}
 
+        {activeSection === "wqr" && (
+          <div className="mt-2 md:mt-0 space-y-3">
+            <SettingsWqrRegistry
+              wqrs={wqrs}
+              welders={welders}
+              weldPoints={weldPoints}
+              systems={projectSystems}
+              lines={lines}
+              spools={spools}
+              wpsLibrary={projectWpsLibrary}
+              wqrDocuments={wqrDocuments}
+              onAddWqr={handleAddWqrRow}
+              onUpdateWqr={handleUpdateWqr}
+              onRemoveWqr={handleRemoveWqr}
+              onToggleWelderWqr={handleToggleWelderWqr}
+              wqrUploadInputRef={wqrUploadInputRef}
+              wqrUploadTargetRef={wqrUploadTargetRef}
+            />
             <div className="modal-action mt-4">
               <button type="button" className="btn btn-ghost" onClick={onClose}>
                 Close
@@ -960,14 +828,54 @@ function ModalSettings({
           </div>
         )}
 
+        {activeSection === "painting-reports" && (
+          <div className="mt-2 md:mt-0 space-y-3">
+            <SettingsDocumentCategoryRegistry
+              category="painting_report"
+              documents={documents}
+              onUpdateDocument={handleUpdateVaultDocument}
+              onRemoveDocument={handleRemoveVaultDocument}
+              onAddDocumentFromFile={(file) => handleAddVaultDocument("painting_report", file)}
+            />
+            <div className="modal-action mt-4">
+              <button type="button" className="btn btn-ghost" onClick={onClose}>
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+
         {activeSection === "ndt-reports" && (
           <div className="mt-2 md:mt-0 space-y-3">
-            <p className="text-xs text-base-content/70">
-              Overview of NDT reports in this project. Create and edit reports from the NDT workspace.
-            </p>
-            <SettingsNdtReportsPanel ndtReports={ndtReports} />
+            <SettingsNdtReportsRegistry
+              ndtReports={ndtReports}
+              ndtRequests={ndtRequests}
+              weldPoints={weldPoints}
+              drawingSettings={settings}
+              getWeldName={(w) => getWeldName(w, weldPoints)}
+              onPersist={handlePersistNdt}
+            />
             <div className="modal-action mt-4">
-              <button type="button" className="btn btn-ghost" onClick={onClose}>Close</button>
+              <button type="button" className="btn btn-ghost" onClick={onClose}>
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+
+        {activeSection === "itp" && (
+          <div className="mt-2 md:mt-0 space-y-3">
+            <SettingsDocumentCategoryRegistry
+              category="itp"
+              documents={documents}
+              onUpdateDocument={handleUpdateVaultDocument}
+              onRemoveDocument={handleRemoveVaultDocument}
+              onAddDocumentFromFile={(file) => handleAddVaultDocument("itp", file)}
+            />
+            <div className="modal-action mt-4">
+              <button type="button" className="btn btn-ghost" onClick={onClose}>
+                Close
+              </button>
             </div>
           </div>
         )}
