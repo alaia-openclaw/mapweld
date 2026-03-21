@@ -843,6 +843,9 @@ function ModalSettings({
               weldPoints={weldPoints}
               personnel={personnel}
               wpsDocuments={wpsDocuments}
+              drawings={drawings}
+              lines={lines}
+              spools={spools}
               onAddWps={handleAddWps}
               onUpdateWps={handleUpdateWps}
               onRemoveWps={handleRemoveWps}

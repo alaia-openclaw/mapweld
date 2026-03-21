@@ -1,11 +1,28 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   matchEntrySearch,
   matchEntryFilters,
   entryMatchesCatalogUnitSystem,
 } from "@/lib/catalog-structure";
+import {
+  CatalogFacetDropdown,
+  CatalogReadOnlyFacet,
+  catalogPanelOuterClass,
+  catalogPanelToolbarClass,
+} from "@/components/CatalogCategoryToolbar";
+
+function uniqueSortedStrings(values) {
+  const set = new Set();
+  for (const v of values) {
+    const s = v != null && String(v).trim() !== "" ? String(v).trim() : null;
+    if (s) set.add(s);
+  }
+  return Array.from(set).sort((a, b) =>
+    a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" })
+  );
+}
 
 export default function PanelCatalogPipe({
   entries,
@@ -13,14 +30,29 @@ export default function PanelCatalogPipe({
   filters = [],
   catalogUnitSystem,
 }) {
+  const [scheduleFilter, setScheduleFilter] = useState("");
+  const [formFilter, setFormFilter] = useState("");
+
+  const scheduleOptions = useMemo(
+    () => uniqueSortedStrings(entries.map((e) => e.attributes?.schedule)),
+    [entries]
+  );
+
+  const formOptions = useMemo(
+    () => uniqueSortedStrings(entries.map((e) => e.attributes?.pipeForm ?? "Seamless")),
+    [entries]
+  );
+
   const filtered = useMemo(() => {
-    return entries.filter(
-      (e) =>
-        entryMatchesCatalogUnitSystem(e, catalogUnitSystem) &&
-        matchEntrySearch(e, search) &&
-        matchEntryFilters(e, filters)
-    );
-  }, [entries, search, filters, catalogUnitSystem]);
+    return entries.filter((e) => {
+      if (!entryMatchesCatalogUnitSystem(e, catalogUnitSystem)) return false;
+      if (scheduleFilter && String(e.attributes?.schedule ?? "") !== scheduleFilter) return false;
+      if (formFilter && String(e.attributes?.pipeForm ?? "Seamless") !== formFilter) return false;
+      if (!matchEntrySearch(e, search)) return false;
+      if (!matchEntryFilters(e, filters)) return false;
+      return true;
+    });
+  }, [entries, catalogUnitSystem, scheduleFilter, formFilter, search, filters]);
 
   if (!entries.length) {
     return (
@@ -33,7 +65,26 @@ export default function PanelCatalogPipe({
   const isMetric = catalogUnitSystem === "Metric";
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-10rem)] min-h-[380px] rounded-xl border border-base-300 bg-base-200/60 overflow-hidden">
+    <div className={catalogPanelOuterClass}>
+      <div className={catalogPanelToolbarClass}>
+        <CatalogReadOnlyFacet label="Category" value="Pipe" />
+        {scheduleOptions.length > 0 ? (
+          <CatalogFacetDropdown
+            label="Schedule"
+            options={[{ id: "", label: "All schedules" }, ...scheduleOptions.map((s) => ({ id: s, label: s }))]}
+            activeId={scheduleFilter}
+            onSelect={setScheduleFilter}
+          />
+        ) : null}
+        {formOptions.length > 1 ? (
+          <CatalogFacetDropdown
+            label="Form"
+            options={[{ id: "", label: "All" }, ...formOptions.map((f) => ({ id: f, label: f }))]}
+            activeId={formFilter}
+            onSelect={setFormFilter}
+          />
+        ) : null}
+      </div>
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)] gap-3 p-3 min-h-0">
         <div className="rounded-lg border border-base-300 bg-base-100 p-3 flex flex-col gap-2 min-h-[200px]">
           <h2 className="text-sm font-semibold truncate">Pipe</h2>
@@ -51,6 +102,7 @@ export default function PanelCatalogPipe({
             <thead>
               <tr>
                 <th>NPS / NB</th>
+                <th>Schedule</th>
                 <th>{isMetric ? "OD (mm)" : "OD (in)"}</th>
                 <th>{isMetric ? "Wall thk (mm)" : "Wall thk (in)"}</th>
                 <th>{isMetric ? "ID (mm)" : "ID (in)"}</th>
@@ -61,6 +113,7 @@ export default function PanelCatalogPipe({
               {filtered.map((row) => (
                 <tr key={row.id}>
                   <td>{row.nps}</td>
+                  <td>{row.attributes?.schedule ?? row.thickness ?? "—"}</td>
                   <td>{row.attributes?.od ?? "—"}</td>
                   <td>{row.attributes?.wallThk ?? "—"}</td>
                   <td>{row.attributes?.id ?? "—"}</td>

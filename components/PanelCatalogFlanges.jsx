@@ -8,6 +8,12 @@ import {
   getFlangePipeScheduleDisplay,
 } from "@/lib/catalog-structure";
 import { flangeDrawingFallbackImage } from "@/lib/flanges-config";
+import {
+  CatalogFacetDropdown,
+  CatalogReadOnlyFacet,
+  catalogPanelOuterClass,
+  catalogPanelToolbarClass,
+} from "@/components/CatalogCategoryToolbar";
 
 function flangePipeScheduleCell(row) {
   return getFlangePipeScheduleDisplay(row) || "—";
@@ -20,10 +26,6 @@ function rowMatchesFlangeSubtype(row, activeSubtypeId, subtypes) {
   return true;
 }
 
-/**
- * Reference: data/pipedata-catalog-tree.md — Schedule on bar for Weldneck / Lapped / long neck (B16.5).
- * Standards without a flange-type submenu (e.g. B16.47) do not show Schedule on the bar in the reference.
- */
 function showWallScheduleOnBar(subtypeId, subtypes) {
   if (!subtypes?.length) return false;
   if (!subtypeId) return true;
@@ -41,68 +43,23 @@ function uniqueSortedStrings(values) {
   );
 }
 
-/**
- * Pipedata-style toolbar control: label on top, current value below, menu opens on click.
- * Matches the “blue bar” dropdown pattern described in data/pipedata-catalog-tree.md.
- */
-function FlangeToolbarDropdown({
-  label,
-  valueDisplay,
-  options,
-  activeId,
-  onSelect,
-  disabled = false,
-  placeholder = "—",
-  menuClassName = "",
-}) {
-  const active = options.find((o) => String(o.id) === String(activeId));
-  const display = active?.label ?? valueDisplay ?? placeholder;
-
-  return (
-    <div
-      className={`dropdown dropdown-start min-w-[7.5rem] max-w-[min(100vw-2rem,16rem)] flex-1 sm:flex-none ${
-        disabled ? "opacity-50 pointer-events-none" : ""
-      }`}
-    >
-      <div
-        tabIndex={disabled ? -1 : 0}
-        role="button"
-        className="btn btn-sm btn-outline border-base-300 bg-base-100 h-auto min-h-12 py-2 px-3 w-full flex flex-col items-stretch gap-0.5 normal-case font-normal"
-      >
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-base-content/60 text-left">
-          {label}
-        </span>
-        <span className="text-xs font-medium text-left whitespace-normal leading-snug truncate">
-          {display}
-        </span>
-      </div>
-      {!disabled && options.length > 0 ? (
-        <ul
-          tabIndex={0}
-          className={`dropdown-content z-[40] menu p-2 shadow-lg bg-base-100 rounded-box w-[min(100vw-1.5rem,18rem)] max-h-[min(70vh,22rem)] overflow-y-auto border border-base-300 mt-1 ${menuClassName}`}
-        >
-          {options.map((opt) => (
-            <li key={opt.id} className="w-full">
-              <button
-                type="button"
-                className={`w-full text-left whitespace-normal leading-snug py-2.5 min-h-0 h-auto rounded-lg text-xs ${
-                  String(activeId) === String(opt.id)
-                    ? "active bg-primary text-primary-content font-medium"
-                    : ""
-                }`}
-                onClick={() => {
-                  onSelect(opt.id);
-                  if (typeof document !== "undefined") document.activeElement?.blur?.();
-                }}
-              >
-                {opt.label}
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </div>
-  );
+/** All dimension rows for a flange standard (every rating / class), filtered by unit system only. */
+function flattenFlangeStandardRows(standard, catalogUnitSystem) {
+  const rows = [];
+  for (const cls of standard?.classes ?? []) {
+    for (const ds of cls.datasets ?? []) {
+      if (catalogUnitSystem && ds.system && ds.system !== catalogUnitSystem) continue;
+      for (const row of ds.rows ?? []) {
+        rows.push({
+          ...row,
+          system: ds.system,
+          standardLabel: standard.label,
+          pressureClass: cls.pressureClass,
+        });
+      }
+    }
+  }
+  return rows;
 }
 
 function CardFlangeDrawing({ standard, activeSubtype, selectedRow }) {
@@ -181,39 +138,21 @@ function CardFlangeDrawing({ standard, activeSubtype, selectedRow }) {
 }
 
 function TableFlangeDimensions({
-  selectedClass,
+  baseRows = [],
+  activeRatingFilter = "",
   selectedRowId,
   onSelectRow,
   search = "",
   filters = [],
-  standardLabel = "",
-  flangeSubtypeId = "",
-  subtypes = null,
   catalogUnitSystem = "",
   activeFaceType = "",
   activeNps = "",
   activeWall = "",
   showWallBar = true,
 }) {
-  const allRows = useMemo(() => {
-    if (!selectedClass) return [];
-    const rows = [];
-    selectedClass.datasets.forEach((ds) => {
-      if (catalogUnitSystem && ds.system && ds.system !== catalogUnitSystem) return;
-      ds.rows.forEach((row) => {
-        rows.push({
-          ...row,
-          system: ds.system,
-          standardLabel,
-          pressureClass: selectedClass.pressureClass,
-        });
-      });
-    });
-    return rows;
-  }, [selectedClass, standardLabel, catalogUnitSystem]);
-
-  const filteredRows = useMemo(() => {
-    return allRows.filter((row) => {
+  const rowsToShow = useMemo(() => {
+    return baseRows.filter((row) => {
+      if (activeRatingFilter && String(row.pressureClass) !== String(activeRatingFilter)) return false;
       if (search?.trim() && !matchFlangeRowSearch(row, search)) return false;
       if (!matchFlangeRowFilters(row, filters)) return false;
       if (activeFaceType) {
@@ -228,24 +167,12 @@ function TableFlangeDimensions({
       }
       return true;
     });
-  }, [allRows, search, filters, activeFaceType, activeNps, activeWall, showWallBar]);
+  }, [baseRows, activeRatingFilter, search, filters, activeFaceType, activeNps, activeWall, showWallBar]);
 
-  const rowsForSubtype = useMemo(() => {
-    return filteredRows.filter((row) => rowMatchesFlangeSubtype(row, flangeSubtypeId, subtypes));
-  }, [filteredRows, flangeSubtypeId, subtypes]);
-
-  if (!selectedClass) {
-    return (
-      <div className="flex items-center justify-center h-full text-xs text-base-content/60">
-        Select a pressure class to see dimensions.
-      </div>
-    );
-  }
-
-  if (!allRows.length) {
+  if (!baseRows.length) {
     return (
       <div className="flex flex-col items-center justify-center gap-1 h-full text-xs text-base-content/60 px-4 text-center">
-        <span>No dimensions for the selected unit system in this rating.</span>
+        <span>No dimensions for the selected unit system.</span>
         <span className="text-[11px] text-base-content/50">
           Switch <strong>Units</strong> (Imperial / Metric) in the catalog toolbar.
         </span>
@@ -261,6 +188,7 @@ function TableFlangeDimensions({
         <thead>
           <tr>
             <th>System</th>
+            <th>Rating</th>
             <th>NPS / NB</th>
             <th title="Same ASME pipe wall schedule as Pipe and butt-weld fittings (bore / mating pipe): STD, XS, 40, 80S, … — from the Schedule column in Pipedata CSV when present; not flange neck thickness.">
               Pipe schedule
@@ -270,7 +198,7 @@ function TableFlangeDimensions({
           </tr>
         </thead>
         <tbody>
-          {rowsForSubtype.map((row) => {
+          {rowsToShow.map((row) => {
             const isActive = row.id === selectedRowId;
             return (
               <tr
@@ -279,6 +207,7 @@ function TableFlangeDimensions({
                 onClick={() => onSelectRow?.(row)}
               >
                 <td>{row.system}</td>
+                <td>{row.pressureClass ?? "—"}</td>
                 <td>{row.nps}</td>
                 <td>{flangePipeScheduleCell(row)}</td>
                 <td>{row.od ?? "—"}</td>
@@ -316,79 +245,60 @@ function PanelCatalogFlanges({
     [standards, activeStandardId]
   );
 
-  const [activeClassId, setActiveClassId] = useState(() => {
-    const initialStandard =
-      standards.find((s) => s.classes?.length) || standards[0];
-    return String(initialStandard?.classes?.[0]?.pressureClass ?? "");
-  });
+  const classes = useMemo(() => activeStandard?.classes ?? [], [activeStandard]);
 
-  const classes = useMemo(
-    () => activeStandard?.classes ?? [],
-    [activeStandard]
-  );
-
-  const [activeSubtypeId, setActiveSubtypeId] = useState(
-    () => activeStandard?.subtypes?.[0]?.id ?? ""
-  );
+  const [activeSubtypeId, setActiveSubtypeId] = useState("");
 
   useEffect(() => {
-    const std = standards.find((s) => s.id === activeStandardId);
-    if (std?.subtypes?.length) setActiveSubtypeId(std.subtypes[0].id);
-    else setActiveSubtypeId("");
+    setActiveSubtypeId("");
   }, [activeStandardId, standards]);
 
-  const selectedClass = useMemo(
-    () =>
-      classes.find((cls) => String(cls.pressureClass) === String(activeClassId)) ||
-      classes[0],
-    [classes, activeClassId]
-  );
-
+  const [activeRatingFilter, setActiveRatingFilter] = useState("");
   const [activeFaceType, setActiveFaceType] = useState("");
   const [activeNps, setActiveNps] = useState("");
   const [activeWall, setActiveWall] = useState("");
 
   useEffect(() => {
+    setActiveRatingFilter("");
     setActiveFaceType("");
     setActiveNps("");
     setActiveWall("");
-  }, [activeClassId, activeStandardId, activeSubtypeId, catalogUnitSystem]);
+  }, [activeStandardId, activeSubtypeId, catalogUnitSystem]);
 
-  const baseRowsForOptions = useMemo(() => {
-    if (!selectedClass) return [];
-    const rows = [];
-    selectedClass.datasets.forEach((ds) => {
-      if (catalogUnitSystem && ds.system && ds.system !== catalogUnitSystem) return;
-      ds.rows.forEach((row) => {
-        rows.push({
-          ...row,
-          system: ds.system,
-          standardLabel: activeStandard?.label ?? "",
-          pressureClass: selectedClass.pressureClass,
-        });
-      });
-    });
-    return rows.filter((row) =>
-      rowMatchesFlangeSubtype(row, activeSubtypeId, activeStandard?.subtypes)
-    );
-  }, [selectedClass, catalogUnitSystem, activeSubtypeId, activeStandard]);
+  const allBaseRows = useMemo(
+    () => flattenFlangeStandardRows(activeStandard, catalogUnitSystem),
+    [activeStandard, catalogUnitSystem]
+  );
+
+  const baseRowsForSubtype = useMemo(
+    () =>
+      allBaseRows.filter((row) =>
+        rowMatchesFlangeSubtype(row, activeSubtypeId, activeStandard?.subtypes)
+      ),
+    [allBaseRows, activeSubtypeId, activeStandard]
+  );
 
   const uniqueFaceTypes = useMemo(
-    () => uniqueSortedStrings(baseRowsForOptions.map((r) => r.attributes?.faceType)),
-    [baseRowsForOptions]
+    () => uniqueSortedStrings(baseRowsForSubtype.map((r) => r.attributes?.faceType)),
+    [baseRowsForSubtype]
   );
 
   const uniqueNps = useMemo(
-    () => uniqueSortedStrings(baseRowsForOptions.map((r) => r.nps)),
-    [baseRowsForOptions]
+    () => uniqueSortedStrings(baseRowsForSubtype.map((r) => r.nps)),
+    [baseRowsForSubtype]
   );
 
   const uniqueWall = useMemo(
     () =>
       uniqueSortedStrings(
-        baseRowsForOptions.map((r) => getFlangePipeScheduleDisplay(r)).filter(Boolean)
+        baseRowsForSubtype.map((r) => getFlangePipeScheduleDisplay(r)).filter(Boolean)
       ),
-    [baseRowsForOptions]
+    [baseRowsForSubtype]
+  );
+
+  const uniqueRatings = useMemo(
+    () => uniqueSortedStrings(allBaseRows.map((r) => r.pressureClass)),
+    [allBaseRows]
   );
 
   const showWallDropdown =
@@ -396,9 +306,8 @@ function PanelCatalogFlanges({
 
   const [selectedRow, setSelectedRow] = useState(null);
 
-  const handleSelectRow = (row) => {
-    setSelectedRow(row);
-  };
+  const drawingSubtypeId =
+    activeSubtypeId || activeStandard?.subtypes?.[0]?.id || "";
 
   const standardOptions = useMemo(
     () => standards.map((s) => ({ id: s.id, label: s.label })),
@@ -406,12 +315,8 @@ function PanelCatalogFlanges({
   );
 
   const classOptions = useMemo(
-    () =>
-      classes.map((cls) => ({
-        id: String(cls.pressureClass),
-        label: String(cls.pressureClass),
-      })),
-    [classes]
+    () => uniqueRatings.map((pc) => ({ id: String(pc), label: String(pc) })),
+    [uniqueRatings]
   );
 
   const subtypeOptions = useMemo(
@@ -439,46 +344,45 @@ function PanelCatalogFlanges({
   );
 
   return (
-    <div className="flex h-[calc(100dvh-7rem)] min-h-[420px] rounded-xl border border-base-300 bg-base-200/60 overflow-hidden">
+    <div className={catalogPanelOuterClass}>
       <div className="flex-1 flex flex-col min-w-0">
-        <div className="px-3 py-2 border-b border-base-300 bg-base-200/60 flex flex-wrap items-end gap-2 gap-y-2">
-          <FlangeToolbarDropdown
+        <div className={catalogPanelToolbarClass}>
+          <CatalogFacetDropdown
             label="Flange standard"
             options={standardOptions}
             activeId={activeStandardId}
             onSelect={(id) => {
               setActiveStandardId(id);
-              const std = standards.find((s) => s.id === id);
-              const firstClass = std?.classes?.[0];
-              setActiveClassId(String(firstClass?.pressureClass ?? ""));
             }}
           />
           {subtypeOptions.length > 1 ? (
-            <FlangeToolbarDropdown
+            <CatalogFacetDropdown
               label="Flange type"
-              options={subtypeOptions}
+              options={[{ id: "", label: "All types" }, ...subtypeOptions]}
               activeId={activeSubtypeId}
               onSelect={setActiveSubtypeId}
             />
+          ) : subtypeOptions.length === 1 ? (
+            <CatalogReadOnlyFacet label="Flange type" value={subtypeOptions[0].label} />
           ) : null}
-          {classOptions.length >= 1 ? (
-            <FlangeToolbarDropdown
+          {classOptions.length > 0 ? (
+            <CatalogFacetDropdown
               label="Rating (class)"
-              options={classOptions}
-              activeId={activeClassId}
-              onSelect={setActiveClassId}
+              options={[{ id: "", label: "All ratings" }, ...classOptions]}
+              activeId={activeRatingFilter}
+              onSelect={setActiveRatingFilter}
             />
           ) : null}
-          {faceOptions.length > 1 ? (
-            <FlangeToolbarDropdown
+          {faceOptions.length > 0 ? (
+            <CatalogFacetDropdown
               label="Face type"
               options={[{ id: "", label: "All" }, ...faceOptions]}
               activeId={activeFaceType}
               onSelect={(id) => setActiveFaceType(id)}
             />
           ) : null}
-          {npsOptions.length > 1 ? (
-            <FlangeToolbarDropdown
+          {npsOptions.length > 0 ? (
+            <CatalogFacetDropdown
               label="Size (NPS / NB)"
               options={[{ id: "", label: "All sizes" }, ...npsOptions]}
               activeId={activeNps}
@@ -486,7 +390,7 @@ function PanelCatalogFlanges({
             />
           ) : null}
           {showWallDropdown ? (
-            <FlangeToolbarDropdown
+            <CatalogFacetDropdown
               label="Pipe schedule"
               options={[{ id: "", label: "All" }, ...wallOptions]}
               activeId={activeWall}
@@ -497,18 +401,16 @@ function PanelCatalogFlanges({
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)] gap-3 p-3 min-h-0">
           <CardFlangeDrawing
             standard={activeStandard}
-            activeSubtype={activeSubtypeId}
+            activeSubtype={drawingSubtypeId}
             selectedRow={selectedRow}
           />
           <TableFlangeDimensions
-            selectedClass={selectedClass}
+            baseRows={baseRowsForSubtype}
+            activeRatingFilter={activeRatingFilter}
             selectedRowId={selectedRow?.id}
-            onSelectRow={handleSelectRow}
+            onSelectRow={setSelectedRow}
             search={search}
             filters={filters}
-            standardLabel={activeStandard?.label ?? ""}
-            flangeSubtypeId={activeSubtypeId}
-            subtypes={activeStandard?.subtypes}
             catalogUnitSystem={catalogUnitSystem}
             activeFaceType={activeFaceType}
             activeNps={activeNps}
