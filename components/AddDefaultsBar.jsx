@@ -2,9 +2,11 @@
 
 import { useMemo } from "react";
 import { PART_TYPE_LABELS, WELD_LOCATION_LABELS } from "@/lib/constants";
-import { partCatalog, getCategories } from "@/lib/part-catalog";
+import { getCategories } from "@/lib/part-catalog";
 import { getHierarchyForCategory } from "@/lib/catalog-hierarchy";
 import CatalogHierarchyStepSelects from "@/components/CatalogHierarchyStepSelects";
+import CatalogTreeCascade from "@/components/CatalogTreeCascade";
+import { leafIdToCatalogCategory, getMergedCatalogEntries } from "@/lib/catalog-leaf-resolve";
 
 function AddDefaultsBar({
   markupTool,
@@ -17,16 +19,18 @@ function AddDefaultsBar({
   systems = [],
   className = "",
 }) {
-  const catalogCategory = addDefaults?.catalogCategory ?? "";
+  const catalogLeafId = addDefaults?.catalogLeafId ?? "";
+  const catalogCategory =
+    addDefaults?.catalogCategory ?? (catalogLeafId ? leafIdToCatalogCategory(catalogLeafId) : "");
   const hierarchyState = addDefaults?.hierarchyState ?? {};
-  const isCatalogMode = Boolean(catalogCategory);
+  const isCatalogMode = Boolean(catalogLeafId);
   const categories = getCategories();
   const catalogEntriesForCategory = useMemo(
     () =>
       catalogCategory
-        ? partCatalog.entries.filter((e) => e.catalogCategory === catalogCategory)
+        ? getMergedCatalogEntries(catalogCategory, catalogLeafId)
         : [],
-    [catalogCategory]
+    [catalogCategory, catalogLeafId]
   );
   const hierarchySteps = useMemo(
     () => getHierarchyForCategory(catalogCategory),
@@ -42,10 +46,24 @@ function AddDefaultsBar({
   const showLine = markupTool === "addLine";
   const spoolLineChoices = Array.isArray(linesForSpoolDefault) ? linesForSpoolDefault : lines;
 
-  function handleCatalogCategoryChange(value) {
+  function handleCatalogLeafChange(leafId) {
+    if (!leafId) {
+      onAddDefaultsChange?.({
+        ...addDefaults,
+        catalogLeafId: "",
+        catalogCategory: "",
+        hierarchyState: {},
+        partType: "",
+        nps: "",
+        thickness: "",
+      });
+      return;
+    }
+    const cat = leafIdToCatalogCategory(leafId);
     onAddDefaultsChange?.({
       ...addDefaults,
-      catalogCategory: value,
+      catalogLeafId: leafId,
+      catalogCategory: cat,
       hierarchyState: {},
       partType: "",
       nps: "",
@@ -132,23 +150,23 @@ function AddDefaultsBar({
       )}
       {showPart && (
         <>
-          <div className="flex items-center gap-1">
-            <label htmlFor="default-catalogCategory" className="text-[11px] text-base-content/60 whitespace-nowrap">
-              Part
-            </label>
-            <select
-              id="default-catalogCategory"
-              className="select select-bordered select-xs h-7 min-h-7 py-0.5 w-20 max-w-full text-xs"
-              value={catalogCategory}
-              onChange={(e) => handleCatalogCategoryChange(e.target.value)}
+          <div className="flex flex-wrap items-center gap-1 max-w-[min(100vw-2rem,42rem)]">
+            <label className="text-[11px] text-base-content/60 whitespace-nowrap shrink-0">Part</label>
+            <CatalogTreeCascade
+              catalogCategories={categories}
+              valueLeafId={catalogLeafId}
+              onLeafChange={handleCatalogLeafChange}
+              variant="compact"
+              idPrefix="default-catalog"
+            />
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs h-7 min-h-7 px-1.5 shrink-0"
+              onClick={() => handleCatalogLeafChange("")}
+              title="Clear catalog — use custom fields"
             >
-              <option value="">Custom</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
+              Custom
+            </button>
           </div>
           {isCatalogMode ? (
             <CatalogHierarchyStepSelects

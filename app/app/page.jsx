@@ -34,7 +34,8 @@ import {
 } from "@/lib/offline-storage";
 import { createDefaultWeld, createDefaultSpool, createDefaultPart, createDefaultDrawing } from "@/lib/defaults";
 import { normalizeJointDimensions } from "@/lib/joint-dimensions";
-import { partCatalog, findCatalogEntry } from "@/lib/part-catalog";
+import { findCatalogEntry } from "@/lib/part-catalog";
+import { getMergedCatalogEntries, leafIdToCatalogCategory } from "@/lib/catalog-leaf-resolve";
 import { findEntryByHierarchy } from "@/lib/catalog-hierarchy";
 import { assignPartDisplayNumbersForAllDrawings } from "@/lib/part-display-number";
 import { getWeldName, getWeldOverallStatus, computeNdtSelection } from "@/lib/weld-utils";
@@ -161,6 +162,7 @@ export default function WeldTrackerApp() {
     lineId: "__new__",
     lineSystemId: null,
     catalogCategory: "",
+    catalogLeafId: "",
     hierarchyState: {},
     partType: "",
     nps: "",
@@ -446,9 +448,11 @@ export default function WeldTrackerApp() {
 
   const handleAddPartMarker = useCallback(
     ({ xPercent, yPercent, pageNumber }) => {
-      const cat = addDefaults?.catalogCategory;
+      const leafId = addDefaults?.catalogLeafId ?? "";
+      const cat =
+        addDefaults?.catalogCategory || (leafId ? leafIdToCatalogCategory(leafId) : "") || "";
       const hierarchyState = addDefaults?.hierarchyState ?? {};
-      const entriesForCat = cat ? partCatalog.entries.filter((e) => e.catalogCategory === cat) : [];
+      const entriesForCat = cat ? getMergedCatalogEntries(cat, leafId) : [];
       const catalogEntryByHierarchy =
         cat && Object.keys(hierarchyState).length > 0
           ? findEntryByHierarchy(entriesForCat, hierarchyState, cat)
@@ -469,6 +473,7 @@ export default function WeldTrackerApp() {
         thickness,
         materialGrade: addDefaults?.materialGrade ?? "",
         catalogCategory: cat ?? "",
+        catalogLeafId: leafId || "",
         catalogPartId: catalogEntry?.catalogPartId ?? null,
         weightKg: catalogEntry?.weightKg ?? null,
       });
@@ -974,6 +979,7 @@ export default function WeldTrackerApp() {
               lineId: "__new__",
               lineSystemId: null,
               catalogCategory: "",
+              catalogLeafId: "",
               hierarchyState: {},
               partType: "",
               nps: "",
@@ -988,6 +994,7 @@ export default function WeldTrackerApp() {
               lineId: "__new__",
               lineSystemId: null,
               catalogCategory: "",
+              catalogLeafId: "",
               hierarchyState: {},
               partType: "",
               nps: "",

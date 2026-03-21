@@ -3,8 +3,7 @@
 import { useState, useMemo, useCallback, Fragment } from "react";
 import { getWeldName } from "@/lib/weld-utils";
 import { getResolvedWpsCode } from "@/lib/wps-resolution";
-import { groupFitterNames, groupWelders, groupWqrs, TRACEABILITY } from "@/lib/traceability-groups";
-import SettingsTraceabilitySection from "@/components/settings/SettingsTraceabilitySection";
+import { groupFitterNames, groupWelders } from "@/lib/traceability-groups";
 
 function findWelderForWqr(welders, wqrId) {
   return (welders || []).find((w) => (w.wqrIds || []).includes(wqrId)) || null;
@@ -19,8 +18,24 @@ function filterBySearchWqr(wqrs, filterNorm) {
   });
 }
 
+/** Inline warning — missing PDF, stray name, unassigned welder, etc. */
+function RowWarningIcon({ title }) {
+  return (
+    <span className="inline-flex text-warning shrink-0" title={title} aria-label={title}>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+        <path
+          fillRule="evenodd"
+          d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l6.518 11.59c.75 1.334-.213 2.98-1.742 2.98H3.48c-1.53 0-2.493-1.646-1.743-2.98l6.52-11.59zM11 14a1 1 0 10-2 0 1 1 0 002 0zm-1-2a1 1 0 01-1-1V7a1 1 0 112 0v4a1 1 0 01-1 1z"
+          clipRule="evenodd"
+        />
+      </svg>
+    </span>
+  );
+}
+
 /**
- * Fitters + welders + WQR with shared 3-group traceability (same model as Material certificates / WPS).
+ * Fitters, welders, and WQR in simple lists. Stray names on welds are called out in alerts;
+ * each row can show a warning icon when something is missing (PDF, assignment, registry mismatch).
  */
 function SettingsPersonnelRegistry({
   fitters = [],
@@ -52,6 +67,20 @@ function SettingsPersonnelRegistry({
   const [wqrFilter, setWqrFilter] = useState("");
   const wqrFilterNorm = (wqrFilter || "").trim().toLowerCase();
 
+  const { g2: strayFitterNames } = useMemo(
+    () => groupFitterNames(fitters, weldPoints),
+    [fitters, weldPoints]
+  );
+  const { g2Stray: strayWelderItems } = useMemo(
+    () => groupWelders(welders, weldPoints),
+    [welders, weldPoints]
+  );
+
+  const filteredWqrs = useMemo(
+    () => filterBySearchWqr(wqrs || [], wqrFilterNorm),
+    [wqrs, wqrFilterNorm]
+  );
+
   const weldsForWqr = useCallback(
     (wqrId) => {
       if (!wqrId) return [];
@@ -79,27 +108,6 @@ function SettingsPersonnelRegistry({
     [systems, lines, spools, wpsLibrary]
   );
 
-  const fitterGroups = useMemo(() => groupFitterNames(fitters, weldPoints), [fitters, weldPoints]);
-  const welderGroups = useMemo(() => groupWelders(welders, weldPoints), [welders, weldPoints]);
-  const wqrGroups = useMemo(() => groupWqrs(wqrs, weldPoints), [wqrs, weldPoints]);
-
-  const wqrG1 = useMemo(
-    () => filterBySearchWqr(wqrGroups.g1, wqrFilterNorm),
-    [wqrGroups.g1, wqrFilterNorm]
-  );
-  const wqrG2 = useMemo(
-    () => filterBySearchWqr(wqrGroups.g2, wqrFilterNorm),
-    [wqrGroups.g2, wqrFilterNorm]
-  );
-  const wqrG3 = useMemo(
-    () => filterBySearchWqr(wqrGroups.g3, wqrFilterNorm),
-    [wqrGroups.g3, wqrFilterNorm]
-  );
-
-  const tf = TRACEABILITY.fitter;
-  const tw = TRACEABILITY.welder;
-  const tq = TRACEABILITY.wqr;
-
   function renderWqrRow(wqr) {
     const welder = findWelderForWqr(welders, wqr.id);
     const welds = weldsForWqr(wqr.id);
@@ -107,9 +115,40 @@ function SettingsPersonnelRegistry({
     const isLinksOpen = expandedWqrId === wqr.id;
     const doc = wqr.documentId ? wqrDocuments.find((d) => d.id === wqr.documentId) : null;
 
+    const missingPdfOnUse = welds.length > 0 && !wqr.documentId;
+    const unassignedWelder = !welder;
+    const pdfNotUsed = Boolean(wqr.documentId) && welds.length === 0;
+
     return (
       <Fragment key={wqr.id}>
         <tr className={`align-top hover ${isLinksOpen ? "bg-base-200/50" : ""}`}>
+          <td className="w-10 min-w-[2rem]">
+            <div className="flex items-start justify-center gap-0.5 pt-1">
+              {(missingPdfOnUse || unassignedWelder) && (
+                <RowWarningIcon
+                  title={
+                    [
+                      missingPdfOnUse && "Qualification PDF missing (used on weld record)",
+                      unassignedWelder && "Assign to a welder",
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")
+                  }
+                />
+              )}
+              {!missingPdfOnUse && !unassignedWelder && pdfNotUsed && (
+                <span
+                  className="inline-flex text-base-content/35 shrink-0 pt-0.5"
+                  title="PDF on file — not referenced on any weld yet"
+                  aria-label="PDF not used on welds"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                    <path d="M10 12a1 1 0 100-2 1 1 0 000 2zm0-8a1 1 0 00-1 1v5a1 1 0 102 0V5a1 1 0 00-1-1z" />
+                  </svg>
+                </span>
+              )}
+            </div>
+          </td>
           <td className="min-w-[7rem]">
             <select
               className="select select-bordered select-xs w-full max-w-[11rem]"
@@ -196,7 +235,7 @@ function SettingsPersonnelRegistry({
         </tr>
         {isLinksOpen && (
           <tr className="bg-base-200/30">
-            <td colSpan={5} className="!p-2 !pt-0">
+            <td colSpan={6} className="!p-2 !pt-0">
               <div className="text-[11px] space-y-0.5 pl-1 border-l-2 border-primary/30">
                 <p>
                   <span className="text-base-content/55">Welds: </span>
@@ -236,110 +275,11 @@ function SettingsPersonnelRegistry({
     );
   }
 
-  function renderWqrBody(list) {
-    if (!wqrs.length) {
-      return (
-        <tr>
-          <td colSpan={5} className="text-center text-base-content/50 py-4 text-[11px]">
-            No WQR qualifications yet. Use <strong>Add WQR</strong> on a welder row.
-          </td>
-        </tr>
-      );
-    }
-    if (list.length === 0) {
-      return (
-        <tr>
-          <td colSpan={5} className="text-center text-base-content/50 py-4 text-[11px]">
-            None in this group{wqrFilterNorm ? " (search)" : ""}.
-          </td>
-        </tr>
-      );
-    }
-    return list.map((wqr) => renderWqrRow(wqr));
-  }
-
-  function renderFitterTable(rows) {
-    if (rows.length === 0) {
-      return (
-        <tr>
-          <td colSpan={2} className="text-center text-base-content/50 py-3 text-[11px]">
-            None in this group.
-          </td>
-        </tr>
-      );
-    }
-    return rows.map((f) => (
-      <tr key={f.id} className="hover">
-        <td>
-          <input
-            type="text"
-            className="input input-bordered input-xs w-full max-w-md"
-            value={f.name || ""}
-            onChange={(e) => onUpdateFitterName?.(f.id, e.target.value)}
-            placeholder="Name"
-          />
-        </td>
-        <td className="text-end">
-          <button
-            type="button"
-            className="btn btn-ghost btn-xs text-error"
-            onClick={() => onRemoveFitter?.(f.id)}
-          >
-            Remove
-          </button>
-        </td>
-      </tr>
-    ));
-  }
-
-  function renderWelderTable(rows) {
-    if (rows.length === 0) {
-      return (
-        <tr>
-          <td colSpan={2} className="text-center text-base-content/50 py-3 text-[11px]">
-            None in this group.
-          </td>
-        </tr>
-      );
-    }
-    return rows.map((w) => (
-      <tr key={w.id} className="hover align-top">
-        <td>
-          <input
-            type="text"
-            className="input input-bordered input-xs w-full max-w-[14rem]"
-            value={w.name || ""}
-            onChange={(e) => onUpdateWelderName?.(w.id, e.target.value)}
-            placeholder="Welder name"
-          />
-        </td>
-        <td className="text-end whitespace-nowrap">
-          <div className="flex flex-wrap gap-1 justify-end">
-            <button
-              type="button"
-              className="btn btn-outline btn-xs"
-              onClick={() => onAddWqrForWelder?.(w.id)}
-            >
-              + WQR
-            </button>
-            <button
-              type="button"
-              className="btn btn-ghost btn-xs text-error"
-              onClick={() => onRemoveWelder?.(w.id)}
-            >
-              Remove
-            </button>
-          </div>
-        </td>
-      </tr>
-    ));
-  }
-
   return (
     <div className="space-y-6 min-w-0 text-xs">
       <p className="text-[11px] text-base-content/65 leading-snug">
-        Personnel grouped by the same traceability model as material certificates and WPS: listed vs used on welds,
-        and for WQR — PDF vs usage on welding records.
+        Fitters, welders, and WQR qualifications. Alerts flag names on welds that are not in your list; WQR rows show
+        icons when a PDF or welder assignment is missing.
       </p>
 
       {/* ——— Fitters ——— */}
@@ -368,57 +308,65 @@ function SettingsPersonnelRegistry({
           </form>
         </div>
 
-        <SettingsTraceabilitySection number={1} title={tf.g1.title} description={tf.g1.description}>
-          <div className="overflow-x-auto border border-base-300 rounded-lg">
-            <table className="table table-xs table-pin-rows">
-              <thead>
-                <tr className="bg-base-200">
-                  <th>Name</th>
-                  <th className="w-24 text-end" />
-                </tr>
-              </thead>
-              <tbody>{renderFitterTable(fitterGroups.g1)}</tbody>
-            </table>
+        {strayFitterNames.length > 0 && (
+          <div className="alert alert-warning py-2 px-3 text-[11px]">
+            <div className="flex flex-col gap-1 min-w-0">
+              <span className="font-medium">Fit-up on welds but not in this list</span>
+              <ul className="space-y-1">
+                {strayFitterNames.map((name) => (
+                  <li key={name} className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-mono">{name}</span>
+                    <button type="button" className="btn btn-primary btn-xs" onClick={() => onAddFitter?.(name)}>
+                      Add to list
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
-        </SettingsTraceabilitySection>
+        )}
 
-        <SettingsTraceabilitySection number={2} title={tf.g2.title} description={tf.g2.description}>
-          {fitterGroups.g2.length === 0 ? (
-            <p className="text-sm text-base-content/50">None — all fit-up names match the list.</p>
-          ) : (
-            <ul className="space-y-1 rounded-lg border border-warning/25 bg-warning/5 p-2">
-              {fitterGroups.g2.map((name) => (
-                <li
-                  key={name}
-                  className="flex flex-wrap items-center justify-between gap-2 text-[11px]"
-                >
-                  <span className="font-mono">{name}</span>
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-xs"
-                    onClick={() => onAddFitter?.(name)}
-                  >
-                    Add to list
-                  </button>
-                </li>
+        <div className="overflow-x-auto border border-base-300 rounded-lg">
+          <table className="table table-xs table-pin-rows">
+            <thead>
+              <tr className="bg-base-200">
+                <th>Name</th>
+                <th className="w-24 text-end" />
+              </tr>
+            </thead>
+            <tbody>
+              {fitters.length === 0 && (
+                <tr>
+                  <td colSpan={2} className="text-center text-base-content/50 py-4 text-[11px]">
+                    No fitters yet.
+                  </td>
+                </tr>
+              )}
+              {fitters.map((f) => (
+                <tr key={f.id} className="hover">
+                  <td>
+                    <input
+                      type="text"
+                      className="input input-bordered input-xs w-full max-w-md"
+                      value={f.name || ""}
+                      onChange={(e) => onUpdateFitterName?.(f.id, e.target.value)}
+                      placeholder="Name"
+                    />
+                  </td>
+                  <td className="text-end">
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-xs text-error"
+                      onClick={() => onRemoveFitter?.(f.id)}
+                    >
+                      Remove
+                    </button>
+                  </td>
+                </tr>
               ))}
-            </ul>
-          )}
-        </SettingsTraceabilitySection>
-
-        <SettingsTraceabilitySection number={3} title={tf.g3.title} description={tf.g3.description}>
-          <div className="overflow-x-auto border border-base-300 rounded-lg">
-            <table className="table table-xs table-pin-rows">
-              <thead>
-                <tr className="bg-base-200">
-                  <th>Name</th>
-                  <th className="w-24 text-end" />
-                </tr>
-              </thead>
-              <tbody>{renderFitterTable(fitterGroups.g3)}</tbody>
-            </table>
-          </div>
-        </SettingsTraceabilitySection>
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* ——— Welders ——— */}
@@ -447,63 +395,80 @@ function SettingsPersonnelRegistry({
           </form>
         </div>
 
-        <SettingsTraceabilitySection number={1} title={tw.g1.title} description={tw.g1.description}>
-          <div className="overflow-x-auto border border-base-300 rounded-lg">
-            <table className="table table-xs table-pin-rows">
-              <thead>
-                <tr className="bg-base-200">
-                  <th>Welder</th>
-                  <th className="w-44 text-end">WQR</th>
-                </tr>
-              </thead>
-              <tbody>{renderWelderTable(welderGroups.g1)}</tbody>
-            </table>
+        {strayWelderItems.length > 0 && (
+          <div className="alert alert-warning py-2 px-3 text-[11px]">
+            <div className="flex flex-col gap-1 min-w-0">
+              <span className="font-medium">Welding records reference names/IDs not in this list</span>
+              <ul className="space-y-1">
+                {strayWelderItems.map((item) => (
+                  <li key={`${item.kind}-${item.value}`} className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-mono">
+                      {item.kind === "name" ? item.value : `Unknown welder ID: ${item.value}`}
+                    </span>
+                    {item.kind === "name" ? (
+                      <button type="button" className="btn btn-primary btn-xs" onClick={() => onAddWelder?.(item.value)}>
+                        Add welder
+                      </button>
+                    ) : (
+                      <span className="text-base-content/50">Update welds to use a listed welder</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
-        </SettingsTraceabilitySection>
+        )}
 
-        <SettingsTraceabilitySection number={2} title={tw.g2.title} description={tw.g2.description}>
-          {welderGroups.g2Stray.length === 0 ? (
-            <p className="text-sm text-base-content/50">None — welding records match registered welders.</p>
-          ) : (
-            <ul className="space-y-1 rounded-lg border border-warning/25 bg-warning/5 p-2">
-              {welderGroups.g2Stray.map((item) => (
-                <li
-                  key={`${item.kind}-${item.value}`}
-                  className="flex flex-wrap items-center justify-between gap-2 text-[11px]"
-                >
-                  <span className="font-mono">
-                    {item.kind === "name" ? item.value : `Unknown welder ID: ${item.value}`}
-                  </span>
-                  {item.kind === "name" ? (
-                    <button
-                      type="button"
-                      className="btn btn-primary btn-xs"
-                      onClick={() => onAddWelder?.(item.value)}
-                    >
-                      Add welder
-                    </button>
-                  ) : (
-                    <span className="text-base-content/45">Fix records on welds</span>
-                  )}
-                </li>
+        <div className="overflow-x-auto border border-base-300 rounded-lg">
+          <table className="table table-xs table-pin-rows">
+            <thead>
+              <tr className="bg-base-200">
+                <th>Welder</th>
+                <th className="w-44 text-end">WQR</th>
+              </tr>
+            </thead>
+            <tbody>
+              {welders.length === 0 && (
+                <tr>
+                  <td colSpan={2} className="text-center text-base-content/50 py-4 text-[11px]">
+                    No welders yet.
+                  </td>
+                </tr>
+              )}
+              {welders.map((w) => (
+                <tr key={w.id} className="hover align-top">
+                  <td>
+                    <input
+                      type="text"
+                      className="input input-bordered input-xs w-full max-w-[14rem]"
+                      value={w.name || ""}
+                      onChange={(e) => onUpdateWelderName?.(w.id, e.target.value)}
+                      placeholder="Welder name"
+                    />
+                  </td>
+                  <td className="text-end whitespace-nowrap">
+                    <div className="flex flex-wrap gap-1 justify-end">
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-xs"
+                        onClick={() => onAddWqrForWelder?.(w.id)}
+                      >
+                        + WQR
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-xs text-error"
+                        onClick={() => onRemoveWelder?.(w.id)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </td>
+                </tr>
               ))}
-            </ul>
-          )}
-        </SettingsTraceabilitySection>
-
-        <SettingsTraceabilitySection number={3} title={tw.g3.title} description={tw.g3.description}>
-          <div className="overflow-x-auto border border-base-300 rounded-lg">
-            <table className="table table-xs table-pin-rows">
-              <thead>
-                <tr className="bg-base-200">
-                  <th>Welder</th>
-                  <th className="w-44 text-end">WQR</th>
-                </tr>
-              </thead>
-              <tbody>{renderWelderTable(welderGroups.g3)}</tbody>
-            </table>
-          </div>
-        </SettingsTraceabilitySection>
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* ——— WQR ——— */}
@@ -526,56 +491,41 @@ function SettingsPersonnelRegistry({
           </div>
         </div>
 
-        <SettingsTraceabilitySection number={1} title={tq.g1.title} description={tq.g1.description}>
-          <div className="overflow-x-auto border border-base-300 rounded-lg">
-            <table className="table table-xs">
-              <thead>
-                <tr className="bg-base-200">
-                  <th className="min-w-[7rem]">Welder</th>
-                  <th>Code</th>
-                  <th>Description</th>
-                  <th className="min-w-[9rem]">PDF</th>
-                  <th className="w-28 text-end" />
-                </tr>
-              </thead>
-              <tbody>{renderWqrBody(wqrG1)}</tbody>
-            </table>
-          </div>
-        </SettingsTraceabilitySection>
+        <p className="text-[10px] text-base-content/45">
+          Warning: missing PDF on a used WQR, or not assigned to a welder. Info: PDF loaded but not on any weld yet.
+        </p>
 
-        <SettingsTraceabilitySection number={2} title={tq.g2.title} description={tq.g2.description}>
-          <div className="overflow-x-auto border border-base-300 rounded-lg">
-            <table className="table table-xs">
-              <thead>
-                <tr className="bg-base-200">
-                  <th className="min-w-[7rem]">Welder</th>
-                  <th>Code</th>
-                  <th>Description</th>
-                  <th className="min-w-[9rem]">PDF</th>
-                  <th className="w-28 text-end" />
+        <div className="overflow-x-auto border border-base-300 rounded-lg">
+          <table className="table table-xs">
+            <thead>
+              <tr className="bg-base-200">
+                <th className="w-10" aria-hidden />
+                <th className="min-w-[7rem]">Welder</th>
+                <th>Code</th>
+                <th>Description</th>
+                <th className="min-w-[9rem]">PDF</th>
+                <th className="w-28 text-end" />
+              </tr>
+            </thead>
+            <tbody>
+              {!wqrs.length && (
+                <tr>
+                  <td colSpan={6} className="text-center text-base-content/50 py-4 text-[11px]">
+                    No WQR qualifications yet. Use <strong>+ WQR</strong> on a welder row.
+                  </td>
                 </tr>
-              </thead>
-              <tbody>{renderWqrBody(wqrG2)}</tbody>
-            </table>
-          </div>
-        </SettingsTraceabilitySection>
-
-        <SettingsTraceabilitySection number={3} title={tq.g3.title} description={tq.g3.description}>
-          <div className="overflow-x-auto border border-base-300 rounded-lg">
-            <table className="table table-xs">
-              <thead>
-                <tr className="bg-base-200">
-                  <th className="min-w-[7rem]">Welder</th>
-                  <th>Code</th>
-                  <th>Description</th>
-                  <th className="min-w-[9rem]">PDF</th>
-                  <th className="w-28 text-end" />
+              )}
+              {wqrs.length > 0 && filteredWqrs.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="text-center text-base-content/50 py-4 text-[11px]">
+                    No entries match this search.
+                  </td>
                 </tr>
-              </thead>
-              <tbody>{renderWqrBody(wqrG3)}</tbody>
-            </table>
-          </div>
-        </SettingsTraceabilitySection>
+              )}
+              {filteredWqrs.map((wqr) => renderWqrRow(wqr))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

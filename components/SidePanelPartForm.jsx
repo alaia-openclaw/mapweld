@@ -2,17 +2,19 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { PART_TYPES, PART_TYPE_LABELS } from "@/lib/constants";
-import {
-  partCatalog,
-  getCategories,
-  getCatalogEntry,
-} from "@/lib/part-catalog";
+import { getCategories, getCatalogEntry } from "@/lib/part-catalog";
 import {
   getHierarchyForCategory,
   getHierarchyStateFromEntry,
   findEntryByHierarchy,
 } from "@/lib/catalog-hierarchy";
 import CatalogHierarchyStepSelects from "@/components/CatalogHierarchyStepSelects";
+import CatalogTreeCascade from "@/components/CatalogTreeCascade";
+import {
+  leafIdToCatalogCategory,
+  getMergedCatalogEntries,
+  inferCatalogLeafIdFromPart,
+} from "@/lib/catalog-leaf-resolve";
 import { comparePartDisplayNumbers } from "@/lib/part-display-number";
 
 function fileToBase64(file) {
@@ -50,7 +52,7 @@ function SidePanelPartForm({
     ? parts.find((p) => p.id === selectedMarker.partId)
     : null;
 
-  const [catalogCategory, setCatalogCategory] = useState("");
+  const [catalogLeafId, setCatalogLeafId] = useState("");
   const [hierarchyState, setHierarchyState] = useState({});
   const [partType, setPartType] = useState("");
   const [nps, setNps] = useState("");
@@ -66,12 +68,13 @@ function SidePanelPartForm({
   const mtcUploadInputRef = useRef(null);
 
   const categories = getCategories();
+  const catalogCategory = catalogLeafId ? leafIdToCatalogCategory(catalogLeafId) : "";
   const catalogEntriesForCategory = useMemo(
     () =>
       catalogCategory
-        ? partCatalog.entries.filter((e) => e.catalogCategory === catalogCategory)
+        ? getMergedCatalogEntries(catalogCategory, catalogLeafId)
         : [],
-    [catalogCategory]
+    [catalogCategory, catalogLeafId]
   );
 
   const previousSelectedPartIdRef = useRef(null);
@@ -82,23 +85,22 @@ function SidePanelPartForm({
     }
     if (previousSelectedPartIdRef.current === selectedPart.id) return;
     previousSelectedPartIdRef.current = selectedPart.id;
+    const leaf = inferCatalogLeafIdFromPart(selectedPart);
+    setCatalogLeafId(leaf);
     if (selectedPart.catalogPartId) {
       const entry = getCatalogEntry(selectedPart.catalogPartId);
       if (entry) {
-        setCatalogCategory(entry.catalogCategory);
         setHierarchyState(getHierarchyStateFromEntry(entry, entry.catalogCategory));
         setPartType(entry.partTypeLabel ?? "");
         setNps(entry.nps ?? "");
         setThickness(entry.thickness ?? "");
       } else {
-        setCatalogCategory(selectedPart.catalogCategory ?? "");
         setHierarchyState({});
         setPartType(selectedPart.partType ?? "");
         setNps(selectedPart.nps ?? "");
         setThickness(selectedPart.thickness ?? "");
       }
     } else {
-      setCatalogCategory(selectedPart.catalogCategory ?? "");
       setHierarchyState({});
       setPartType(selectedPart.partType ?? "");
       setNps(selectedPart.nps ?? "");
@@ -137,6 +139,7 @@ function SidePanelPartForm({
         entry?.thickness ?? hierarchyState.schedule ?? thickness.trim();
       onSavePart?.({
         ...selectedPart,
+        catalogLeafId: catalogLeafId || "",
         catalogCategory: catalogCategory || "",
         catalogPartId: entry?.catalogPartId ?? null,
         partType: resolvedPartType,
@@ -155,6 +158,7 @@ function SidePanelPartForm({
     };
   }, [
     selectedPart,
+    catalogLeafId,
     catalogCategory,
     hierarchyState,
     partType,
@@ -188,7 +192,7 @@ function SidePanelPartForm({
     </option>
   ));
 
-  const isCatalogMode = Boolean(catalogCategory);
+  const isCatalogMode = Boolean(catalogLeafId);
   const hierarchySteps = useMemo(
     () => getHierarchyForCategory(catalogCategory),
     [catalogCategory]
@@ -206,8 +210,16 @@ function SidePanelPartForm({
     [materialCertificates, normalizedHeat]
   );
 
-  function handleCatalogCategoryChange(value) {
-    setCatalogCategory(value);
+  function handleCatalogLeafChange(leafId) {
+    if (!leafId) {
+      setCatalogLeafId("");
+      setHierarchyState({});
+      setPartType("");
+      setNps("");
+      setThickness("");
+      return;
+    }
+    setCatalogLeafId(leafId);
     setHierarchyState({});
     setPartType("");
     setNps("");
@@ -264,22 +276,26 @@ function SidePanelPartForm({
     return (
       <div className="border-t border-base-300/60 px-2 py-2 space-y-3 w-full min-w-0">
         <div className="form-control">
-          <label className="label" htmlFor="part-catalog-category">
-            <span className="label-text">Category</span>
+          <label className="label">
+            <span className="label-text">Catalog</span>
           </label>
-          <select
-            id="part-catalog-category"
-            className="select select-bordered select-xs w-full"
-            value={catalogCategory}
-            onChange={(e) => handleCatalogCategoryChange(e.target.value)}
-          >
-            <option value="">Custom (free text)</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.label}
-              </option>
-            ))}
-          </select>
+          <div className="flex flex-wrap items-center gap-1.5 w-full min-w-0">
+            <CatalogTreeCascade
+              catalogCategories={categories}
+              valueLeafId={catalogLeafId}
+              onLeafChange={handleCatalogLeafChange}
+              variant="form"
+              idPrefix="part-catalog"
+            />
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs shrink-0"
+              onClick={() => handleCatalogLeafChange("")}
+              title="Clear catalog — use custom fields below"
+            >
+              Custom
+            </button>
+          </div>
         </div>
         {isCatalogMode ? (
           <CatalogHierarchyStepSelects

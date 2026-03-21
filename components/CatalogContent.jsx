@@ -8,6 +8,8 @@ import PanelCatalogSpiralWoundGaskets from "@/components/PanelCatalogSpiralWound
 import PanelCatalogRingJointGaskets from "@/components/PanelCatalogRingJointGaskets";
 import PanelCatalogFlangedValves from "@/components/PanelCatalogFlangedValves";
 import PanelCatalogButtweldedValves from "@/components/PanelCatalogButtweldedValves";
+import PanelCatalogThreadedValves from "@/components/PanelCatalogThreadedValves";
+import { THREADED_VALVE_TYPES } from "@/lib/threaded-valves-data";
 import {
   parseFittingsSelectionId,
   filterFittingsBySubtype,
@@ -41,6 +43,16 @@ const BUTTWELDED_VALVE_LEAF_IDS = new Set([
   "valves-buttwelded-swing-check",
 ]);
 
+const THREADED_VALVE_LEAF_IDS = new Set(THREADED_VALVE_TYPES.map((t) => t.selectionId));
+
+const SOCKETWELDED_VALVE_LEAF_IDS = new Set([
+  "valves-socketwelded-gate",
+  "valves-socketwelded-globe",
+  "valves-socketwelded-horizontal-check",
+  "valves-socketwelded-vertical-check",
+  "valves-socketwelded-ball",
+]);
+
 export default function CatalogContent({
   selectedId,
   search = "",
@@ -68,6 +80,14 @@ export default function CatalogContent({
     );
   }
 
+  if (selectedId === "flanges") {
+    return (
+      <div className="rounded-xl border border-base-300 bg-base-200/60 p-8 text-center text-base-content/70 text-sm">
+        Expand <strong>Flanges</strong> in the sidebar and choose a standard (e.g. <strong>ASME B16.5</strong>).
+      </div>
+    );
+  }
+
   if (selectedId?.startsWith("flange-")) {
     if (!flangesStandards.length) {
       return <EmptyCategory categoryLabel="Flange" />;
@@ -80,6 +100,14 @@ export default function CatalogContent({
         search={search}
         filters={filters}
       />
+    );
+  }
+
+  if (selectedId === "fittings") {
+    return (
+      <div className="rounded-xl border border-base-300 bg-base-200/60 p-8 text-center text-base-content/70 text-sm">
+        Expand <strong>Fittings</strong> → choose a family (buttwelded, threaded, socketwelded, …), then a part type.
+      </div>
     );
   }
 
@@ -142,6 +170,16 @@ export default function CatalogContent({
     );
   }
 
+  if (THREADED_VALVE_LEAF_IDS.has(selectedId)) {
+    return (
+      <PanelCatalogThreadedValves
+        selectionId={selectedId}
+        search={search}
+        onSelectCategory={onSelectCategory}
+      />
+    );
+  }
+
   if (selectedId === "valves-flanged") {
     return (
       <div className="rounded-xl border border-base-300 bg-base-200/60 p-8 text-center text-base-content/70 text-sm">
@@ -160,16 +198,42 @@ export default function CatalogContent({
     );
   }
 
-  if (selectedId === "valves") {
+  if (selectedId === "valves-threaded") {
     return (
       <div className="rounded-xl border border-base-300 bg-base-200/60 p-8 text-center text-base-content/70 text-sm">
-        Expand <strong>Valves</strong> → <strong>Flanged Valves</strong> or <strong>Buttwelded Valves</strong>, then pick
-        a valve type.
+        Select a threaded valve type in the sidebar (e.g. <strong>Threaded Gate Valve</strong> or{" "}
+        <strong>Threaded Ball Valve</strong>).
       </div>
     );
   }
-  if (selectedId === "line-blanks") {
+
+  if (selectedId === "valves-socketwelded" || SOCKETWELDED_VALVE_LEAF_IDS.has(selectedId)) {
+    return <EmptyCategory categoryLabel="Socketwelded valves" />;
+  }
+
+  if (selectedId === "valves") {
+    return (
+      <div className="rounded-xl border border-base-300 bg-base-200/60 p-8 text-center text-base-content/70 text-sm">
+        Expand <strong>Valves</strong> → choose a connection type (flanged, buttwelded, threaded, or socketwelded), then
+        pick a valve type.
+      </div>
+    );
+  }
+  if (selectedId === "line-blanks" || selectedId.startsWith("line-blanks-")) {
     return <EmptyCategory categoryLabel="Line Blanks" />;
+  }
+
+  if (
+    selectedId.startsWith("strainers-") ||
+    selectedId.startsWith("wb-") ||
+    selectedId.startsWith("nuts-") ||
+    selectedId.startsWith("spacing-") ||
+    selectedId.startsWith("safe-spans-") ||
+    selectedId.startsWith("pipe-flex-") ||
+    selectedId === "pressure-temperature-ratings" ||
+    selectedId === "asme-composite"
+  ) {
+    return <EmptyCategory categoryLabel="Pipedata reference tables" />;
   }
 
   const fittingsParsed = parseFittingsSelectionId(selectedId);
