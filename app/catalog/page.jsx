@@ -2,6 +2,7 @@ import CatalogView from "@/components/CatalogView";
 import { loadFlangesCatalog } from "@/lib/flanges-data";
 import { loadPipeCatalog } from "@/lib/pipedata-pipe";
 import { loadFittingsCatalog } from "@/lib/pipedata-fittings";
+import { loadCatalogBrowseFromPartCatalogJson } from "@/lib/catalog-browse-fallback";
 
 export const dynamic = "force-static";
 
@@ -21,9 +22,14 @@ export const metadata = {
 };
 
 export default function CatalogPage() {
-  const { standards } = loadFlangesCatalog();
-  const { entries: pipeEntries } = loadPipeCatalog();
-  const { entries: fittingsEntries } = loadFittingsCatalog();
+  const { standards: fsStandards } = loadFlangesCatalog();
+  const { entries: fsPipe } = loadPipeCatalog();
+  const { entries: fsFittings } = loadFittingsCatalog();
+
+  const fromJson = loadCatalogBrowseFromPartCatalogJson();
+  const standards = fsStandards.length > 0 ? fsStandards : fromJson.standards;
+  const pipeEntries = fsPipe.length > 0 ? fsPipe : fromJson.pipeEntries;
+  const fittingsEntries = fsFittings.length > 0 ? fsFittings : fromJson.fittingsEntries;
 
   const hasAny =
     standards.length > 0 ||
@@ -44,8 +50,10 @@ export default function CatalogPage() {
       {!hasAny ? (
         <div className="rounded-xl border border-base-300 bg-base-100 p-6 text-center">
           <p className="text-sm text-base-content/70">
-            No catalog data was found. Ensure the reference database folder is
-            present in the project.
+            No catalog data was found. Ensure <code className="text-xs">data/part-catalog.json</code> exists (run{" "}
+            <code className="text-xs">npm run build:part-catalog-pipedata</code> when the Pipedata reference database is
+            available), or add the <code className="text-xs">3CQC ref/Pipedata-Pro 15.0/Database</code> folder for live
+            CSV loading.
           </p>
         </div>
       ) : (
