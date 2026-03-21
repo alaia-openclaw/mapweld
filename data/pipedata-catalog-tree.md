@@ -33,6 +33,30 @@ Recorded from the Pipedata UI as provided for MapWeld catalog alignment. Updated
 10. EN 1092-1 Flanges
 11. BS 10 Flanges
 
+### ASME B16.5 Flanges — view filter and submenu
+
+#### View filter (main toolbar row)
+
+Left to right: **component type** (dropdown + next/prev controls), then dimension filters. Example values from UI:
+
+| Area | Label | Example value |
+|------|--------|----------------|
+| Component type | _(dropdown)_ | Weldneck Flange |
+| Size | Size | 600 |
+| Pressure class | Class | 600# |
+| Face | Face Type | RF |
+| Wall / schedule | Schedule | 80s |
+
+#### Flange type submenu (dropdown list)
+
+1. Weldneck Flange
+2. Slip-on Flange
+3. Blind Flange
+4. Threaded Flange
+5. SocketWelded Flange
+6. Lapped Flange
+7. Straight Hub Welding Flange
+
 ## Fittings → subcategories
 
 1. Buttwelded Fittings
