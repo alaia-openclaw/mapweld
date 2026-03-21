@@ -5,7 +5,13 @@ import SidePanelDrawings from "@/components/SidePanelDrawings";
 import SidePanelLines from "@/components/SidePanelLines";
 import SidePanelSpools from "@/components/SidePanelSpools";
 import NdtRequirementsOverrideTable from "@/components/NdtRequirementsOverrideTable";
+import SettingsWpsRegistry from "@/components/settings/SettingsWpsRegistry";
+import SettingsVaultPanel from "@/components/settings/SettingsVaultPanel";
+import SettingsMaterialCertificatesPanel from "@/components/settings/SettingsMaterialCertificatesPanel";
+import SettingsNdtReportsPanel from "@/components/settings/SettingsNdtReportsPanel";
+import SettingsDatabookExportPanel from "@/components/settings/SettingsDatabookExportPanel";
 import { migrateNdtRequirementsRows } from "@/lib/ndt-requirements-rows";
+import { normalizeDatabookConfig } from "@/lib/databook-sections";
 
 function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -41,9 +47,18 @@ function ModalSettings({
   wpsLibrary = [],
   electrodeLibrary = [],
   documents = [],
+  databookConfig = null,
+  materialCertificates = [],
+  ndtReports = [],
+  lines = [],
+  spools = [],
+  parts = [],
+  drawings = [],
   /** Used to hint WPS codes typed on welds but missing from the library */
   weldPoints = [],
   onSave,
+  onCompileDatabook,
+  isCompilingDatabook = false,
   /** When set, tree includes Drawings / Systems & lines / Spools with full-project editors */
   structureIntegration = null,
 }) {
@@ -61,7 +76,6 @@ function ModalSettings({
   const [metaDate, setMetaDate] = useState("");
   const [projectSystems, setProjectSystems] = useState([]);
   const [projectWpsLibrary, setProjectWpsLibrary] = useState([]);
-  const [wpsLibraryFilter, setWpsLibraryFilter] = useState("");
 
   // Personnel state
   const [personnelSubtab, setPersonnelSubtab] = useState("fitters");
@@ -109,36 +123,9 @@ function ModalSettings({
       setEditingWelderId(null);
       wqrUploadTargetRef.current = null;
       wpsUploadTargetRef.current = null;
-      setWpsLibraryFilter("");
       setActiveSection("project-ndt");
     }
   }, [settings, isOpen, projectMeta, systems, wpsLibrary]);
-
-  const wpsLibraryFilterNorm = (wpsLibraryFilter || "").trim().toLowerCase();
-  const filteredProjectWpsLibrary = useMemo(() => {
-    if (!wpsLibraryFilterNorm) return projectWpsLibrary;
-    return projectWpsLibrary.filter((entry) => {
-      const code = (entry.code || "").trim().toLowerCase();
-      const title = (entry.title || "").trim().toLowerCase();
-      return code.includes(wpsLibraryFilterNorm) || title.includes(wpsLibraryFilterNorm);
-    });
-  }, [projectWpsLibrary, wpsLibraryFilterNorm]);
-
-  const wpsCodesOnWeldsNotInLibrary = useMemo(() => {
-    if (!Array.isArray(weldPoints) || weldPoints.length === 0) return [];
-    const libLower = new Set(
-      projectWpsLibrary.map((e) => (e.code || "").trim().toLowerCase()).filter(Boolean)
-    );
-    const seen = new Map();
-    for (const w of weldPoints) {
-      const raw = (w?.wps || "").trim();
-      if (!raw) continue;
-      const k = raw.toLowerCase();
-      if (libLower.has(k)) continue;
-      if (!seen.has(k)) seen.set(k, raw);
-    }
-    return [...seen.values()].sort((a, b) => a.localeCompare(b));
-  }, [weldPoints, projectWpsLibrary]);
 
   // Personnel
   function handleAddFitter(e) {
@@ -269,11 +256,20 @@ function ModalSettings({
     setProjectSystems(nextSystems);
   }
 
-  function handleAddWps() {
-    const nextCode = `WPS-${String(projectWpsLibrary.length + 1).padStart(3, "0")}`;
+  function handleAddWps(initialCode) {
+    const fromWeld = (initialCode && String(initialCode).trim()) || "";
+    const nextCode =
+      fromWeld ||
+      `WPS-${String(projectWpsLibrary.length + 1).padStart(3, "0")}`;
     const nextWpsLibrary = [
       ...projectWpsLibrary,
-      { id: generateId(), code: nextCode, title: "", documentId: null },
+      {
+        id: generateId(),
+        code: fromWeld ? fromWeld.toUpperCase() : nextCode,
+        title: "",
+        description: "",
+        documentId: null,
+      },
     ];
     setProjectWpsLibrary(nextWpsLibrary);
     onSave?.({
@@ -364,6 +360,46 @@ function ModalSettings({
     wpsUploadTargetRef.current = null;
   }
 
+  async function handleUploadMtcPdf(heat, file) {
+    const base64 = await fileToBase64(file);
+    const newDoc = {
+      id: generateId(),
+      title: `${heat} MTC`,
+      category: "mtc",
+      fileName: file.name || `${heat}.pdf`,
+      mimeType: file.type || "application/pdf",
+      base64,
+      createdAt: new Date().toISOString(),
+    };
+    const nextDocs = [...(documents || []), newDoc];
+    const list = Array.isArray(materialCertificates) ? [...materialCertificates] : [];
+    const idx = list.findIndex((item) => (item?.heatNumber || "").trim() === heat);
+    const nextEntry = {
+      id: idx >= 0 ? list[idx].id : generateId(),
+      heatNumber: heat,
+      documentId: newDoc.id,
+      linkedPartIds: idx >= 0 ? list[idx].linkedPartIds || [] : [],
+    };
+    if (idx >= 0) list[idx] = nextEntry;
+    else list.push(nextEntry);
+    onSave?.({
+      drawingSettings: { ndtRequirements, weldingSpec },
+      personnel,
+      systems: projectSystems,
+      projectMeta: {
+        projectName: metaProjectName,
+        client: metaClient,
+        spec: metaSpec,
+        revision: metaRevision,
+        date: metaDate,
+      },
+      wpsLibrary: projectWpsLibrary,
+      electrodeLibrary: safeElectrodeLibrary,
+      documents: nextDocs,
+      materialCertificates: list,
+    });
+  }
+
   const autoSaveTimeoutRef = useRef(null);
   useEffect(() => {
     if (!isOpen) return;
@@ -390,15 +426,41 @@ function ModalSettings({
 
   if (!isOpen) return null;
 
-  const treeItems = [
-    { key: "project-ndt", label: "Project NDT & spec" },
-    { key: "personnel", label: "Personnel" },
-    { key: "project-info", label: "Project info & libraries" },
+  const navGroups = [
+    {
+      label: "Project",
+      items: [
+        { key: "project-ndt", label: "NDT & spec" },
+        { key: "project-info", label: "Project info" },
+        { key: "systems", label: "Systems" },
+      ],
+    },
+    {
+      label: "Libraries",
+      items: [
+        { key: "wps", label: "WPS" },
+        { key: "personnel", label: "Personnel" },
+      ],
+    },
+    {
+      label: "Documents & QA",
+      items: [
+        { key: "documents", label: "Document vault" },
+        { key: "materials", label: "Material certificates" },
+        { key: "ndt-reports", label: "NDT reports" },
+        { key: "databook-export", label: "Databook export" },
+      ],
+    },
     ...(structureIntegration
       ? [
-          { key: "drawings", label: "Drawings" },
-          { key: "lines", label: "Systems & lines" },
-          { key: "spools", label: "Spools" },
+          {
+            label: "Structure",
+            items: [
+              { key: "drawings", label: "Drawings" },
+              { key: "lines", label: "Systems & lines" },
+              { key: "spools", label: "Spools" },
+            ],
+          },
         ]
       : []),
   ];
@@ -413,20 +475,30 @@ function ModalSettings({
 
         <div className="flex flex-1 min-h-0 flex-col md:flex-row gap-0 md:gap-4 mt-3 border-t border-base-300 md:border-0">
           <nav
-            className="flex md:flex-col gap-1 p-2 md:p-0 md:w-52 shrink-0 border-b md:border-b-0 md:border-r border-base-300 overflow-x-auto md:overflow-y-auto bg-base-200/40 md:bg-transparent"
+            className="flex md:flex-col gap-2 p-2 md:p-0 md:w-56 shrink-0 border-b md:border-b-0 md:border-r border-base-300 overflow-x-auto md:overflow-y-auto bg-base-200/40 md:bg-transparent max-h-[min(70vh,520px)]"
             aria-label="Settings sections"
           >
-            {treeItems.map(({ key, label }) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setActiveSection(key)}
-                className={`btn btn-sm justify-start font-normal whitespace-nowrap md:w-full ${
-                  activeSection === key ? "btn-primary" : "btn-ghost"
-                }`}
-              >
-                {label}
-              </button>
+            {navGroups.map((group) => (
+              <div key={group.label} className="min-w-0">
+                <p className="hidden md:block text-[10px] font-semibold uppercase tracking-wide text-base-content/50 px-1 pt-1 pb-0.5">
+                  {group.label}
+                </p>
+                <ul className="flex md:flex-col gap-0.5">
+                  {group.items.map(({ key, label }) => (
+                    <li key={key} className="flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setActiveSection(key)}
+                        className={`btn btn-xs justify-start font-normal whitespace-nowrap md:w-full h-8 min-h-8 ${
+                          activeSection === key ? "btn-primary" : "btn-ghost"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ))}
           </nav>
 
@@ -544,7 +616,7 @@ function ModalSettings({
                   <div className="space-y-3">
                     <div className="rounded-lg border border-base-300/70 bg-info/5 p-3 text-xs text-base-content/80 leading-relaxed">
                       <strong className="text-info">WPS vs WQR:</strong> Procedure PDFs and WPS codes live under{" "}
-                      <strong>Project info → WPS Library</strong>. Welder qualifications (WQR codes + PDFs) are managed
+                      <strong>Settings → WPS</strong>. Welder qualifications (WQR codes + PDFs) are managed
                       below — each welder can hold multiple WQRs used when filling welding records on welds.
                     </div>
                     <div>
@@ -726,7 +798,17 @@ function ModalSettings({
               </div>
             </div>
 
-            <div className="divider my-1">Systems</div>
+            <div className="modal-action mt-4">
+              <button type="button" className="btn btn-ghost" onClick={onClose}>Close</button>
+            </div>
+          </div>
+        )}
+
+        {activeSection === "systems" && (
+          <div className="mt-2 md:mt-0 space-y-4">
+            <p className="text-sm text-base-content/70">
+              Systems group lines and inherit default WPS / NDT settings.
+            </p>
             <div className="flex justify-end">
               <button type="button" className="btn btn-ghost btn-sm" onClick={handleAddSystem}>
                 + Add system
@@ -780,108 +862,140 @@ function ModalSettings({
               ))}
             </ul>
             {projectSystems.length === 0 && <p className="text-sm text-base-content/50">No systems yet.</p>}
-
-            <div className="divider my-1">WPS Library</div>
-            <div className="rounded-lg border border-base-300/70 bg-base-200/40 p-3 text-sm text-base-content/80 space-y-2 mb-3">
-              <p>
-                <strong>WPS traceability:</strong> Register each procedure code once here and attach its PDF. On welds,
-                set the WPS in <strong>General</strong> (preset or typed code). Matching codes tie back to this list for
-                exports and health checks — PDFs are opened from here, not from the weld form.
-              </p>
-              {wpsCodesOnWeldsNotInLibrary.length > 0 && (
-                <p className="text-xs text-warning">
-                  <span className="font-medium">Codes on welds not in this library yet:</span>{" "}
-                  {wpsCodesOnWeldsNotInLibrary.join(", ")} — add matching rows below or align weld WPS codes.
-                </p>
-              )}
+            <div className="modal-action mt-4">
+              <button type="button" className="btn btn-ghost" onClick={onClose}>Close</button>
             </div>
-            <div className="flex flex-col sm:flex-row sm:items-end gap-2 sm:justify-between mb-2">
-              <div className="form-control flex-1 min-w-0 max-w-md">
-                <label className="label py-0" htmlFor="wps-lib-filter">
-                  <span className="label-text text-xs">Filter library</span>
-                </label>
-                <input
-                  id="wps-lib-filter"
-                  type="search"
-                  className="input input-bordered input-xs w-full"
-                  value={wpsLibraryFilter}
-                  onChange={(e) => setWpsLibraryFilter(e.target.value)}
-                  placeholder="Code or title…"
-                  autoComplete="off"
-                />
-              </div>
-              <button type="button" className="btn btn-ghost btn-sm shrink-0" onClick={handleAddWps}>
-                + Add WPS
-              </button>
-            </div>
-            <ul className="space-y-2">
-              {filteredProjectWpsLibrary.map((entry) => (
-                <li key={entry.id} className="p-2 bg-base-200 rounded-lg space-y-2">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    <input
-                      type="text"
-                      className="input input-bordered input-xs"
-                      value={entry.code || ""}
-                      onChange={(e) => handleUpdateWps(entry.id, { code: e.target.value.toUpperCase() })}
-                      placeholder="WPS code"
-                    />
-                    <input
-                      type="text"
-                      className="input input-bordered input-xs"
-                      value={entry.title || ""}
-                      onChange={(e) => handleUpdateWps(entry.id, { title: e.target.value })}
-                      placeholder="WPS title"
-                    />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 items-end">
-                    <div className="form-control">
-                      <label className="label py-0">
-                        <span className="label-text text-xs">Linked WPS PDF</span>
-                      </label>
-                      <div className="flex gap-1">
-                        <select
-                          className="select select-bordered select-xs flex-1"
-                          value={entry.documentId || ""}
-                          onChange={(e) => handleUpdateWps(entry.id, { documentId: e.target.value || null })}
-                        >
-                          <option value="">No PDF linked</option>
-                          {wpsDocuments.map((doc) => (
-                            <option key={doc.id} value={doc.id}>
-                              {doc.title || doc.fileName}
-                            </option>
-                          ))}
-                        </select>
-                        {!entry.documentId && (
-                          <button
-                            type="button"
-                            className="btn btn-ghost btn-sm"
-                            onClick={() => {
-                              wpsUploadTargetRef.current = entry.id;
-                              wpsUploadInputRef.current?.click();
-                            }}
-                          >
-                            Load
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex justify-end">
-                      <button type="button" className="btn btn-ghost btn-xs text-error" onClick={() => handleRemoveWps(entry.id)}>
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-            {projectWpsLibrary.length === 0 && <p className="text-sm text-base-content/50">No WPS entries yet.</p>}
-            {projectWpsLibrary.length > 0 && filteredProjectWpsLibrary.length === 0 && (
-              <p className="text-sm text-base-content/50">No library rows match this filter.</p>
-            )}
+          </div>
+        )}
 
-            <p className="text-sm text-base-content/60 mt-4">
-              Manage electrode certificates and register entries in <strong>Document Vault</strong> (Databook builder).
+        {activeSection === "wps" && (
+          <div className="mt-2 md:mt-0 space-y-3">
+            <p className="text-xs text-base-content/70">
+              All project WPS rows and weld-only codes. Use <strong>Links</strong> to review welds and WQR codes tied to a procedure.
             </p>
+            <SettingsWpsRegistry
+              wpsLibrary={projectWpsLibrary}
+              weldPoints={weldPoints}
+              systems={projectSystems}
+              lines={lines}
+              spools={spools}
+              personnel={personnel}
+              wpsDocuments={wpsDocuments}
+              onAddWps={handleAddWps}
+              onUpdateWps={handleUpdateWps}
+              onRemoveWps={handleRemoveWps}
+              wpsUploadInputRef={wpsUploadInputRef}
+              wpsUploadTargetRef={wpsUploadTargetRef}
+            />
+            <div className="modal-action mt-4">
+              <button type="button" className="btn btn-ghost" onClick={onClose}>Close</button>
+            </div>
+          </div>
+        )}
+
+        {activeSection === "documents" && (
+          <div className="mt-2 md:mt-0 space-y-3">
+            <p className="text-xs text-base-content/70">
+              Upload PDFs by category (WPS, WQR, MTC, electrodes, etc.). Electrode register links weld records to certificate PDFs.
+            </p>
+            <SettingsVaultPanel
+              documents={documents}
+              electrodeLibrary={electrodeLibrary}
+              ndtReports={ndtReports}
+              onSave={(payload) => {
+                onSave?.({
+                  drawingSettings: { ndtRequirements, weldingSpec },
+                  personnel,
+                  systems: projectSystems,
+                  projectMeta: {
+                    projectName: metaProjectName,
+                    client: metaClient,
+                    spec: metaSpec,
+                    revision: metaRevision,
+                    date: metaDate,
+                  },
+                  wpsLibrary: projectWpsLibrary,
+                  electrodeLibrary: payload.electrodeLibrary,
+                  documents: payload.documents,
+                });
+              }}
+            />
+            <div className="modal-action mt-4">
+              <button type="button" className="btn btn-ghost" onClick={onClose}>Close</button>
+            </div>
+          </div>
+        )}
+
+        {activeSection === "materials" && (
+          <div className="mt-2 md:mt-0 space-y-3">
+            <SettingsMaterialCertificatesPanel
+              materialCertificates={materialCertificates}
+              documents={documents}
+              weldPoints={weldPoints}
+              parts={parts}
+              personnel={personnel}
+              wpsLibrary={projectWpsLibrary}
+              onUpdateCertificates={(next) => {
+                onSave?.({
+                  drawingSettings: { ndtRequirements, weldingSpec },
+                  personnel,
+                  systems: projectSystems,
+                  projectMeta: {
+                    projectName: metaProjectName,
+                    client: metaClient,
+                    spec: metaSpec,
+                    revision: metaRevision,
+                    date: metaDate,
+                  },
+                  wpsLibrary: projectWpsLibrary,
+                  electrodeLibrary: safeElectrodeLibrary,
+                  materialCertificates: next,
+                });
+              }}
+              onUploadMtcPdf={handleUploadMtcPdf}
+            />
+            <div className="modal-action mt-4">
+              <button type="button" className="btn btn-ghost" onClick={onClose}>Close</button>
+            </div>
+          </div>
+        )}
+
+        {activeSection === "ndt-reports" && (
+          <div className="mt-2 md:mt-0 space-y-3">
+            <p className="text-xs text-base-content/70">
+              Overview of NDT reports in this project. Create and edit reports from the NDT workspace.
+            </p>
+            <SettingsNdtReportsPanel ndtReports={ndtReports} />
+            <div className="modal-action mt-4">
+              <button type="button" className="btn btn-ghost" onClick={onClose}>Close</button>
+            </div>
+          </div>
+        )}
+
+        {activeSection === "databook-export" && (
+          <div className="mt-2 md:mt-0 space-y-3">
+            <SettingsDatabookExportPanel
+              databookConfig={databookConfig}
+              onChange={(next) => {
+                onSave?.({
+                  drawingSettings: { ndtRequirements, weldingSpec },
+                  personnel,
+                  systems: projectSystems,
+                  projectMeta: {
+                    projectName: metaProjectName,
+                    client: metaClient,
+                    spec: metaSpec,
+                    revision: metaRevision,
+                    date: metaDate,
+                  },
+                  wpsLibrary: projectWpsLibrary,
+                  electrodeLibrary: safeElectrodeLibrary,
+                  databookConfig: normalizeDatabookConfig(next),
+                });
+              }}
+              onCompile={onCompileDatabook}
+              isCompiling={isCompilingDatabook}
+            />
             <div className="modal-action mt-4">
               <button type="button" className="btn btn-ghost" onClick={onClose}>Close</button>
             </div>

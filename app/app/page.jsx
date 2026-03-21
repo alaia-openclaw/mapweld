@@ -14,7 +14,6 @@ import AddDefaultsBar from "@/components/AddDefaultsBar";
 import DashboardAnalytics from "@/components/DashboardAnalytics";
 import ModalSettings from "@/components/ModalParameters";
 import ModalProjects from "@/components/ModalProjects";
-import ModalDatabookBuilder from "@/components/ModalDatabookBuilder";
 import NdtKanbanPage from "@/components/NdtKanbanPage";
 import StatusPage from "@/components/StatusPage";
 import ProjectHealthPage from "@/components/ProjectHealthPage";
@@ -124,7 +123,7 @@ export default function WeldTrackerApp() {
     sessionDraft: null,
   });
   const [showParameters, setShowParameters] = useState(false);
-  const [showDatabookBuilder, setShowDatabookBuilder] = useState(false);
+  const [isCompilingDatabook, setIsCompilingDatabook] = useState(false);
   const [showProjects, setShowProjects] = useState(false);
   const [showNdtPanel, setShowNdtPanel] = useState(false);
   const [showStatusPage, setShowStatusPage] = useState(false);
@@ -1494,6 +1493,46 @@ export default function WeldTrackerApp() {
     });
   }, [weldPoints, pdfFilename, spools, parts, personnel, drawingSettings, projectMeta, ndtContext, drawings]);
 
+  const handleCompileDatabook = useCallback(async () => {
+    setIsCompilingDatabook(true);
+    try {
+      const { compileDatabookPdf } = await import("@/lib/databook-pdf");
+      compileDatabookPdf({
+        databookConfig: normalizeDatabookConfig(databookConfig),
+        documents,
+        projectMeta,
+        drawings,
+        systems,
+        lines,
+        weldPoints,
+        spools,
+        parts,
+        personnel,
+        drawingSettings,
+        wpsLibrary,
+        materialCertificates,
+        ndtReports,
+      });
+    } finally {
+      setIsCompilingDatabook(false);
+    }
+  }, [
+    databookConfig,
+    documents,
+    projectMeta,
+    drawings,
+    systems,
+    lines,
+    weldPoints,
+    spools,
+    parts,
+    personnel,
+    drawingSettings,
+    wpsLibrary,
+    materialCertificates,
+    ndtReports,
+  ]);
+
   const weldStatusByWeldId = useMemo(() => {
     const map = new Map();
     weldPoints.forEach((w) => {
@@ -2009,7 +2048,6 @@ export default function WeldTrackerApp() {
           onSaveProject={handleSaveProject}
           onExportExcel={handleExportExcel}
           onOpenParameters={() => setShowParameters(true)}
-          onOpenDatabook={() => setShowDatabookBuilder(true)}
           onOpenProjects={() => setShowProjects(true)}
           onOpenNdt={() => {
             setShowStatusPage(false);
@@ -2783,9 +2821,29 @@ export default function WeldTrackerApp() {
         wpsLibrary={wpsLibrary}
         electrodeLibrary={electrodeLibrary}
         documents={documents}
+        databookConfig={databookConfig}
+        materialCertificates={materialCertificates}
+        ndtReports={ndtReports}
+        lines={lines}
+        spools={spools}
+        parts={parts}
+        drawings={drawings}
         weldPoints={weldPoints}
         structureIntegration={settingsStructureIntegration}
-        onSave={({ drawingSettings: s, personnel: p, projectSettings: ps, projectMeta: pm, systems: sys, wpsLibrary: wps, electrodeLibrary: electrodes, documents: docs }) => {
+        onCompileDatabook={handleCompileDatabook}
+        isCompilingDatabook={isCompilingDatabook}
+        onSave={({
+          drawingSettings: s,
+          personnel: p,
+          projectSettings: ps,
+          projectMeta: pm,
+          systems: sys,
+          wpsLibrary: wps,
+          electrodeLibrary: electrodes,
+          documents: docs,
+          materialCertificates: mc,
+          databookConfig: dc,
+        }) => {
           if (s != null) setDrawingSettings(s);
           if (p != null) setPersonnel(p);
           if (ps != null) setProjectSettings(ps);
@@ -2794,6 +2852,8 @@ export default function WeldTrackerApp() {
           if (wps != null) setWpsLibrary(wps);
           if (electrodes != null) setElectrodeLibrary(electrodes);
           if (docs != null) setDocuments(docs);
+          if (mc != null) setMaterialCertificates(mc);
+          if (dc != null) setDatabookConfig(dc);
         }}
       />
 
@@ -2801,30 +2861,6 @@ export default function WeldTrackerApp() {
         isOpen={showProjects}
         onClose={() => setShowProjects(false)}
         onOpenProject={handleOpenProjectFromStorage}
-      />
-
-      <ModalDatabookBuilder
-        isOpen={showDatabookBuilder}
-        onClose={() => setShowDatabookBuilder(false)}
-        documents={documents}
-        databookConfig={databookConfig}
-        projectMeta={projectMeta}
-        drawings={drawings}
-        systems={systems}
-        lines={lines}
-        weldPoints={weldPoints}
-        spools={spools}
-        parts={parts}
-        personnel={personnel}
-        drawingSettings={drawingSettings}
-        wpsLibrary={wpsLibrary}
-        electrodeLibrary={electrodeLibrary}
-        materialCertificates={materialCertificates}
-        ndtReports={ndtReports}
-        onSaveDocuments={setDocuments}
-        onSaveElectrodeLibrary={setElectrodeLibrary}
-        onSaveMaterialCertificates={setMaterialCertificates}
-        onSaveDatabookConfig={setDatabookConfig}
       />
 
       <ModalPrintDynamic
