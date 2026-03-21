@@ -30,6 +30,8 @@ export default function PanelCatalogPipe({
     );
   }
 
+  const isMetric = catalogUnitSystem === "Metric";
+
   return (
     <div className="flex flex-col h-[calc(100dvh-10rem)] min-h-[380px] rounded-xl border border-base-300 bg-base-200/60 overflow-hidden">
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)] gap-3 p-3 min-h-0">
@@ -49,10 +51,10 @@ export default function PanelCatalogPipe({
             <thead>
               <tr>
                 <th>NPS / NB</th>
-                <th>OD</th>
-                <th>Wall thk</th>
-                <th>ID</th>
-                <th>Weight (kg/m)</th>
+                <th>{isMetric ? "OD (mm)" : "OD (in)"}</th>
+                <th>{isMetric ? "Wall thk (mm)" : "Wall thk (in)"}</th>
+                <th>{isMetric ? "ID (mm)" : "ID (in)"}</th>
+                <th>{isMetric ? "Weight (kg/m)" : "Weight (lb/ft)"}</th>
               </tr>
             </thead>
             <tbody>

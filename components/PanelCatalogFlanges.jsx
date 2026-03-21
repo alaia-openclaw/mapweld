@@ -253,6 +253,8 @@ function TableFlangeDimensions({
     );
   }
 
+  const isMetric = catalogUnitSystem === "Metric";
+
   return (
     <div className="overflow-auto h-full rounded-lg border border-base-300 bg-base-100">
       <table className="table table-xs">
@@ -260,11 +262,11 @@ function TableFlangeDimensions({
           <tr>
             <th>System</th>
             <th>NPS / NB</th>
-            <th title="ASME pipe schedule for the flange bore (e.g. STD, XS, 40, 80S). Not wall thickness.">
+            <th title="Same ASME pipe wall schedule as Pipe and butt-weld fittings (bore / mating pipe): STD, XS, 40, 80S, … — from the Schedule column in Pipedata CSV when present; not flange neck thickness.">
               Pipe schedule
             </th>
-            <th>OD</th>
-            <th>PCD</th>
+            <th>{isMetric ? "OD (mm)" : "OD (in)"}</th>
+            <th>{isMetric ? "PCD (mm)" : "PCD (in)"}</th>
           </tr>
         </thead>
         <tbody>

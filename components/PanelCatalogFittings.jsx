@@ -30,6 +30,8 @@ export default function PanelCatalogFittings({
     );
   }
 
+  const isMetric = catalogUnitSystem === "Metric";
+
   return (
     <div className="flex flex-col h-[calc(100dvh-10rem)] min-h-[380px] rounded-xl border border-base-300 bg-base-200/60 overflow-hidden">
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)] gap-3 p-3 min-h-0">
@@ -50,9 +52,11 @@ export default function PanelCatalogFittings({
               <tr>
                 <th>Type</th>
                 <th>NPS / NB</th>
-                <th>Schedule</th>
-                <th>OD</th>
-                <th>Weight (kg)</th>
+                <th title="Same ASME pipe wall schedule as Pipe and weldneck flange bore (from Pipedata file name for each fitting type).">
+                  Schedule
+                </th>
+                <th>{isMetric ? "OD (mm)" : "OD (in)"}</th>
+                <th>{isMetric ? "Weight (kg)" : "Weight (lb)"}</th>
               </tr>
             </thead>
             <tbody>
