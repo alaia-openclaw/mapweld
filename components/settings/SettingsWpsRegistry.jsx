@@ -3,6 +3,7 @@
 import { useMemo, useState, useCallback, Fragment } from "react";
 import { getWeldName } from "@/lib/weld-utils";
 import { getWeldLineId } from "@/lib/ndt-resolution";
+import { getUnregisteredWpsUsageGroups } from "@/lib/wps-resolution";
 
 function filterWpsEntries(entries, filterNorm) {
   if (!filterNorm) return entries;
@@ -31,8 +32,8 @@ function MissingPdfWarningIcon() {
 }
 
 /**
- * WPS library: title, description, optional PDF. Welds link via wpsLibraryEntryId.
- * Single table: warning when no PDF; expandable row lists related welds with drawing / page / line / spool.
+ * WPS library: code (match key), optional title, description, optional PDF. Welds link via wpsLibraryEntryId.
+ * Registered rows + a second list: effective WPS on welds that do not match any library row.
  */
 function SettingsWpsRegistry({
   wpsLibrary = [],
@@ -40,15 +41,18 @@ function SettingsWpsRegistry({
   personnel = { welders: [], wqrs: [] },
   wpsDocuments = [],
   drawings = [],
+  systems = [],
   lines = [],
   spools = [],
   onAddWps,
   onUpdateWps,
   onRemoveWps,
   onRequestWpsUpload,
+  onSelectWeld,
 }) {
   const [filter, setFilter] = useState("");
   const [expandedId, setExpandedId] = useState(null);
+  const [expandedUnregisteredCode, setExpandedUnregisteredCode] = useState(null);
   const filterNorm = (filter || "").trim().toLowerCase();
 
   const wqrs = useMemo(() => personnel.wqrs || [], [personnel]);
@@ -60,9 +64,17 @@ function SettingsWpsRegistry({
     return wpsDocs.filter((d) => !linkedDocIds.has(d.id));
   }, [wpsLibrary, wpsDocuments]);
 
+  const unregisteredWpsGroups = useMemo(
+    () => getUnregisteredWpsUsageGroups(weldPoints, wpsLibrary, systems, lines, spools),
+    [weldPoints, wpsLibrary, systems, lines, spools]
+  );
+
   const sortedFilteredEntries = useMemo(() => {
     const filtered = filterWpsEntries(wpsLibrary, filterNorm);
     return [...filtered].sort((a, b) => {
+      const ca = (a.code || "").toLowerCase();
+      const cb = (b.code || "").toLowerCase();
+      if (ca !== cb) return ca.localeCompare(cb);
       const ta = (a.title || "").toLowerCase();
       const tb = (b.title || "").toLowerCase();
       if (ta !== tb) return ta.localeCompare(tb);
@@ -126,12 +138,24 @@ function SettingsWpsRegistry({
               {!hasPdf && <MissingPdfWarningIcon />}
               <input
                 type="text"
-                className="input input-bordered input-xs w-full min-w-[8rem]"
-                value={entry.title || ""}
-                onChange={(e) => onUpdateWps(entry.id, { title: e.target.value })}
-                placeholder="Name / title"
+                className="input input-bordered input-xs w-full min-w-[6rem] font-mono"
+                value={entry.code || ""}
+                onChange={(e) => onUpdateWps(entry.id, { code: e.target.value.toUpperCase() })}
+                placeholder="WPS code"
+                title="WPS number or code — used to match typed WPS on welds"
+                aria-label="WPS code"
               />
             </div>
+          </td>
+          <td className="min-w-0">
+            <input
+              type="text"
+              className="input input-bordered input-xs w-full min-w-[8rem]"
+              value={entry.title || ""}
+              onChange={(e) => onUpdateWps(entry.id, { title: e.target.value })}
+              placeholder="Title (optional)"
+              aria-label="WPS title"
+            />
           </td>
           <td>
             <input
@@ -140,6 +164,7 @@ function SettingsWpsRegistry({
               value={entry.description || ""}
               onChange={(e) => onUpdateWps(entry.id, { description: e.target.value })}
               placeholder="Description"
+              aria-label="WPS description"
             />
           </td>
           <td>
@@ -188,7 +213,7 @@ function SettingsWpsRegistry({
         </tr>
         {isOpen && (
           <tr className="bg-base-200/40">
-            <td colSpan={4} className="!p-3">
+            <td colSpan={5} className="!p-3">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                 <div>
                   <p className="font-semibold text-base-content/80 mb-1">Related welds</p>
@@ -258,10 +283,19 @@ function SettingsWpsRegistry({
   return (
     <div className="space-y-4 min-w-0">
       <p className="text-xs text-base-content/70">
-        Project WPS list. Add a row with name and description, then link a certificate PDF when you have it. Welds
-        reference rows via the weld form. Rows without a PDF show a warning until a file is linked or welds no longer
-        need the entry.
+        Maintain the project WPS register here. Each registered row has a <strong>code</strong> (matches typed WPS on
+        welds), optional <strong>title</strong>, and <strong>description</strong>. Link a certificate PDF when you have
+        it. The second section lists effective WPS text on welds that still does not match any registered row — register
+        it or open those welds to change the WPS.
       </p>
+
+      <div className="space-y-2">
+        <h3 className="text-sm font-semibold text-base-content">Registered WPS</h3>
+        <p className="text-[11px] text-base-content/60">
+          Rows you add here (with or without a PDF). Welds link via the weld form when the typed WPS matches code or
+          title.
+        </p>
+      </div>
 
       <div className="flex flex-col sm:flex-row gap-2 sm:items-end sm:justify-between">
         <div className="form-control flex-1 min-w-0 max-w-md">
@@ -274,7 +308,7 @@ function SettingsWpsRegistry({
             className="input input-bordered input-xs w-full"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            placeholder="Title, description, code…"
+            placeholder="Code, title, description…"
             autoComplete="off"
           />
         </div>
@@ -303,7 +337,8 @@ function SettingsWpsRegistry({
         <table className="table table-xs table-pin-rows">
           <thead>
             <tr className="bg-base-200">
-              <th>Name</th>
+              <th>WPS code</th>
+              <th>Title</th>
               <th>Description</th>
               <th className="min-w-[10rem]">WPS PDF</th>
               <th className="w-36"> </th>
@@ -312,19 +347,133 @@ function SettingsWpsRegistry({
           <tbody>
             {!hasAnyWps ? (
               <tr>
-                <td colSpan={4} className="text-center text-base-content/50 py-6">
+                <td colSpan={5} className="text-center text-base-content/50 py-6">
                   No WPS entries yet. Use &quot;Add WPS&quot; to create one, then assign it on welds or upload a PDF when
                   ready.
                 </td>
               </tr>
             ) : sortedFilteredEntries.length === 0 ? (
               <tr>
-                <td colSpan={4} className="text-center text-base-content/50 py-4 text-[11px]">
+                <td colSpan={5} className="text-center text-base-content/50 py-4 text-[11px]">
                   No matches{filterNorm ? " for this search" : ""}.
                 </td>
               </tr>
             ) : (
               sortedFilteredEntries.map((entry) => renderWpsTableRow(entry))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="space-y-2 pt-2 border-t border-base-300">
+        <h3 className="text-sm font-semibold text-base-content">WPS in use but not registered</h3>
+        <p className="text-[11px] text-base-content/60">
+          Effective WPS on each weld (explicit weld field, else line, else system) that does not match any row above.
+          Register a matching row, or open a weld to point it at a registered WPS or change the text.
+        </p>
+      </div>
+
+      <div className="overflow-x-auto border border-base-300 rounded-lg">
+        <table className="table table-xs table-pin-rows">
+          <thead>
+            <tr className="bg-base-200">
+              <th>WPS text (resolved)</th>
+              <th className="w-24">Welds</th>
+              <th className="w-44"> </th>
+            </tr>
+          </thead>
+          <tbody>
+            {unregisteredWpsGroups.length === 0 ? (
+              <tr>
+                <td colSpan={3} className="text-center text-base-content/50 py-4 text-[11px]">
+                  None — every weld with a WPS string matches a registered row, or no WPS is set on welds.
+                </td>
+              </tr>
+            ) : (
+              unregisteredWpsGroups.map((group) => {
+                const isOpen = expandedUnregisteredCode === group.displayCode;
+                return (
+                  <Fragment key={group.displayCode}>
+                    <tr className={`hover ${isOpen ? "bg-base-200/80" : ""}`}>
+                      <td className="min-w-0">
+                        <span className="font-mono text-xs break-all">{group.displayCode}</span>
+                      </td>
+                      <td>{group.welds.length}</td>
+                      <td>
+                        <div className="flex gap-1 justify-end flex-wrap">
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-xs"
+                            onClick={() => onAddWps?.({ code: group.displayCode })}
+                          >
+                            Register
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-xs"
+                            onClick={() =>
+                              setExpandedUnregisteredCode(isOpen ? null : group.displayCode)
+                            }
+                          >
+                            {isOpen ? "Hide welds" : "Welds"}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    {isOpen && (
+                      <tr className="bg-base-200/40">
+                        <td colSpan={3} className="!p-3">
+                          <p className="font-semibold text-base-content/80 mb-2 text-xs">Welds using this WPS</p>
+                          <ul className="space-y-2 max-h-56 overflow-y-auto text-xs">
+                            {group.welds.map((w) => {
+                              const { drawingLabel, pageLabel, lineLabel, spoolLabel } = describeWeldPlacement(w);
+                              return (
+                                <li
+                                  key={w.id}
+                                  className="border-b border-base-300/40 pb-2 last:border-0 last:pb-0"
+                                >
+                                  <div className="flex flex-wrap items-start justify-between gap-2">
+                                    <div className="min-w-0">
+                                      <div className="font-mono font-medium text-base-content">
+                                        {getWeldName(w, weldPoints)}
+                                      </div>
+                                      <div className="text-[11px] text-base-content/65 mt-0.5 grid gap-0.5">
+                                        <span>
+                                          <span className="text-base-content/45">Drawing:</span> {drawingLabel}
+                                        </span>
+                                        <span>
+                                          <span className="text-base-content/45">Page:</span> {pageLabel}
+                                        </span>
+                                        <span>
+                                          <span className="text-base-content/45">Line:</span> {lineLabel}
+                                        </span>
+                                        {spoolLabel ? (
+                                          <span>
+                                            <span className="text-base-content/45">Spool:</span> {spoolLabel}
+                                          </span>
+                                        ) : null}
+                                      </div>
+                                    </div>
+                                    {onSelectWeld ? (
+                                      <button
+                                        type="button"
+                                        className="btn btn-primary btn-xs shrink-0"
+                                        onClick={() => onSelectWeld(w.id)}
+                                      >
+                                        Open
+                                      </button>
+                                    ) : null}
+                                  </div>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })
             )}
           </tbody>
         </table>

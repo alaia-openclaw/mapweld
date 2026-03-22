@@ -10,7 +10,7 @@ export function CatalogReadOnlyFacet({ label, value }) {
       <span className="text-[10px] font-semibold uppercase tracking-wide text-base-content/60 text-left">
         {label}
       </span>
-      <span className="text-xs font-medium text-left leading-snug truncate">{value}</span>
+      <span className="text-xs font-medium text-left leading-snug line-clamp-3 break-words">{value}</span>
     </div>
   );
 }
@@ -42,7 +42,9 @@ export function CatalogFacetDropdown({
         <span className="text-[10px] font-semibold uppercase tracking-wide text-base-content/60 text-left">
           {label}
         </span>
-        <span className="text-xs font-medium text-left whitespace-normal leading-snug truncate">{display}</span>
+        <span className="text-xs font-medium text-left whitespace-normal leading-snug line-clamp-3 break-words">
+          {display}
+        </span>
       </div>
       {!disabled && options.length > 0 ? (
         <ul

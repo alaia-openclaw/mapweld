@@ -3,12 +3,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { CATEGORY_TREE } from "@/lib/catalog-structure";
 
-function hasSelectedDescendant(node, selectedId) {
-  if (node.id === selectedId) return true;
-  if (!node.children?.length) return false;
-  return node.children.some((c) => hasSelectedDescendant(c, selectedId));
-}
-
 /** Parent node ids on the path to selectedId (so that branch can be auto-expanded). */
 function getAncestorIdsToExpand(nodes, selectedId) {
   const ids = new Set();
@@ -27,20 +21,6 @@ function getAncestorIdsToExpand(nodes, selectedId) {
   }
   walk(nodes, []);
   return ids;
-}
-
-/** First leaf under a root (used by top-level section dropdown). */
-function getFirstSelectableLeafId(node) {
-  if (!node.children?.length) return node.id;
-  return getFirstSelectableLeafId(node.children[0]);
-}
-
-function findRootIdForSelection(tree, selectedId) {
-  if (!selectedId || !tree?.length) return tree?.[0]?.id ?? "";
-  for (const n of tree) {
-    if (hasSelectedDescendant(n, selectedId)) return n.id;
-  }
-  return tree[0]?.id ?? "";
 }
 
 /** Sum of counts for this node: leaf uses counts[id], parent sums children. */
@@ -122,8 +102,6 @@ function CategoryNode({ node, level, selectedId, onSelect, counts, expandedIds, 
 }
 
 export default function CatalogSidebar({ tree = CATEGORY_TREE, selectedId, onSelect, counts }) {
-  const selectedRootId = findRootIdForSelection(tree, selectedId);
-
   const [expandedIds, setExpandedIds] = useState(() => getAncestorIdsToExpand(tree, selectedId));
 
   useEffect(() => {
@@ -149,35 +127,7 @@ export default function CatalogSidebar({ tree = CATEGORY_TREE, selectedId, onSel
       className="w-64 sm:w-72 shrink-0 border-r border-base-300 bg-base-100 flex flex-col overflow-y-auto"
       aria-label="Catalog categories"
     >
-      <div className="p-2 border-b border-base-300 bg-base-200/60 space-y-1.5 sticky top-0 z-10">
-        <label
-          htmlFor="catalog-root-section"
-          className="text-[10px] font-semibold uppercase tracking-wide text-base-content/70 block"
-        >
-          Section
-        </label>
-        <select
-          id="catalog-root-section"
-          className="select select-bordered select-sm w-full text-xs leading-snug min-h-10 h-auto py-2"
-          value={selectedRootId}
-          onChange={(e) => {
-            const node = tree.find((n) => n.id === e.target.value);
-            if (node) onSelect(getFirstSelectableLeafId(node));
-          }}
-        >
-          {tree.map((node) => {
-            const count = getNodeCount(node, counts);
-            const showCount = count !== undefined && count >= 0;
-            return (
-              <option key={node.id} value={node.id}>
-                {node.label}
-                {showCount ? ` (${count})` : ""}
-              </option>
-            );
-          })}
-        </select>
-      </div>
-      <div className="px-2 pt-1 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-base-content/70">
+      <div className="px-2 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-base-content/70">
         Browse
       </div>
       <div className="flex-1 p-1 pt-0">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useLayoutEffect } from "react";
+import { useMemo, useState, useEffect, useLayoutEffect } from "react";
 import { matchEntrySearch, entryMatchesCatalogUnitSystem } from "@/lib/catalog-structure";
 import {
   CatalogFacetDropdown,
@@ -24,6 +24,7 @@ export default function PanelCatalogFittings({ entries, search = "", catalogUnit
   const [scheduleFilter, setScheduleFilter] = useState("");
   const [radiusFilter, setRadiusFilter] = useState("");
   const [angleFilter, setAngleFilter] = useState("");
+  const [npsFilter, setNpsFilter] = useState("");
   const { setToolbar } = useCatalogToolbar();
 
   const scheduleOptions = useMemo(
@@ -41,10 +42,27 @@ export default function PanelCatalogFittings({ entries, search = "", catalogUnit
     [entries]
   );
 
+  const npsOptions = useMemo(
+    () => uniqueSortedStrings(entries.map((e) => e.nps)),
+    [entries]
+  );
+
+  useEffect(() => {
+    setNpsFilter("");
+  }, [catalogUnitSystem]);
+
   useLayoutEffect(() => {
     setToolbar(
       <>
         <CatalogReadOnlyFacet label="Category" value="Fittings" />
+        {npsOptions.length > 0 ? (
+          <CatalogFacetDropdown
+            label="Size (NPS / NB)"
+            options={[{ id: "", label: "All sizes" }, ...npsOptions.map((n) => ({ id: n, label: n }))]}
+            activeId={npsFilter}
+            onSelect={setNpsFilter}
+          />
+        ) : null}
         {scheduleOptions.length > 0 ? (
           <CatalogFacetDropdown
             label="Schedule"
@@ -53,7 +71,7 @@ export default function PanelCatalogFittings({ entries, search = "", catalogUnit
             onSelect={setScheduleFilter}
           />
         ) : null}
-        {radiusOptions.length > 1 ? (
+        {radiusOptions.length > 0 ? (
           <CatalogFacetDropdown
             label="Radius"
             options={[{ id: "", label: "All" }, ...radiusOptions.map((r) => ({ id: r, label: r }))]}
@@ -61,7 +79,7 @@ export default function PanelCatalogFittings({ entries, search = "", catalogUnit
             onSelect={setRadiusFilter}
           />
         ) : null}
-        {angleOptions.length > 1 ? (
+        {angleOptions.length > 0 ? (
           <CatalogFacetDropdown
             label="Angle"
             options={[{ id: "", label: "All" }, ...angleOptions.map((a) => ({ id: a, label: a }))]}
@@ -72,18 +90,29 @@ export default function PanelCatalogFittings({ entries, search = "", catalogUnit
       </>
     );
     return () => setToolbar(null);
-  }, [setToolbar, scheduleOptions, radiusOptions, angleOptions, scheduleFilter, radiusFilter, angleFilter]);
+  }, [
+    setToolbar,
+    npsOptions,
+    scheduleOptions,
+    radiusOptions,
+    angleOptions,
+    npsFilter,
+    scheduleFilter,
+    radiusFilter,
+    angleFilter,
+  ]);
 
   const filtered = useMemo(() => {
     return entries.filter((e) => {
       if (!entryMatchesCatalogUnitSystem(e, catalogUnitSystem)) return false;
+      if (npsFilter && String(e.nps ?? "").trim() !== npsFilter) return false;
       if (scheduleFilter && String(e.attributes?.schedule ?? e.thickness ?? "") !== scheduleFilter) return false;
       if (radiusFilter && String(e.attributes?.radius ?? "") !== radiusFilter) return false;
       if (angleFilter && String(e.attributes?.angle ?? "") !== angleFilter) return false;
       if (!matchEntrySearch(e, search)) return false;
       return true;
     });
-  }, [entries, catalogUnitSystem, scheduleFilter, radiusFilter, angleFilter, search]);
+  }, [entries, catalogUnitSystem, npsFilter, scheduleFilter, radiusFilter, angleFilter, search]);
 
   if (!entries.length) {
     return (

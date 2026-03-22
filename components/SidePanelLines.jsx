@@ -8,9 +8,7 @@ function SidePanelLines({
   systems = [],
   lines = [],
   selectedLineId = null,
-  allLines = [],
   onSaveLines,
-  onLinkLineToCurrentPage,
   spools = [],
   onSaveSpools,
   appMode = "edition",
@@ -23,7 +21,6 @@ function SidePanelLines({
 }) {
   const [expandedLineId, setExpandedLineId] = useState(null);
   const [spoolMenuLineId, setSpoolMenuLineId] = useState(null);
-  const [lineMenuGroupId, setLineMenuGroupId] = useState(null);
 
   const [editLineName, setEditLineName] = useState("");
   const [editFluidType, setEditFluidType] = useState("");
@@ -112,7 +109,6 @@ function SidePanelLines({
       lines: [],
     }));
     const byId = new Map(groups.map((group) => [group.id, group]));
-    const sysIdSet = new Set((systems || []).map((s) => s.id));
     const orphan = { id: "__none__", label: "No system", description: "", lines: [] };
 
     (lines || []).forEach((line) => {
@@ -125,29 +121,10 @@ function SidePanelLines({
     );
     orphan.lines.sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
 
-    const visibleIds = new Set((lines || []).map((l) => l.id));
-    const hasOrphanLinkable = (allLines || []).some(
-      (line) =>
-        !visibleIds.has(line.id) &&
-        (!line.systemId || !sysIdSet.has(line.systemId))
-    );
-
     const all = [...groups];
-    if (orphan.lines.length > 0 || hasOrphanLinkable) all.push(orphan);
+    if (orphan.lines.length > 0) all.push(orphan);
     return all;
-  }, [systems, lines, allLines]);
-
-  const visibleLineIds = useMemo(() => new Set((lines || []).map((line) => line.id)), [lines]);
-
-  const systemIdSet = useMemo(() => new Set((systems || []).map((s) => s.id)), [systems]);
-
-  function getLinkableLinesForGroup(group) {
-    return (allLines || []).filter((line) => {
-      if (visibleLineIds.has(line.id)) return false;
-      if (group.id === "__none__") return !line.systemId || !systemIdSet.has(line.systemId);
-      return line.systemId === group.id;
-    });
-  }
+  }, [systems, lines]);
 
   return (
     <div
@@ -186,59 +163,19 @@ function SidePanelLines({
           <div className={`flex-1 min-h-0 overflow-y-scroll overflow-x-auto p-2 min-w-0 pb-12 overscroll-contain [scrollbar-gutter:stable] ${hideHeader ? "mobile-no-scrollbar" : ""}`}>
             {lines.length === 0 && (
               <p className="text-xs text-base-content/60 mb-2">
-                No lines on this page yet. Use the line marker tool on the drawing to create a line, or{" "}
-                <strong>+ Link line</strong> under a system to place an existing line.
+                No lines on this page yet. Use the <strong>line marker</strong> tool on the drawing to create a line.
               </p>
             )}
             <ul className="space-y-3">
-                {groupedLines.map((group) => {
-                  const linkable = getLinkableLinesForGroup(group);
-                  return (
+                {groupedLines.map((group) => (
                     <li key={group.id} className="space-y-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-base-content/70 truncate">
-                            {group.label}
-                          </p>
-                          {group.description ? (
-                            <p className="text-xs text-base-content/55 truncate">{group.description}</p>
-                          ) : null}
-                        </div>
-                        {appMode === "edition" && typeof onLinkLineToCurrentPage === "function" && (
-                          <div className={`dropdown dropdown-end shrink-0 ${lineMenuGroupId === group.id ? "dropdown-open" : ""}`}>
-                            <button
-                              type="button"
-                              className="btn btn-ghost btn-xs gap-0.5"
-                              onClick={() => setLineMenuGroupId((prev) => (prev === group.id ? null : group.id))}
-                            >
-                              + Link line
-                            </button>
-                            <ul className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-56 max-h-56 overflow-y-auto border border-base-300">
-                              {linkable.length === 0 ? (
-                                <li>
-                                  <span className="text-xs text-base-content/50 px-2">
-                                    No other lines in this group
-                                  </span>
-                                </li>
-                              ) : (
-                                linkable.map((line) => (
-                                  <li key={line.id}>
-                                    <button
-                                      type="button"
-                                      className="text-left text-sm"
-                                      onClick={() => {
-                                        onLinkLineToCurrentPage(line.id);
-                                        setLineMenuGroupId(null);
-                                      }}
-                                    >
-                                      {line.name || line.id}
-                                    </button>
-                                  </li>
-                                ))
-                              )}
-                            </ul>
-                          </div>
-                        )}
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-base-content/70 truncate">
+                          {group.label}
+                        </p>
+                        {group.description ? (
+                          <p className="text-xs text-base-content/55 truncate">{group.description}</p>
+                        ) : null}
                       </div>
                       {group.lines.length === 0 ? (
                         <p className="text-xs text-base-content/50">No lines in this group</p>
@@ -271,8 +208,7 @@ function SidePanelLines({
                         </ul>
                       )}
                     </li>
-                  );
-                })}
+                ))}
             </ul>
             {systemsManagedExternally && (
               <p className="text-xs text-base-content/60 mt-3">

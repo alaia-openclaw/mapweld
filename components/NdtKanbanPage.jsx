@@ -21,6 +21,7 @@ import {
   isWeldRepairNeeded,
   isWeldAlreadyAcceptedForMethod,
   computeNdtSelection,
+  getWeldDisambiguatedLabel,
 } from "@/lib/weld-utils";
 import { useNdtScope } from "@/contexts/NdtScopeContext";
 import FormNdtRequest from "@/components/FormNdtRequest";
@@ -61,6 +62,9 @@ function NdtKanbanPage({
   setWeldPoints,
   drawingSettings = {},
   getWeldName,
+  drawings = [],
+  lines = [],
+  spools = [],
   onClose,
 }) {
   const ndtContext = useNdtScope();
@@ -99,6 +103,11 @@ function NdtKanbanPage({
   }, [activeTab, methodOptions]);
 
   const method = activeTab;
+
+  const weldLabelContext = useMemo(
+    () => ({ drawings, lines, spools, weldPoints }),
+    [drawings, lines, spools, weldPoints]
+  );
 
   const groupedWelds = useMemo(() => {
     const ready = [];
@@ -215,7 +224,7 @@ function NdtKanbanPage({
       `Date: ${new Date().toISOString().slice(0, 10)}`,
       "",
       "Welds:",
-      ...welds.map((w) => `- ${getWeldName(w, weldPoints)}`),
+      ...welds.map((w) => `- ${getWeldDisambiguatedLabel(w, weldLabelContext)}`),
     ];
     const text = lines.join("\n");
     const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
@@ -479,9 +488,9 @@ function NdtKanbanPage({
                             draggable
                             onDragStart={(e) => handleDragStart(e, "weld", { weldId: w.id })}
                             onDragEnd={handleDragEnd}
-                            className="px-2 py-1 rounded bg-base-100 border border-base-300 cursor-grab active:cursor-grabbing text-sm truncate"
+                            className="px-2 py-1 rounded bg-base-100 border border-base-300 cursor-grab active:cursor-grabbing text-xs leading-snug break-words"
                           >
-                            {getWeldName(w, weldPoints)}
+                            {getWeldDisambiguatedLabel(w, weldLabelContext)}
                           </li>
                         ))}
                       </ul>
@@ -530,7 +539,9 @@ function NdtKanbanPage({
                           onDragEnd={handleDragEnd}
                           className="flex items-center justify-between gap-1 px-2 py-0.5 rounded bg-base-200 text-xs"
                         >
-                          <span className="truncate">{w ? getWeldName(w, weldPoints) : weldId}</span>
+                          <span className="min-w-0 break-words leading-snug">
+                            {w ? getWeldDisambiguatedLabel(w, weldLabelContext) : weldId}
+                          </span>
                           <button
                             type="button"
                             className="btn btn-ghost btn-xs px-1 min-h-0 h-5"
@@ -641,13 +652,13 @@ function NdtKanbanPage({
                   <ul className="mt-1 space-y-0.5">
                     {(report.weldResults || []).slice(0, 5).map((wr) => {
                       const w = weldPoints.find((p) => p.id === wr.weldId);
-                      const name = w ? getWeldName(w, weldPoints) : wr.weldId;
+                      const name = w ? getWeldDisambiguatedLabel(w, weldLabelContext) : wr.weldId;
                       const statusLabel = getResultLabel(wr.result);
                       const statusClass = getResultClass(wr.result);
                       return (
                         <li key={wr.weldId} className="flex items-center justify-between gap-1 px-2 py-0.5 rounded bg-base-200 text-xs">
-                          <span className="truncate flex items-center gap-1 min-w-0">
-                            <span className="truncate">{name}</span>
+                          <span className="min-w-0 flex items-start gap-1">
+                            <span className="break-words leading-snug">{name}</span>
                             {statusLabel && <span className={`flex-shrink-0 font-medium ${statusClass}`}>· {statusLabel}</span>}
                           </span>
                           <button
@@ -702,12 +713,12 @@ function NdtKanbanPage({
                   <ul className="mt-1 space-y-0.5">
                     {(report.weldResults || []).slice(0, 5).map((wr) => {
                       const w = weldPoints.find((p) => p.id === wr.weldId);
-                      const name = w ? getWeldName(w, weldPoints) : wr.weldId;
+                      const name = w ? getWeldDisambiguatedLabel(w, weldLabelContext) : wr.weldId;
                       const statusLabel = getResultLabel(wr.result);
                       const statusClass = getResultClass(wr.result);
                       return (
-                        <li key={wr.weldId} className="px-2 py-0.5 rounded bg-base-200 text-xs flex items-center gap-1">
-                          <span className="truncate">{name}</span>
+                        <li key={wr.weldId} className="px-2 py-0.5 rounded bg-base-200 text-xs flex items-start gap-1">
+                          <span className="min-w-0 break-words leading-snug">{name}</span>
                           {statusLabel && <span className={`flex-shrink-0 font-medium ${statusClass}`}>· {statusLabel}</span>}
                         </li>
                       );
@@ -805,8 +816,8 @@ function NdtKanbanPage({
                       {(req.weldIds || []).map((weldId) => {
                         const w = weldPoints.find((p) => p.id === weldId);
                         return (
-                          <li key={weldId} className="text-xs">
-                            {w ? getWeldName(w, weldPoints) : weldId}
+                          <li key={weldId} className="text-xs break-words leading-snug">
+                            {w ? getWeldDisambiguatedLabel(w, weldLabelContext) : weldId}
                           </li>
                         );
                       })}

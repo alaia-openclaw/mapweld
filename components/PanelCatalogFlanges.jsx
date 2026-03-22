@@ -85,8 +85,7 @@ function CardFlangeDrawing({ standard, activeSubtype, selectedRow }) {
   const id = selectedRow?.attributes?.ID ?? selectedRow?.attributes?.id;
   const od = selectedRow?.od ?? selectedRow?.attributes?.od;
   const pcd = selectedRow?.pcd ?? selectedRow?.attributes?.pcd;
-  const faceThickness =
-    selectedRow?.attributes?.thickness ?? selectedRow?.thickness;
+  const faceThickness = selectedRow?.attributes?.thickness;
   const hubHeight =
     selectedRow?.attributes?.["hub-x"] ??
     selectedRow?.attributes?.["hub height"] ??
@@ -187,7 +186,7 @@ function TableFlangeDimensions({
             <th>System</th>
             <th>Rating</th>
             <th>NPS / NB</th>
-            <th title="Same ASME pipe wall schedule as Pipe and butt-weld fittings (bore / mating pipe): STD, XS, 40, 80S, … — from the Schedule column in Pipedata CSV when present; not flange neck thickness.">
+            <th title="Same ASME pipe wall schedule as Pipe and butt-weld fittings (bore / mating pipe): STD, XS, 40, 80S, … — from Pipedata CSV columns such as Sch or Schedule when present; not the flange face column named thickness.">
               Pipe schedule
             </th>
             <th>{isMetric ? "OD (mm)" : "OD (in)"}</th>
@@ -298,8 +297,8 @@ function PanelCatalogFlanges({
     [allBaseRows]
   );
 
-  const showWallDropdown =
-    showWallScheduleOnBar(activeSubtypeId, activeStandard?.subtypes) && uniqueWall.length > 1;
+  const showPipeScheduleFacet =
+    showWallScheduleOnBar(activeSubtypeId, activeStandard?.subtypes) && uniqueWall.length > 0;
 
   const [selectedRow, setSelectedRow] = useState(null);
 
@@ -385,7 +384,7 @@ function PanelCatalogFlanges({
             onSelect={(id) => setActiveNps(id)}
           />
         ) : null}
-        {showWallDropdown ? (
+        {showPipeScheduleFacet ? (
           <CatalogFacetDropdown
             label="Pipe schedule"
             options={[{ id: "", label: "All" }, ...wallOptions]}
@@ -408,7 +407,7 @@ function PanelCatalogFlanges({
     activeFaceType,
     npsOptions,
     activeNps,
-    showWallDropdown,
+    showPipeScheduleFacet,
     wallOptions,
     activeWall,
   ]);
@@ -432,7 +431,7 @@ function PanelCatalogFlanges({
             activeFaceType={activeFaceType}
             activeNps={activeNps}
             activeWall={activeWall}
-            showWallBar={showWallDropdown}
+            showWallBar={showPipeScheduleFacet}
           />
         </div>
       </div>

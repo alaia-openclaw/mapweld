@@ -35,7 +35,7 @@ function fileToBase64(file) {
 /**
  * @typedef {object} ModalSettingsStructureIntegration
  * @property {object} [drawings] — props for SidePanelDrawings (except hideHeader, isOpen, onToggle)
- * @property {object} [lines] — lines, spools, onSaveLines, onSaveSpools, onLinkLineToCurrentPage, appMode
+ * @property {object} [lines] — lines, spools, onSaveLines, onSaveSpools, appMode
  * @property {object} [spools] — spools, parts, lines, spoolMarkers, weldPoints, weldStatusByWeldId, getWeldName, onSave, onAssignWeldToSpool, onAssignPartToSpool, appMode
  * @property {object} [welds] — project-wide weld table: weldPoints, weldStatusByWeldId, getWeldName, spools, parts, lines, personnel, wpsLibrary, electrodeLibrary, drawingSettings, ndtAutoLabel, appMode, onSave, onDelete, onUpdatePartHeat
  */
@@ -62,6 +62,8 @@ function ModalSettings({
   onSave,
   /** When set, tree includes Drawings / Systems & lines / Spools / Welds with full-project editors */
   structureIntegration = null,
+  /** Settings → WPS: jump to weld on canvas (switches drawing/page when needed) */
+  onSelectWeldFromSettings = null,
 }) {
   const [activeSection, setActiveSection] = useState("project-info");
   /** Isolated weld picker state for Settings → Structure → Welds (avoid coupling to main canvas selection). */
@@ -372,13 +374,16 @@ function ModalSettings({
     setProjectSystems(nextSystems);
   }
 
-  function handleAddWps() {
+  function handleAddWps(initial) {
+    const init = initial && typeof initial === "object" ? initial : {};
+    const codeFromInit = typeof init.code === "string" ? init.code.trim().toUpperCase() : "";
+    const titleFromInit = typeof init.title === "string" ? init.title.trim() : "";
     const nextWpsLibrary = [
       ...projectWpsLibrary,
       {
         id: generateId(),
-        code: "",
-        title: "",
+        code: codeFromInit,
+        title: titleFromInit,
         description: "",
         documentId: null,
       },
@@ -844,11 +849,13 @@ function ModalSettings({
               personnel={personnel}
               wpsDocuments={wpsDocuments}
               drawings={drawings}
+              systems={projectSystems}
               lines={lines}
               spools={spools}
               onAddWps={handleAddWps}
               onUpdateWps={handleUpdateWps}
               onRemoveWps={handleRemoveWps}
+              onSelectWeld={onSelectWeldFromSettings}
               onRequestWpsUpload={(wpsId) => {
                 wpsUploadTargetRef.current = wpsId;
                 wpsUploadInputRef.current?.click();

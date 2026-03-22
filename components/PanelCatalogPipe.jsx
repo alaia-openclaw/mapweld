@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useLayoutEffect } from "react";
+import { useMemo, useState, useEffect, useLayoutEffect } from "react";
 import { matchEntrySearch, entryMatchesCatalogUnitSystem } from "@/lib/catalog-structure";
 import {
   CatalogFacetDropdown,
@@ -23,6 +23,7 @@ function uniqueSortedStrings(values) {
 export default function PanelCatalogPipe({ entries, search = "", catalogUnitSystem }) {
   const [scheduleFilter, setScheduleFilter] = useState("");
   const [formFilter, setFormFilter] = useState("");
+  const [npsFilter, setNpsFilter] = useState("");
   const { setToolbar } = useCatalogToolbar();
 
   const scheduleOptions = useMemo(
@@ -35,10 +36,27 @@ export default function PanelCatalogPipe({ entries, search = "", catalogUnitSyst
     [entries]
   );
 
+  const npsOptions = useMemo(
+    () => uniqueSortedStrings(entries.map((e) => e.nps)),
+    [entries]
+  );
+
+  useEffect(() => {
+    setNpsFilter("");
+  }, [catalogUnitSystem]);
+
   useLayoutEffect(() => {
     setToolbar(
       <>
         <CatalogReadOnlyFacet label="Category" value="Pipe" />
+        {npsOptions.length > 0 ? (
+          <CatalogFacetDropdown
+            label="Size (NPS / NB)"
+            options={[{ id: "", label: "All sizes" }, ...npsOptions.map((n) => ({ id: n, label: n }))]}
+            activeId={npsFilter}
+            onSelect={setNpsFilter}
+          />
+        ) : null}
         {scheduleOptions.length > 0 ? (
           <CatalogFacetDropdown
             label="Schedule"
@@ -47,7 +65,7 @@ export default function PanelCatalogPipe({ entries, search = "", catalogUnitSyst
             onSelect={setScheduleFilter}
           />
         ) : null}
-        {formOptions.length > 1 ? (
+        {formOptions.length > 0 ? (
           <CatalogFacetDropdown
             label="Form"
             options={[{ id: "", label: "All" }, ...formOptions.map((f) => ({ id: f, label: f }))]}
@@ -58,17 +76,18 @@ export default function PanelCatalogPipe({ entries, search = "", catalogUnitSyst
       </>
     );
     return () => setToolbar(null);
-  }, [setToolbar, scheduleOptions, formOptions, scheduleFilter, formFilter]);
+  }, [setToolbar, npsOptions, scheduleOptions, formOptions, npsFilter, scheduleFilter, formFilter]);
 
   const filtered = useMemo(() => {
     return entries.filter((e) => {
       if (!entryMatchesCatalogUnitSystem(e, catalogUnitSystem)) return false;
+      if (npsFilter && String(e.nps ?? "").trim() !== npsFilter) return false;
       if (scheduleFilter && String(e.attributes?.schedule ?? "") !== scheduleFilter) return false;
       if (formFilter && String(e.attributes?.pipeForm ?? "Seamless") !== formFilter) return false;
       if (!matchEntrySearch(e, search)) return false;
       return true;
     });
-  }, [entries, catalogUnitSystem, scheduleFilter, formFilter, search]);
+  }, [entries, catalogUnitSystem, npsFilter, scheduleFilter, formFilter, search]);
 
   if (!entries.length) {
     return (

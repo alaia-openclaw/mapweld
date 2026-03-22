@@ -7,10 +7,10 @@ function generateId() {
   return `wiz-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-const STEP_LABELS = ["Project", "Personnel", "NDT & spec", "Systems", "WPS library", "Done"];
+const STEP_LABELS = ["Project", "Personnel", "NDT", "WPS library", "Systems", "Done"];
 
 /**
- * Guided new-project setup: identity → personnel → NDT/spec → systems → WPS → finish.
+ * Guided new-project setup: identity → personnel → NDT → WPS library → systems → finish.
  */
 function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
   const [step, setStep] = useState(0);
@@ -30,7 +30,6 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
   const [wqrCodeInput, setWqrCodeInput] = useState("");
 
   const [ndtRequirements, setNdtRequirements] = useState([]);
-  const [weldingSpec, setWeldingSpec] = useState("");
   const [customNdtMethod, setCustomNdtMethod] = useState("");
 
   const [systems, setSystems] = useState([]);
@@ -52,7 +51,6 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
     setEditingWelderId(null);
     setWqrCodeInput("");
     setNdtRequirements([]);
-    setWeldingSpec("");
     setCustomNdtMethod("");
     setSystems([]);
     setWpsEntries([]);
@@ -139,7 +137,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
         date: metaDate,
       },
       personnel: { fitters, welders, wqrs },
-      drawingSettings: { ndtRequirements, weldingSpec: weldingSpec.trim() },
+      drawingSettings: { ndtRequirements, weldingSpec: "" },
       systems,
       wpsLibrary: wpsEntries,
     });
@@ -262,8 +260,14 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                     value={fitterInput}
                     onChange={(e) => setFitterInput(e.target.value)}
                     placeholder="Fitter name"
+                    aria-label="Fitter name"
                   />
-                  <button type="submit" className="btn btn-primary btn-sm">
+                  <button
+                    type="submit"
+                    className="btn btn-primary btn-sm"
+                    disabled={!fitterInput.trim()}
+                    title={!fitterInput.trim() ? "Enter a name first" : undefined}
+                  >
                     Add
                   </button>
                 </form>
@@ -287,8 +291,14 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                     value={welderInput}
                     onChange={(e) => setWelderInput(e.target.value)}
                     placeholder="Welder name"
+                    aria-label="Welder name"
                   />
-                  <button type="submit" className="btn btn-primary btn-sm">
+                  <button
+                    type="submit"
+                    className="btn btn-primary btn-sm"
+                    disabled={!welderInput.trim()}
+                    title={!welderInput.trim() ? "Enter a name first" : undefined}
+                  >
                     Add
                   </button>
                 </form>
@@ -335,7 +345,18 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                       onChange={(e) => setWqrCodeInput(e.target.value)}
                       placeholder="WQR code"
                     />
-                    <button type="submit" className="btn btn-ghost btn-sm" disabled={!editingWelderId}>
+                    <button
+                      type="submit"
+                      className="btn btn-ghost btn-sm"
+                      disabled={!editingWelderId || !wqrCodeInput.trim()}
+                      title={
+                        !editingWelderId
+                          ? "Choose a welder first"
+                          : !wqrCodeInput.trim()
+                            ? "Enter a WQR code first"
+                            : undefined
+                      }
+                    >
                       Add WQR
                     </button>
                   </form>
@@ -374,7 +395,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
 
           {step === 2 && (
             <div className="space-y-4">
-              <p className="text-sm text-base-content/70">Default NDT requirements and welding specification for this project.</p>
+              <p className="text-sm text-base-content/70">Default NDT requirements for this project.</p>
               <div className="space-y-2">
                 {ndtRequirements.map((r) => (
                   <div key={r.method} className="flex flex-wrap items-center gap-2 p-2 bg-base-200 rounded-lg">
@@ -437,96 +458,15 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                   + Add custom
                 </button>
               </div>
-              <div className="form-control">
-                <label className="label py-1"><span className="label-text">Welding spec</span></label>
-                <input
-                  type="text"
-                  className="input input-bordered input-xs w-full"
-                  value={weldingSpec}
-                  onChange={(e) => setWeldingSpec(e.target.value)}
-                  placeholder="e.g. WPS-001, ASME IX"
-                />
-              </div>
             </div>
           )}
 
           {step === 3 && (
             <div className="space-y-4">
-              <p className="text-sm text-base-content/70">Systems group lines for traceability. Optional — you can add more later.</p>
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
-                onClick={() =>
-                  setSystems((prev) => [
-                    ...prev,
-                    {
-                      id: generateId(),
-                      name: `System ${prev.length + 1}`,
-                      description: "",
-                      wps: "",
-                      ndtRequirements: [],
-                    },
-                  ])
-                }
-              >
-                + Add system
-              </button>
-              <ul className="space-y-2">
-                {systems.map((sys) => (
-                  <li key={sys.id} className="p-2 bg-base-200 rounded-lg space-y-2">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <input
-                        type="text"
-                        className="input input-bordered input-xs"
-                        value={sys.name}
-                        onChange={(e) =>
-                          setSystems((prev) => prev.map((s) => (s.id === sys.id ? { ...s, name: e.target.value } : s)))
-                        }
-                        placeholder="System name"
-                      />
-                      <input
-                        type="text"
-                        className="input input-bordered input-xs"
-                        value={sys.description || ""}
-                        onChange={(e) =>
-                          setSystems((prev) =>
-                            prev.map((s) => (s.id === sys.id ? { ...s, description: e.target.value } : s))
-                          )
-                        }
-                        placeholder="Description"
-                      />
-                    </div>
-                    <input
-                      type="text"
-                      className="input input-bordered input-xs w-full"
-                      value={sys.wps || ""}
-                      onChange={(e) =>
-                        setSystems((prev) =>
-                          prev.map((s) => (s.id === sys.id ? { ...s, wps: e.target.value } : s))
-                        )
-                      }
-                      placeholder="Default WPS for this system (optional)"
-                    />
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-xs text-error"
-                        onClick={() => setSystems((prev) => prev.filter((s) => s.id !== sys.id))}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-              {systems.length === 0 && <p className="text-sm text-base-content/50">No systems yet.</p>}
-            </div>
-          )}
-
-          {step === 4 && (
-            <div className="space-y-4">
               <p className="text-sm text-base-content/70">
-                Register WPS codes used on welds. Link PDFs later in <strong>Settings</strong> if needed. You can also set default WPS per system (above) or per line in the Lines panel.
+                Register WPS codes used on welds. Link PDFs later in <strong>Settings</strong> if needed. On the next
+                step you can pick a default WPS per system from this list; you can also set WPS per line later in the
+                Lines panel.
               </p>
               <button
                 type="button"
@@ -578,6 +518,98 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                 ))}
               </ul>
               {wpsEntries.length === 0 && <p className="text-sm text-base-content/50">No WPS entries yet — optional.</p>}
+            </div>
+          )}
+
+          {step === 4 && (
+            <div className="space-y-4">
+              <p className="text-sm text-base-content/70">
+                Systems group lines for traceability. Optional — you can add more later.
+                {wpsEntries.length === 0
+                  ? " Add WPS codes on the previous step if you want a default WPS dropdown here."
+                  : " Choose a default WPS per system from your WPS library when applicable."}
+              </p>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() =>
+                  setSystems((prev) => [
+                    ...prev,
+                    {
+                      id: generateId(),
+                      name: `System ${prev.length + 1}`,
+                      description: "",
+                      wps: "",
+                      ndtRequirements: [],
+                    },
+                  ])
+                }
+              >
+                + Add system
+              </button>
+              <ul className="space-y-2">
+                {systems.map((sys) => (
+                  <li key={sys.id} className="p-2 bg-base-200 rounded-lg space-y-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        className="input input-bordered input-xs"
+                        value={sys.name}
+                        onChange={(e) =>
+                          setSystems((prev) => prev.map((s) => (s.id === sys.id ? { ...s, name: e.target.value } : s)))
+                        }
+                        placeholder="System name"
+                      />
+                      <input
+                        type="text"
+                        className="input input-bordered input-xs"
+                        value={sys.description || ""}
+                        onChange={(e) =>
+                          setSystems((prev) =>
+                            prev.map((s) => (s.id === sys.id ? { ...s, description: e.target.value } : s))
+                          )
+                        }
+                        placeholder="Description"
+                      />
+                    </div>
+                    {wpsEntries.length > 0 ? (
+                      <div className="form-control">
+                        <label className="label py-0" htmlFor={`wiz-sys-wps-${sys.id}`}>
+                          <span className="label-text text-xs">Default WPS for this system</span>
+                        </label>
+                        <select
+                          id={`wiz-sys-wps-${sys.id}`}
+                          className="select select-bordered select-xs w-full"
+                          value={wpsEntries.some((w) => w.code === sys.wps) ? sys.wps : ""}
+                          onChange={(e) =>
+                            setSystems((prev) =>
+                              prev.map((s) => (s.id === sys.id ? { ...s, wps: e.target.value } : s))
+                            )
+                          }
+                        >
+                          <option value="">— None —</option>
+                          {wpsEntries.map((w) => (
+                            <option key={w.id} value={w.code}>
+                              {w.code}
+                              {w.title ? ` — ${w.title}` : ""}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : null}
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-xs text-error"
+                        onClick={() => setSystems((prev) => prev.filter((s) => s.id !== sys.id))}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              {systems.length === 0 && <p className="text-sm text-base-content/50">No systems yet.</p>}
             </div>
           )}
 

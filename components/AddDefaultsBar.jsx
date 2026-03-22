@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useEffect } from "react";
 import { PART_TYPE_LABELS, WELD_LOCATION_LABELS } from "@/lib/constants";
 import { getCategories } from "@/lib/part-catalog";
 import { getHierarchyForCategory } from "@/lib/catalog-hierarchy";
@@ -45,6 +45,28 @@ function AddDefaultsBar({
   const showPart = markupTool === "addPart";
   const showLine = markupTool === "addLine";
   const spoolLineChoices = Array.isArray(linesForSpoolDefault) ? linesForSpoolDefault : lines;
+
+  const selectedSpool = useMemo(
+    () => (addDefaults?.spoolId ? spools.find((s) => s.id === addDefaults.spoolId) : null),
+    [addDefaults?.spoolId, spools]
+  );
+  const lineIdLockedBySpool = selectedSpool?.lineId ?? null;
+  const lockedLineLabel = useMemo(() => {
+    if (!lineIdLockedBySpool) return "";
+    const line =
+      lines.find((l) => l.id === lineIdLockedBySpool) ||
+      spoolLineChoices.find((l) => l.id === lineIdLockedBySpool);
+    return line ? String(line.name || line.id).trim() || lineIdLockedBySpool : lineIdLockedBySpool;
+  }, [lineIdLockedBySpool, lines, spoolLineChoices]);
+
+  const showSpoolLineControl =
+    showSpoolLineDefaults && (spoolLineChoices.length > 0 || Boolean(lineIdLockedBySpool));
+
+  useEffect(() => {
+    if (!lineIdLockedBySpool || !onAddDefaultsChange) return;
+    if (addDefaults?.spoolLineId === lineIdLockedBySpool) return;
+    onAddDefaultsChange({ ...addDefaults, spoolLineId: lineIdLockedBySpool });
+  }, [lineIdLockedBySpool, addDefaults, onAddDefaultsChange]);
 
   function handleCatalogLeafChange(leafId) {
     if (!leafId) {
@@ -133,26 +155,40 @@ function AddDefaultsBar({
           </select>
         </div>
       )}
-      {showSpoolLineDefaults && spoolLineChoices.length > 0 && (
+      {showSpoolLineControl && (
         <div className="flex items-center gap-1">
-          <label htmlFor="default-spool-line" className="text-[11px] text-base-content/60 whitespace-nowrap">
+          <label
+            htmlFor={lineIdLockedBySpool ? undefined : "default-spool-line"}
+            className="text-[11px] text-base-content/60 whitespace-nowrap"
+          >
             Line
           </label>
-          <select
-            id="default-spool-line"
-            className="select select-bordered select-xs h-7 min-h-7 py-0.5 w-24 max-w-full text-xs"
-            value={addDefaults?.spoolLineId ?? ""}
-            onChange={(e) =>
-              onAddDefaultsChange?.({ ...addDefaults, spoolLineId: e.target.value || null })
-            }
-          >
-            <option value="">—</option>
-            {spoolLineChoices.map((line) => (
-              <option key={line.id} value={line.id}>
-                {line.name || line.id}
-              </option>
-            ))}
-          </select>
+          {lineIdLockedBySpool ? (
+            <div
+              className="flex items-center h-7 min-h-7 min-w-[6rem] max-w-[10rem] px-2 rounded-md border border-base-300 bg-base-300/40 text-xs text-base-content/50 cursor-not-allowed truncate"
+              title="This spool is already linked to a line — line is inherited for new welds and spool markers."
+              role="status"
+              aria-live="polite"
+            >
+              {lockedLineLabel}
+            </div>
+          ) : (
+            <select
+              id="default-spool-line"
+              className="select select-bordered select-xs h-7 min-h-7 py-0.5 w-24 max-w-full text-xs"
+              value={addDefaults?.spoolLineId ?? ""}
+              onChange={(e) =>
+                onAddDefaultsChange?.({ ...addDefaults, spoolLineId: e.target.value || null })
+              }
+            >
+              <option value="">—</option>
+              {spoolLineChoices.map((line) => (
+                <option key={line.id} value={line.id}>
+                  {line.name || line.id}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       )}
       {showPart && (
