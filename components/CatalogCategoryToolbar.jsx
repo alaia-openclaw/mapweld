@@ -89,6 +89,10 @@ export const catalogTableScrollClass =
 /** DaisyUI table — keep in sync across all part catalog categories. */
 export const catalogTableClassName = "table table-xs table-pin-rows";
 
+/** Main catalog grid: data table first (left / wider), diagram / image second. */
+export const catalogMainGridClass =
+  "flex-1 grid grid-cols-1 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,0.95fr)] gap-3 min-h-0 p-3";
+
 /** Small icon button for catalog panel toolbars (neutral — not primary bar). */
 export function CatalogToolbarIconButton({ title, children, onClick }) {
   return (

@@ -49,6 +49,7 @@ function SettingsPersonnelRegistry({
   lines = [],
   spools = [],
   wpsLibrary = [],
+  drawingSettings = {},
   variant = "full",
   onAddFitter,
   onRemoveFitter,
@@ -100,7 +101,7 @@ function SettingsPersonnelRegistry({
     (welds) => {
       const codes = new Set();
       for (const w of welds) {
-        const code = (getResolvedWpsCode(w, systems, lines, spools) || "").trim();
+        const code = (getResolvedWpsCode(w, systems, lines, spools, drawingSettings) || "").trim();
         if (code) codes.add(code);
         const libId = w.wpsLibraryEntryId;
         if (libId) {
@@ -110,7 +111,7 @@ function SettingsPersonnelRegistry({
       }
       return [...codes].filter(Boolean).sort((a, b) => a.localeCompare(b));
     },
-    [systems, lines, spools, wpsLibrary]
+    [systems, lines, spools, wpsLibrary, drawingSettings]
   );
 
   function renderWqrRow(wqr) {

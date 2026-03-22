@@ -116,6 +116,7 @@ export default function WeldTrackerApp() {
   const [drawingSettings, setDrawingSettings] = useState({
     ndtRequirements: [],
     weldingSpec: "",
+    defaultWps: "",
   });
   const [appMode, setAppMode] = useState("edition");
   const [markupTool, setMarkupTool] = useState("select");
@@ -993,7 +994,8 @@ export default function WeldTrackerApp() {
       parts: normalizedParts,
       partMarkers: normalizedPartMarkers,
       personnel: data.personnel || { fitters: [], welders: [], wqrs: [] },
-      drawingSettings: migrateDrawingSettings(data.drawingSettings) || { ndtRequirements: [], weldingSpec: "" },
+      drawingSettings:
+        migrateDrawingSettings(data.drawingSettings) || { ndtRequirements: [], weldingSpec: "", defaultWps: "" },
       ndtRequests: Array.isArray(data.ndtRequests) ? data.ndtRequests : [],
       ndtReports: Array.isArray(data.ndtReports) ? data.ndtReports : [],
       addDefaults:
@@ -1540,8 +1542,8 @@ export default function WeldTrackerApp() {
   }, []);
 
   const ndtContext = useMemo(
-    () => ({ systems, lines, spools, parts }),
-    [systems, lines, spools, parts]
+    () => ({ systems, lines, spools, parts, drawingSettings }),
+    [systems, lines, spools, parts, drawingSettings]
   );
 
   const handleExportExcel = useCallback(() => {
@@ -1945,7 +1947,13 @@ export default function WeldTrackerApp() {
   );
 
   return (
-    <NdtScopeProvider systems={systems} lines={lines} spools={spools} parts={parts}>
+    <NdtScopeProvider
+      systems={systems}
+      lines={lines}
+      spools={spools}
+      parts={parts}
+      drawingSettings={drawingSettings}
+    >
     <div className="md:container md:mx-auto p-0 md:p-4">
       <>
         <OfflineBanner />

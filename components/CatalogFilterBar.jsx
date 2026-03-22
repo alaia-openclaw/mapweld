@@ -1,12 +1,19 @@
 "use client";
 
 import { CATALOG_UNIT_SYSTEMS } from "@/lib/catalog-structure";
+import CatalogFacetControls from "@/components/CatalogFacetControls";
 
 export default function CatalogFilterBar({
   search,
   onSearchChange,
   catalogUnitSystem = CATALOG_UNIT_SYSTEMS[0],
   onCatalogUnitSystemChange,
+  selectedId = "",
+  catalogFacets = {},
+  onFacetChange,
+  pipeEntries = [],
+  fittingsEntries = [],
+  flangesStandards = [],
 }) {
   return (
     <div className="shrink-0 flex flex-wrap items-end gap-2 gap-y-2 px-3 py-2 border-b border-base-300 bg-base-200/60">
@@ -55,6 +62,16 @@ export default function CatalogFilterBar({
           Clear search
         </button>
       ) : null}
+      <CatalogFacetControls
+        selectedId={selectedId}
+        search={search}
+        catalogUnitSystem={catalogUnitSystem}
+        pipeEntries={pipeEntries}
+        fittingsEntries={fittingsEntries}
+        flangesStandards={flangesStandards}
+        catalogFacets={catalogFacets}
+        onFacetChange={onFacetChange}
+      />
     </div>
   );
 }

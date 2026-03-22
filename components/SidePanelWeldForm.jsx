@@ -91,12 +91,24 @@ function SidePanelWeldForm({
   const ndtContext = useNdtScope();
   const inheritedWpsCode = useMemo(() => {
     if (!weld || !ndtContext) return "";
-    return getInheritedWpsCode(weld, ndtContext.systems, ndtContext.lines, ndtContext.spools);
-  }, [weld, ndtContext]);
+    return getInheritedWpsCode(
+      weld,
+      ndtContext.systems,
+      ndtContext.lines,
+      ndtContext.spools,
+      ndtContext.drawingSettings ?? drawingSettings
+    );
+  }, [weld, ndtContext, drawingSettings]);
   const inheritedWpsSource = useMemo(() => {
     if (!weld || !ndtContext) return null;
-    return getInheritedWpsSource(weld, ndtContext.systems, ndtContext.lines, ndtContext.spools);
-  }, [weld, ndtContext]);
+    return getInheritedWpsSource(
+      weld,
+      ndtContext.systems,
+      ndtContext.lines,
+      ndtContext.spools,
+      ndtContext.drawingSettings ?? drawingSettings
+    );
+  }, [weld, ndtContext, drawingSettings]);
   const [weldType, setWeldType] = useState("butt");
   const [weldLocation, setWeldLocation] = useState("shop");
   const [wps, setWps] = useState("");
@@ -234,7 +246,13 @@ function SidePanelWeldForm({
         Array.isArray(ndtContext.systems) &&
         Array.isArray(ndtContext.lines) &&
         Array.isArray(ndtContext.spools)
-          ? getResolvedWpsCode(w, ndtContext.systems, ndtContext.lines, ndtContext.spools)
+          ? getResolvedWpsCode(
+              w,
+              ndtContext.systems,
+              ndtContext.lines,
+              ndtContext.spools,
+              ndtContext.drawingSettings ?? drawingSettings
+            )
           : (w.wps || "").trim();
       const spool = spools.find((s) => s.id === w.spoolId);
       const hay = [name, resolved, spool?.name || "", w.id || ""].join(" ").toLowerCase();
@@ -949,8 +967,16 @@ function SidePanelWeldForm({
                                             >
                                               <option value="__inherit__">
                                                 {inheritedWpsCode
-                                                  ? `Inherit (${inheritedWpsSource === "line" ? "line" : inheritedWpsSource === "system" ? "system" : "line/system"}) — ${inheritedWpsCode}`
-                                                  : "Inherit line/system default (none set)"}
+                                                  ? `Inherit (${
+                                                      inheritedWpsSource === "line"
+                                                        ? "line"
+                                                        : inheritedWpsSource === "system"
+                                                          ? "system"
+                                                          : inheritedWpsSource === "project"
+                                                            ? "project"
+                                                            : "default"
+                                                    }) — ${inheritedWpsCode}`
+                                                  : "Inherit line/system/project default (none set)"}
                                               </option>
                                               {libraryWpsRows.length > 0 && (
                                                 <optgroup label="Registered WPS">

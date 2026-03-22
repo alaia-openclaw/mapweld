@@ -1,17 +1,15 @@
 "use client";
 
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useMemo } from "react";
 import {
   getSocketweldedValveRowsForType,
   getSocketweldedValveTypeBySelectionId,
   matchSocketweldedValveRow,
   buildSocketweldedValveTitle,
-  SOCKETWELDED_VALVE_DNS,
-  SOCKETWELDED_VALVE_PRESSURE_CLASSES,
 } from "@/lib/socketwelded-valves-data";
 import {
   catalogPanelOuterClass,
-  catalogPanelToolbarClass,
+  catalogMainGridClass,
   catalogTableScrollClass,
   catalogTableClassName,
 } from "@/components/CatalogCategoryToolbar";
@@ -52,7 +50,12 @@ function SocketweldedValveDiagramSvg({ valveTypeId, dims }) {
   );
 }
 
-export default function PanelCatalogSocketweldedValves({ selectionId, search = "" }) {
+export default function PanelCatalogSocketweldedValves({
+  selectionId,
+  search = "",
+  catalogFacets = {},
+  mergeFacets = () => {},
+}) {
   const typeDef = useMemo(() => getSocketweldedValveTypeBySelectionId(selectionId), [selectionId]);
   const allRows = useMemo(
     () => (typeDef ? getSocketweldedValveRowsForType(typeDef.id) : []),
@@ -65,47 +68,9 @@ export default function PanelCatalogSocketweldedValves({ selectionId, search = "
 
   const sortedRows = useMemo(() => sortRows(rowsFiltered), [rowsFiltered]);
 
-  const dnsOptions = useMemo(() => {
-    const s = new Set(sortedRows.map((r) => r.dn));
-    return s.size ? [...s].sort((a, b) => a - b) : SOCKETWELDED_VALVE_DNS;
-  }, [sortedRows]);
-
-  const classOptions = useMemo(() => {
-    const pcOrder = { "150#": 0, "300#": 1, "600#": 2, "800#": 3 };
-    const s = new Set(sortedRows.map((r) => r.pressureClass));
-    return s.size
-      ? [...s].sort((a, b) => (pcOrder[a] ?? 99) - (pcOrder[b] ?? 99))
-      : SOCKETWELDED_VALVE_PRESSURE_CLASSES;
-  }, [sortedRows]);
-
-  const [rowIndex, setRowIndex] = useState(0);
-
-  useEffect(() => {
-    setRowIndex(0);
-  }, [selectionId, search]);
-
-  useEffect(() => {
-    if (rowIndex >= sortedRows.length) setRowIndex(Math.max(0, sortedRows.length - 1));
-  }, [sortedRows.length, rowIndex]);
-
-  const currentRow = sortedRows[rowIndex] ?? null;
-
-  const onDnChange = useCallback(
-    (dn) => {
-      const idx = sortedRows.findIndex(
-        (r) => r.dn === dn && r.pressureClass === currentRow?.pressureClass
-      );
-      if (idx >= 0) setRowIndex(idx);
-    },
-    [sortedRows, currentRow]
-  );
-
-  const onClassChange = useCallback(
-    (pc) => {
-      const idx = sortedRows.findIndex((r) => r.dn === currentRow?.dn && r.pressureClass === pc);
-      if (idx >= 0) setRowIndex(idx);
-    },
-    [sortedRows, currentRow]
+  const currentRow = useMemo(
+    () => findBvRowFromFacets(sortedRows, catalogFacets),
+    [sortedRows, catalogFacets]
   );
 
   if (!typeDef) {
@@ -123,42 +88,44 @@ export default function PanelCatalogSocketweldedValves({ selectionId, search = "
   return (
     <div className={catalogPanelOuterClass}>
       <div className="flex flex-col flex-1 min-h-0">
-        <div className={catalogPanelToolbarClass}>
-          <div className="flex flex-wrap items-end gap-2 flex-1 justify-center w-full">
-            <label className="form-control">
-              <span className="label-text text-[10px] text-base-content/60">Size (DN)</span>
-              <select
-                className="select select-bordered select-xs w-[4.5rem]"
-                value={currentRow?.dn ?? ""}
-                onChange={(e) => onDnChange(Number(e.target.value))}
-                disabled={!sortedRows.length}
-              >
-                {dnsOptions.map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="form-control">
-              <span className="label-text text-[10px] text-base-content/60">Class</span>
-              <select
-                className="select select-bordered select-xs w-[4.5rem]"
-                value={currentRow?.pressureClass ?? ""}
-                onChange={(e) => onClassChange(e.target.value)}
-                disabled={!sortedRows.length}
-              >
-                {classOptions.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </label>
+        <div className={catalogMainGridClass}>
+          <div className={`${catalogTableScrollClass} min-h-[200px] lg:min-h-0`}>
+            <table className={catalogTableClassName}>
+              <thead>
+                <tr>
+                  <th>DN</th>
+                  <th>Class</th>
+                  <th>Wt (kg)</th>
+                  <th>L (mm)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedRows.map((row, idx) => {
+                  const isSel =
+                    currentRow &&
+                    row.dn === currentRow.dn &&
+                    row.pressureClass === currentRow.pressureClass;
+                  return (
+                    <tr
+                      key={`${row.dn}-${row.pressureClass}-${idx}`}
+                      className={isSel ? "bg-primary/10 cursor-pointer" : "cursor-pointer hover:bg-base-200/80"}
+                      onClick={() =>
+                        mergeFacets({
+                          bv_dn: String(row.dn),
+                          bv_class: row.pressureClass,
+                        })
+                      }
+                    >
+                      <td>{row.dn}</td>
+                      <td>{row.pressureClass}</td>
+                      <td>{row.weightKg ?? "—"}</td>
+                      <td>{lengthMmDisplay(row)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        </div>
-
-        <div className="flex-1 grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)] gap-3 p-3 min-h-0">
           <div className="rounded-lg border border-base-300 bg-base-100 p-3 flex flex-col gap-2 min-h-0 overflow-y-auto">
             {!sortedRows.length ? (
               <p className="text-sm text-base-content/60">No rows match the current search.</p>
@@ -174,35 +141,6 @@ export default function PanelCatalogSocketweldedValves({ selectionId, search = "
                 <p className="text-[11px] text-base-content/75 font-bold">{typeDef.referenceStandard}</p>
               </>
             )}
-          </div>
-          <div className={`${catalogTableScrollClass} min-h-[200px] lg:min-h-0`}>
-            <table className={catalogTableClassName}>
-              <thead>
-                <tr>
-                  <th>DN</th>
-                  <th>Class</th>
-                  <th>Wt (kg)</th>
-                  <th>L (mm)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedRows.map((row, idx) => {
-                  const isSel = rowIndex === idx;
-                  return (
-                    <tr
-                      key={`${row.dn}-${row.pressureClass}-${idx}`}
-                      className={isSel ? "bg-primary/10 cursor-pointer" : "cursor-pointer hover:bg-base-200/80"}
-                      onClick={() => setRowIndex(idx)}
-                    >
-                      <td>{row.dn}</td>
-                      <td>{row.pressureClass}</td>
-                      <td>{row.weightKg ?? "—"}</td>
-                      <td>{lengthMmDisplay(row)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
           </div>
         </div>
       </div>

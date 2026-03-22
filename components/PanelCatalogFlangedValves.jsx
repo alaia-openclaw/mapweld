@@ -1,20 +1,18 @@
 "use client";
 
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useMemo } from "react";
 import {
   FLANGED_VALVE_TYPES,
   getFlangedValveRowsForType,
   getFlangedValveTypeBySelectionId,
   matchFlangedValveRow,
   buildFlangedValveTitle,
-  FLANGED_VALVE_DNS,
-  FLANGED_VALVE_PRESSURE_CLASSES,
   FLANGED_VALVE_FACE_TYPES,
   FLANGED_VALVE_ACTUATORS,
 } from "@/lib/flanged-valves-data";
 import {
   catalogPanelOuterClass,
-  catalogPanelToolbarClass,
+  catalogMainGridClass,
   catalogTableScrollClass,
   catalogTableClassName,
 } from "@/components/CatalogCategoryToolbar";
@@ -36,6 +34,24 @@ function sortRows(rows) {
       return FLANGED_VALVE_ACTUATORS.indexOf(a.actuator) - FLANGED_VALVE_ACTUATORS.indexOf(b.actuator);
     return 0;
   });
+}
+
+function findFlangedRowFromFacets(rows, facets, typeDef) {
+  if (!rows?.length || !typeDef) return null;
+  const dn = facets.v_dn !== undefined && facets.v_dn !== "" ? Number(facets.v_dn) : null;
+  const pc = facets.v_class !== undefined && facets.v_class !== "" ? facets.v_class : null;
+  const face = facets.v_face !== undefined && facets.v_face !== "" ? facets.v_face : null;
+  const act = facets.v_actuator !== undefined && facets.v_actuator !== "" ? facets.v_actuator : null;
+  const toolbarFace = typeDef.toolbar === "face";
+  const match = rows.find((r) => {
+    if (dn != null && r.dn !== dn) return false;
+    if (pc != null && r.pressureClass !== pc) return false;
+    if (toolbarFace) {
+      if (face != null && r.faceType !== face) return false;
+    } else if (act != null && r.actuator !== act) return false;
+    return true;
+  });
+  return match ?? rows[0];
 }
 
 /**
@@ -266,7 +282,12 @@ function FlangedValveDiagramSvg({ valveTypeId, dims }) {
   return null;
 }
 
-export default function PanelCatalogFlangedValves({ selectionId, search = "" }) {
+export default function PanelCatalogFlangedValves({
+  selectionId,
+  search = "",
+  catalogFacets = {},
+  mergeFacets = () => {},
+}) {
   const typeDef = useMemo(() => getFlangedValveTypeBySelectionId(selectionId), [selectionId]);
   const allRows = useMemo(
     () => (typeDef ? getFlangedValveRowsForType(typeDef.id) : []),
@@ -279,83 +300,9 @@ export default function PanelCatalogFlangedValves({ selectionId, search = "" }) 
 
   const sortedRows = useMemo(() => sortRows(rowsFiltered), [rowsFiltered]);
 
-  const dnsOptions = useMemo(() => {
-    const s = new Set(sortedRows.map((r) => r.dn));
-    return s.size ? [...s].sort((a, b) => a - b) : FLANGED_VALVE_DNS;
-  }, [sortedRows]);
-
-  const classOptions = useMemo(() => {
-    const pcOrder = { "150#": 0, "300#": 1, "600#": 2, "900#": 3 };
-    const s = new Set(sortedRows.map((r) => r.pressureClass));
-    return s.size
-      ? [...s].sort((a, b) => (pcOrder[a] ?? 99) - (pcOrder[b] ?? 99))
-      : FLANGED_VALVE_PRESSURE_CLASSES;
-  }, [sortedRows]);
-
-  const faceOptions = useMemo(() => {
-    const s = new Set(sortedRows.map((r) => r.faceType).filter(Boolean));
-    return s.size ? [...s].sort() : FLANGED_VALVE_FACE_TYPES;
-  }, [sortedRows]);
-
-  const actuatorOptions = useMemo(() => {
-    const s = new Set(sortedRows.map((r) => r.actuator).filter(Boolean));
-    return s.size ? [...s].sort() : FLANGED_VALVE_ACTUATORS;
-  }, [sortedRows]);
-
-  const [rowIndex, setRowIndex] = useState(0);
-
-  useEffect(() => {
-    setRowIndex(0);
-  }, [selectionId, search]);
-
-  useEffect(() => {
-    if (rowIndex >= sortedRows.length) setRowIndex(Math.max(0, sortedRows.length - 1));
-  }, [sortedRows.length, rowIndex]);
-
-  const currentRow = sortedRows[rowIndex] ?? null;
-
-  const onDnChange = useCallback(
-    (dn) => {
-      const idx = sortedRows.findIndex((r) =>
-        typeDef?.toolbar === "face"
-          ? r.dn === dn && r.pressureClass === currentRow?.pressureClass && r.faceType === currentRow?.faceType
-          : r.dn === dn && r.pressureClass === currentRow?.pressureClass && r.actuator === currentRow?.actuator
-      );
-      if (idx >= 0) setRowIndex(idx);
-    },
-    [sortedRows, currentRow, typeDef]
-  );
-
-  const onClassChange = useCallback(
-    (pc) => {
-      const idx = sortedRows.findIndex((r) =>
-        typeDef?.toolbar === "face"
-          ? r.dn === currentRow?.dn && r.pressureClass === pc && r.faceType === currentRow?.faceType
-          : r.dn === currentRow?.dn && r.pressureClass === pc && r.actuator === currentRow?.actuator
-      );
-      if (idx >= 0) setRowIndex(idx);
-    },
-    [sortedRows, currentRow, typeDef]
-  );
-
-  const onFaceChange = useCallback(
-    (ft) => {
-      const idx = sortedRows.findIndex(
-        (r) => r.dn === currentRow?.dn && r.pressureClass === currentRow?.pressureClass && r.faceType === ft
-      );
-      if (idx >= 0) setRowIndex(idx);
-    },
-    [sortedRows, currentRow]
-  );
-
-  const onActuatorChange = useCallback(
-    (act) => {
-      const idx = sortedRows.findIndex(
-        (r) => r.dn === currentRow?.dn && r.pressureClass === currentRow?.pressureClass && r.actuator === act
-      );
-      if (idx >= 0) setRowIndex(idx);
-    },
-    [sortedRows, currentRow]
+  const currentRow = useMemo(
+    () => findFlangedRowFromFacets(sortedRows, catalogFacets, typeDef),
+    [sortedRows, catalogFacets, typeDef]
   );
 
   if (!typeDef) {
@@ -377,75 +324,58 @@ export default function PanelCatalogFlangedValves({ selectionId, search = "" }) 
   return (
     <div className={catalogPanelOuterClass}>
       <div className="flex flex-col flex-1 min-h-0">
-        <div className={catalogPanelToolbarClass}>
-          <div className="flex flex-wrap items-end gap-2 flex-1 justify-center w-full">
-            <label className="form-control">
-              <span className="label-text text-[10px] text-base-content/60">Size (DN)</span>
-              <select
-                className="select select-bordered select-xs w-[4.5rem]"
-                value={currentRow?.dn ?? ""}
-                onChange={(e) => onDnChange(Number(e.target.value))}
-                disabled={!sortedRows.length}
-              >
-                {dnsOptions.map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="form-control">
-              <span className="label-text text-[10px] text-base-content/60">Class</span>
-              <select
-                className="select select-bordered select-xs w-[4.5rem]"
-                value={currentRow?.pressureClass ?? ""}
-                onChange={(e) => onClassChange(e.target.value)}
-                disabled={!sortedRows.length}
-              >
-                {classOptions.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {typeDef.toolbar === "face" ? (
-              <label className="form-control">
-                <span className="label-text text-[10px] text-base-content/60">Face</span>
-                <select
-                  className="select select-bordered select-xs w-[4rem]"
-                  value={currentRow?.faceType ?? ""}
-                  onChange={(e) => onFaceChange(e.target.value)}
-                  disabled={!sortedRows.length}
-                >
-                  {faceOptions.map((f) => (
-                    <option key={f} value={f}>
-                      {f}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : (
-              <label className="form-control">
-                <span className="label-text text-[10px] text-base-content/60">Actuator</span>
-                <select
-                  className="select select-bordered select-xs w-[5.5rem]"
-                  value={currentRow?.actuator ?? ""}
-                  onChange={(e) => onActuatorChange(e.target.value)}
-                  disabled={!sortedRows.length}
-                >
-                  {actuatorOptions.map((a) => (
-                    <option key={a} value={a}>
-                      {a}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
+        <div className={catalogMainGridClass}>
+          <div className={`${catalogTableScrollClass} min-h-[200px] lg:min-h-0`}>
+            <table className={catalogTableClassName}>
+              <thead>
+                <tr>
+                  <th>DN</th>
+                  <th>Class</th>
+                  <th>{typeDef.toolbar === "face" ? "Face" : "Actuator"}</th>
+                  <th>Wt (kg)</th>
+                  <th>F-F (mm)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedRows.map((row, idx) => {
+                  const isSel =
+                    currentRow &&
+                    row.dn === currentRow.dn &&
+                    row.pressureClass === currentRow.pressureClass &&
+                    (typeDef.toolbar === "face"
+                      ? row.faceType === currentRow.faceType
+                      : row.actuator === currentRow.actuator);
+                  return (
+                    <tr
+                      key={`${row.dn}-${row.pressureClass}-${row.faceType ?? ""}-${row.actuator ?? ""}-${idx}`}
+                      className={isSel ? "bg-primary/10 cursor-pointer" : "cursor-pointer hover:bg-base-200/80"}
+                      onClick={() =>
+                        mergeFacets(
+                          typeDef.toolbar === "face"
+                            ? {
+                                v_dn: String(row.dn),
+                                v_class: row.pressureClass,
+                                v_face: row.faceType ?? "",
+                              }
+                            : {
+                                v_dn: String(row.dn),
+                                v_class: row.pressureClass,
+                                v_actuator: row.actuator ?? "",
+                              }
+                        )
+                      }
+                    >
+                      <td>{row.dn}</td>
+                      <td>{row.pressureClass}</td>
+                      <td>{typeDef.toolbar === "face" ? row.faceType ?? "—" : row.actuator ?? "—"}</td>
+                      <td>{row.weightKg ?? "—"}</td>
+                      <td>{faceToFaceDisplay(row)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        </div>
-
-        <div className="flex-1 grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)] gap-3 p-3 min-h-0">
           <div className="rounded-lg border border-base-300 bg-base-100 p-3 flex flex-col gap-2 min-h-0 overflow-y-auto">
             {!sortedRows.length ? (
               <p className="text-sm text-base-content/60">No rows match the current search.</p>
@@ -470,37 +400,6 @@ export default function PanelCatalogFlangedValves({ selectionId, search = "" }) 
                 </div>
               </>
             )}
-          </div>
-          <div className={`${catalogTableScrollClass} min-h-[200px] lg:min-h-0`}>
-            <table className={catalogTableClassName}>
-              <thead>
-                <tr>
-                  <th>DN</th>
-                  <th>Class</th>
-                  <th>{typeDef.toolbar === "face" ? "Face" : "Actuator"}</th>
-                  <th>Wt (kg)</th>
-                  <th>F-F (mm)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedRows.map((row, idx) => {
-                  const isSel = rowIndex === idx;
-                  return (
-                    <tr
-                      key={`${row.dn}-${row.pressureClass}-${row.faceType ?? ""}-${row.actuator ?? ""}-${idx}`}
-                      className={isSel ? "bg-primary/10 cursor-pointer" : "cursor-pointer hover:bg-base-200/80"}
-                      onClick={() => setRowIndex(idx)}
-                    >
-                      <td>{row.dn}</td>
-                      <td>{row.pressureClass}</td>
-                      <td>{typeDef.toolbar === "face" ? row.faceType ?? "—" : row.actuator ?? "—"}</td>
-                      <td>{row.weightKg ?? "—"}</td>
-                      <td>{faceToFaceDisplay(row)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
           </div>
         </div>
       </div>

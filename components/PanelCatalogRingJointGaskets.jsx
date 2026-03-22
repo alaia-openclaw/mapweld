@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo } from "react";
 import {
   getRingRowsForType,
   getRingJointTypeBySelectionId,
@@ -10,7 +10,7 @@ import {
 } from "@/lib/ring-joint-gaskets-data";
 import {
   catalogPanelOuterClass,
-  catalogPanelToolbarClass,
+  catalogMainGridClass,
   catalogTableScrollClass,
   catalogTableClassName,
 } from "@/components/CatalogCategoryToolbar";
@@ -169,7 +169,12 @@ function DiagramTypeBx({ row }) {
   );
 }
 
-export default function PanelCatalogRingJointGaskets({ selectionId, search = "" }) {
+export default function PanelCatalogRingJointGaskets({
+  selectionId,
+  search = "",
+  catalogFacets = {},
+  mergeFacets = () => {},
+}) {
   const typeDef = useMemo(() => getRingJointTypeBySelectionId(selectionId), [selectionId]);
 
   const allRows = useMemo(() => (typeDef ? getRingRowsForType(typeDef.id) : []), [typeDef]);
@@ -183,11 +188,12 @@ export default function PanelCatalogRingJointGaskets({ selectionId, search = "" 
     return [...new Set(pool.map((r) => r.sizeCode))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   }, [rowsFiltered, allRows]);
 
-  const [sizeCode, setSizeCode] = useState(sizeCodes[0] || "");
-
-  useEffect(() => {
-    if (sizeCodes.length && !sizeCodes.includes(sizeCode)) setSizeCode(sizeCodes[0]);
-  }, [sizeCodes, sizeCode]);
+  const sizeCode = useMemo(() => {
+    const fromFacet = catalogFacets.rj_size;
+    const c = fromFacet !== undefined && fromFacet !== "" ? fromFacet : sizeCodes[0];
+    if (sizeCodes.length && c != null && !sizeCodes.includes(c)) return sizeCodes[0];
+    return c || "";
+  }, [catalogFacets.rj_size, sizeCodes]);
 
   const activeRow = useMemo(() => {
     const pool = rowsFiltered.length ? rowsFiltered : allRows;
@@ -212,26 +218,32 @@ export default function PanelCatalogRingJointGaskets({ selectionId, search = "" 
   return (
     <div className={catalogPanelOuterClass}>
       <div className="flex flex-col flex-1 min-h-0">
-        <div className={catalogPanelToolbarClass}>
-          <div className="flex flex-wrap items-end gap-2 flex-1 justify-center w-full">
-            <label className="form-control">
-              <span className="label-text text-[10px] text-base-content/60">Size</span>
-              <select
-                className="select select-bordered select-xs min-w-[6rem]"
-                value={sizeCode}
-                onChange={(e) => setSizeCode(e.target.value)}
-              >
-                {sizeCodes.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </label>
+        <div className={catalogMainGridClass}>
+          <div className={`${catalogTableScrollClass} min-h-[200px] lg:min-h-0`}>
+            <table className={catalogTableClassName}>
+              <thead>
+                <tr>
+                  <th>Size</th>
+                  <th>Weight (kg)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {indexList.map((row) => {
+                  const isSel = activeRow && row.sizeCode === activeRow.sizeCode;
+                  return (
+                    <tr
+                      key={row.sizeCode}
+                      className={isSel ? "bg-primary/10 cursor-pointer" : "cursor-pointer hover:bg-base-200/80"}
+                      onClick={() => mergeFacets({ rj_size: row.sizeCode })}
+                    >
+                      <td className="font-mono">{row.sizeCode}</td>
+                      <td>{row.weightKg}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        </div>
-
-        <div className="flex-1 grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)] gap-3 p-3 min-h-0">
           <div className="rounded-lg border border-base-300 bg-base-100 p-3 flex flex-col gap-2 min-h-0 overflow-y-auto">
             <h2 className="text-sm font-semibold leading-snug">{title}</h2>
             {activeRow && (
@@ -249,31 +261,6 @@ export default function PanelCatalogRingJointGaskets({ selectionId, search = "" 
             <p className="text-[11px] text-base-content/50">
               Schematic drawings — verify against ASME B16.20 and project specifications.
             </p>
-          </div>
-          <div className={`${catalogTableScrollClass} min-h-[200px] lg:min-h-0`}>
-            <table className={catalogTableClassName}>
-              <thead>
-                <tr>
-                  <th>Size</th>
-                  <th>Weight (kg)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {indexList.map((row) => {
-                  const isSel = activeRow && row.sizeCode === activeRow.sizeCode;
-                  return (
-                    <tr
-                      key={row.sizeCode}
-                      className={isSel ? "bg-primary/10 cursor-pointer" : "cursor-pointer hover:bg-base-200/80"}
-                      onClick={() => setSizeCode(row.sizeCode)}
-                    >
-                      <td className="font-mono">{row.sizeCode}</td>
-                      <td>{row.weightKg}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
           </div>
         </div>
       </div>

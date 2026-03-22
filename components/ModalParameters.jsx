@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import SidePanelDrawings from "@/components/SidePanelDrawings";
 import SidePanelLines from "@/components/SidePanelLines";
 import SidePanelSpools from "@/components/SidePanelSpools";
@@ -16,6 +16,11 @@ import SettingsNdtReportsRegistry from "@/components/settings/SettingsNdtReports
 import SettingsNdtRequestsRegistry from "@/components/settings/SettingsNdtRequestsRegistry";
 import { getWeldName } from "@/lib/weld-utils";
 import { migrateNdtRequirementsRows } from "@/lib/ndt-requirements-rows";
+import {
+  getWpsLibraryEntryEffectiveCode,
+  findWpsLibraryEntriesMatchingUserText,
+  isWpsLibraryEntryRegisteredForDropdown,
+} from "@/lib/wps-resolution";
 
 function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -74,6 +79,7 @@ function ModalSettings({
   // Default NDT state
   const [ndtRequirements, setNdtRequirements] = useState([]);
   const [weldingSpec, setWeldingSpec] = useState("");
+  const [defaultWps, setDefaultWps] = useState("");
 
   // Project meta state
   const [metaProjectName, setMetaProjectName] = useState("");
@@ -99,6 +105,30 @@ function ModalSettings({
   const safeElectrodeLibrary = Array.isArray(electrodeLibrary) ? electrodeLibrary : [];
   const safeLines = Array.isArray(lines) ? lines : [];
 
+  const libraryWpsEntries = useMemo(
+    () => (Array.isArray(projectWpsLibrary) ? projectWpsLibrary : []),
+    [projectWpsLibrary]
+  );
+  const libraryWpsRows = useMemo(() => {
+    return libraryWpsEntries
+      .map((entry) => ({ entry, effective: getWpsLibraryEntryEffectiveCode(entry) }))
+      .filter((row) => row.effective && isWpsLibraryEntryRegisteredForDropdown(row.entry))
+      .sort((a, b) => a.effective.localeCompare(b.effective));
+  }, [libraryWpsEntries]);
+
+  function getSystemWpsSelectValue(wpsRaw) {
+    const trimmed = (wpsRaw || "").trim();
+    if (!trimmed) return "__none__";
+    const matches = findWpsLibraryEntriesMatchingUserText(libraryWpsEntries, trimmed).filter((e) =>
+      isWpsLibraryEntryRegisteredForDropdown(e)
+    );
+    if (matches.length >= 1) {
+      const pick = [...matches].sort((a, b) => (a.id || "").localeCompare(b.id || ""))[0];
+      return `library:${pick.id}`;
+    }
+    return "__manual__";
+  }
+
   useEffect(() => {
     if (!isOpen) {
       parametersModalWasOpenRef.current = false;
@@ -111,6 +141,7 @@ function ModalSettings({
     if (settings) {
       setNdtRequirements(migrateNdtRequirementsRows(settings.ndtRequirements || []));
       setWeldingSpec(settings.weldingSpec || "");
+      setDefaultWps(typeof settings.defaultWps === "string" ? settings.defaultWps : "");
     }
     setMetaProjectName(projectMeta?.projectName || "");
     setMetaClient(projectMeta?.client || "");
@@ -137,7 +168,7 @@ function ModalSettings({
 
   function pushProjectSave(overrides = {}) {
     onSave?.({
-      drawingSettings: { ndtRequirements, weldingSpec },
+      drawingSettings: { ndtRequirements, weldingSpec, defaultWps },
       personnel,
       systems: projectSystems,
       projectMeta: {
@@ -301,7 +332,7 @@ function ModalSettings({
 
   function handlePersistNdt({ ndtReports: nextReports, weldPoints: nextWelds }) {
     onSave?.({
-      drawingSettings: { ndtRequirements, weldingSpec },
+      drawingSettings: { ndtRequirements, weldingSpec, defaultWps },
       personnel,
       systems: projectSystems,
       projectMeta: {
@@ -320,7 +351,7 @@ function ModalSettings({
 
   function handlePersistNdtRequests({ ndtRequests: nextRequests }) {
     onSave?.({
-      drawingSettings: { ndtRequirements, weldingSpec },
+      drawingSettings: { ndtRequirements, weldingSpec, defaultWps },
       personnel,
       systems: projectSystems,
       projectMeta: {
@@ -344,12 +375,14 @@ function ModalSettings({
         name: `System ${projectSystems.length + 1}`,
         description: "",
         wps: "",
+        wpsOverridesProject: false,
+        ndtOverridesProject: false,
         ndtRequirements: [],
       },
     ];
     setProjectSystems(nextSystems);
     onSave?.({
-      drawingSettings: { ndtRequirements, weldingSpec },
+      drawingSettings: { ndtRequirements, weldingSpec, defaultWps },
       personnel,
       systems: nextSystems,
       wpsLibrary: projectWpsLibrary,
@@ -361,7 +394,7 @@ function ModalSettings({
     const nextSystems = projectSystems.filter((system) => system.id !== systemId);
     setProjectSystems(nextSystems);
     onSave?.({
-      drawingSettings: { ndtRequirements, weldingSpec },
+      drawingSettings: { ndtRequirements, weldingSpec, defaultWps },
       personnel,
       systems: nextSystems,
       wpsLibrary: projectWpsLibrary,
@@ -376,25 +409,20 @@ function ModalSettings({
     setProjectSystems(nextSystems);
   }
 
-  function handleUpdateLineNdtRequirements(lineId, nextReqs) {
-    const nextLines = safeLines.map((l) =>
-      l.id === lineId ? { ...l, ndtRequirements: nextReqs } : l
-    );
-    onSave?.({
-      drawingSettings: { ndtRequirements, weldingSpec },
-      personnel,
-      projectMeta: {
-        projectName: metaProjectName,
-        client: metaClient,
-        spec: metaSpec,
-        revision: metaRevision,
-        date: metaDate,
-      },
-      systems: projectSystems,
-      wpsLibrary: projectWpsLibrary,
-      electrodeLibrary: safeElectrodeLibrary,
-      lines: nextLines,
-    });
+  function handleSystemWpsSelectChange(systemId, e) {
+    const v = e.target.value;
+    if (v === "__none__") {
+      handleUpdateSystem(systemId, { wps: "" });
+      return;
+    }
+    if (v.startsWith("library:")) {
+      const entryId = v.slice("library:".length);
+      const entry = libraryWpsEntries.find((x) => x.id === entryId);
+      if (!entry) return;
+      handleUpdateSystem(systemId, { wps: getWpsLibraryEntryEffectiveCode(entry) });
+      return;
+    }
+    if (v === "__manual__") return;
   }
 
   function handleAddWps(initial) {
@@ -417,7 +445,7 @@ function ModalSettings({
     ];
     setProjectWpsLibrary(nextWpsLibrary);
     onSave?.({
-      drawingSettings: { ndtRequirements, weldingSpec },
+      drawingSettings: { ndtRequirements, weldingSpec, defaultWps },
       personnel,
       systems: projectSystems,
       wpsLibrary: nextWpsLibrary,
@@ -429,7 +457,7 @@ function ModalSettings({
     const nextWpsLibrary = projectWpsLibrary.filter((entry) => entry.id !== wpsId);
     setProjectWpsLibrary(nextWpsLibrary);
     onSave?.({
-      drawingSettings: { ndtRequirements, weldingSpec },
+      drawingSettings: { ndtRequirements, weldingSpec, defaultWps },
       personnel,
       systems: projectSystems,
       wpsLibrary: nextWpsLibrary,
@@ -460,7 +488,7 @@ function ModalSettings({
     );
     setProjectWpsLibrary(nextWpsLibrary);
     onSave?.({
-      drawingSettings: { ndtRequirements, weldingSpec },
+      drawingSettings: { ndtRequirements, weldingSpec, defaultWps },
       personnel,
       systems: projectSystems,
       projectMeta: {
@@ -499,7 +527,7 @@ function ModalSettings({
     if (!wqr) return;
     const newDoc = await uploadLinkedDocument(file, "wqr", wqr.code || "WQR");
     onSave?.({
-      drawingSettings: { ndtRequirements, weldingSpec },
+      drawingSettings: { ndtRequirements, weldingSpec, defaultWps },
       personnel: {
         ...personnel,
         wqrs: wqrs.map((item) =>
@@ -537,7 +565,7 @@ function ModalSettings({
     if (idx >= 0) list[idx] = nextEntry;
     else list.push(nextEntry);
     onSave?.({
-      drawingSettings: { ndtRequirements, weldingSpec },
+      drawingSettings: { ndtRequirements, weldingSpec, defaultWps },
       personnel,
       systems: projectSystems,
       projectMeta: {
@@ -568,7 +596,7 @@ function ModalSettings({
       createdAt: new Date().toISOString(),
     };
     onSave?.({
-      drawingSettings: { ndtRequirements, weldingSpec },
+      drawingSettings: { ndtRequirements, weldingSpec, defaultWps },
       personnel,
       systems: projectSystems,
       projectMeta: {
@@ -591,7 +619,7 @@ function ModalSettings({
     autoSaveTimeoutRef.current = setTimeout(() => {
       const elib = Array.isArray(electrodeLibrary) ? electrodeLibrary : [];
       onSave?.({
-        drawingSettings: { ndtRequirements, weldingSpec },
+        drawingSettings: { ndtRequirements, weldingSpec, defaultWps },
         personnel,
         projectSettings:
           projectSettings && typeof projectSettings === "object"
@@ -606,7 +634,7 @@ function ModalSettings({
     return () => {
       if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
     };
-  }, [isOpen, ndtRequirements, weldingSpec, personnel, projectSettings, metaProjectName, metaClient, metaSpec, metaRevision, metaDate, projectSystems, projectWpsLibrary, electrodeLibrary, onSave]);
+  }, [isOpen, ndtRequirements, weldingSpec, defaultWps, personnel, projectSettings, metaProjectName, metaClient, metaSpec, metaRevision, metaDate, projectSystems, projectWpsLibrary, electrodeLibrary, onSave]);
 
   if (!isOpen) return null;
 
@@ -716,6 +744,7 @@ function ModalSettings({
               lines={lines}
               spools={spools}
               wpsLibrary={projectWpsLibrary}
+              drawingSettings={{ ndtRequirements, weldingSpec, defaultWps }}
               onAddFitter={handleAddFitterName}
               onRemoveFitter={handleRemoveFitter}
               onUpdateFitterName={handleUpdateFitterName}
@@ -751,6 +780,7 @@ function ModalSettings({
               lines={lines}
               spools={spools}
               wpsLibrary={projectWpsLibrary}
+              drawingSettings={{ ndtRequirements, weldingSpec, defaultWps }}
               onAddFitter={handleAddFitterName}
               onRemoveFitter={handleRemoveFitter}
               onUpdateFitterName={handleUpdateFitterName}
@@ -827,6 +857,19 @@ function ModalSettings({
                 placeholder="e.g. Company WPS index, ASME IX — optional note for exports"
               />
             </div>
+            <div className="form-control">
+              <label className="label py-0" htmlFor="settings-default-wps">
+                <span className="label-text text-xs">Default WPS (project)</span>
+              </label>
+              <input
+                id="settings-default-wps"
+                type="text"
+                className="input input-bordered input-xs w-full max-w-xl"
+                value={defaultWps}
+                onChange={(e) => setDefaultWps(e.target.value)}
+                placeholder="Optional — inherited by welds when systems/lines do not override"
+              />
+            </div>
 
             <div className="modal-action mt-4">
               <button type="button" className="btn btn-ghost" onClick={onClose}>Close</button>
@@ -838,8 +881,8 @@ function ModalSettings({
           <div className="mt-2 md:mt-0 space-y-4">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <p className="text-sm text-base-content/70 flex-1 min-w-0">
-                Systems group lines and inherit default WPS / NDT settings. Line NDT overrides are edited here only (not
-                in the workspace Lines panel).
+                Systems group lines and inherit default WPS / NDT settings. Line default WPS and line NDT overrides are
+                edited in the workspace <strong>Lines</strong> panel.
               </p>
               <NdtInheritanceHelpModal />
             </div>
@@ -849,67 +892,169 @@ function ModalSettings({
               </button>
             </div>
             <ul className="space-y-2">
-              {projectSystems.map((system) => (
-                <li key={system.id} className="p-2 bg-base-200 rounded-lg space-y-2">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    <input
-                      type="text"
-                      className="input input-bordered input-xs"
-                      value={system.name || ""}
-                      onChange={(e) => handleUpdateSystem(system.id, { name: e.target.value })}
-                      placeholder="System name"
-                    />
-                    <input
-                      type="text"
-                      className="input input-bordered input-xs"
-                      value={system.description || ""}
-                      onChange={(e) => handleUpdateSystem(system.id, { description: e.target.value })}
-                      placeholder="Description"
-                    />
+              {projectSystems.map((system) => {
+                const systemWpsSelect = getSystemWpsSelectValue(system.wps);
+                const sysNdtOverride =
+                  system.ndtOverridesProject === true ||
+                  (system.ndtOverridesProject === false
+                    ? false
+                    : (Array.isArray(system.ndtRequirements) ? system.ndtRequirements.length > 0 : false));
+                const sysWpsOverride =
+                  system.wpsOverridesProject === true ||
+                  (system.wpsOverridesProject === false ? false : !!(system.wps || "").trim());
+                return (
+                <li
+                  key={system.id}
+                  className="border border-base-300 rounded-lg p-3 bg-base-200/30 space-y-4"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="form-control">
+                      <label className="label">
+                        <span className="label-text">System name</span>
+                      </label>
+                      <input
+                        type="text"
+                        className="input input-bordered input-xs"
+                        value={system.name || ""}
+                        onChange={(e) => handleUpdateSystem(system.id, { name: e.target.value })}
+                        placeholder="e.g. Main process"
+                      />
+                    </div>
+                    <div className="form-control">
+                      <label className="label">
+                        <span className="label-text">Description</span>
+                      </label>
+                      <input
+                        type="text"
+                        className="input input-bordered input-xs"
+                        value={system.description || ""}
+                        onChange={(e) => handleUpdateSystem(system.id, { description: e.target.value })}
+                        placeholder="Optional"
+                      />
+                    </div>
                   </div>
-                  <div className="form-control">
-                    <label className="label py-0">
-                      <span className="label-text text-xs">Default WPS (inherited by lines & welds)</span>
+                  <div className="form-control space-y-2">
+                    <label className="label py-0 cursor-pointer justify-start gap-2">
+                      <input
+                        type="checkbox"
+                        className="checkbox checkbox-xs"
+                        checked={sysWpsOverride}
+                        onChange={(e) =>
+                          handleUpdateSystem(system.id, { wpsOverridesProject: e.target.checked })
+                        }
+                      />
+                      <span className="label-text text-xs">Override project default WPS</span>
                     </label>
-                    <input
-                      type="text"
-                      className="input input-bordered input-xs w-full"
-                      value={system.wps || ""}
-                      onChange={(e) => handleUpdateSystem(system.id, { wps: e.target.value })}
-                      placeholder="e.g. WPS-001 — optional; lines can override"
-                    />
+                    {!sysWpsOverride ? (
+                      <div className="rounded-lg border border-base-300 bg-base-300/30 px-3 py-2 text-xs text-base-content/70">
+                        <span className="font-medium text-base-content/50">Inherited from project: </span>
+                        {defaultWps.trim() ? defaultWps.trim() : "— (none set above)"}
+                      </div>
+                    ) : (
+                      <>
+                        <label className="label py-0" htmlFor={`system-default-wps-select-${system.id}`}>
+                          <span className="label-text text-xs">Default WPS (inherited by lines & welds)</span>
+                        </label>
+                        <div className="flex flex-col gap-2">
+                          <select
+                            id={`system-default-wps-select-${system.id}`}
+                            className="select select-bordered select-xs w-full min-w-0"
+                            value={systemWpsSelect}
+                            onChange={(e) => handleSystemWpsSelectChange(system.id, e)}
+                            aria-describedby={
+                              systemWpsSelect === "__manual__"
+                                ? `system-default-wps-manual-hint-${system.id}`
+                                : undefined
+                            }
+                          >
+                            <option value="__none__">No system default</option>
+                            {libraryWpsRows.length > 0 && (
+                              <optgroup label="Registered WPS">
+                                {libraryWpsRows.map(({ entry, effective }) => (
+                                  <option key={entry.id} value={`library:${entry.id}`}>
+                                    {effective}
+                                    {(entry.description || "").trim()
+                                      ? ` — ${(entry.description || "").trim().slice(0, 48)}${(entry.description || "").trim().length > 48 ? "…" : ""}`
+                                      : ""}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                            <option value="__manual__">Other (manual entry)…</option>
+                          </select>
+                          {systemWpsSelect === "__manual__" && (
+                            <>
+                              <input
+                                id={`system-default-wps-manual-${system.id}`}
+                                type="text"
+                                className="input input-bordered input-xs w-full min-w-0"
+                                value={system.wps || ""}
+                                onChange={(e) => handleUpdateSystem(system.id, { wps: e.target.value })}
+                                placeholder="Type a WPS name or code"
+                                autoComplete="off"
+                              />
+                              <p id={`system-default-wps-manual-hint-${system.id}`} className="text-xs text-base-content/50">
+                                Lines can override. Register WPS rows under Settings → Project info & libraries → WPS to pick
+                                them here.
+                              </p>
+                            </>
+                          )}
+                        </div>
+                      </>
+                    )}
                   </div>
-                  <NdtRequirementsOverrideTable
-                    variant="compact"
-                    scope="override"
-                    title="NDT overrides (optional)"
-                    hint="Per-method % for this system. Merges with project defaults; line-level overrides win over system for welds on that line."
-                    rows={Array.isArray(system.ndtRequirements) ? system.ndtRequirements : []}
-                    onChange={(nextReqs) => handleUpdateSystem(system.id, { ndtRequirements: nextReqs })}
-                  />
+                  <div className="space-y-2">
+                    <label className="label py-0 cursor-pointer justify-start gap-2 min-h-0">
+                      <input
+                        type="checkbox"
+                        className="checkbox checkbox-xs"
+                        checked={sysNdtOverride}
+                        onChange={(e) =>
+                          handleUpdateSystem(system.id, { ndtOverridesProject: e.target.checked })
+                        }
+                      />
+                      <span className="label-text text-xs">Override project NDT defaults</span>
+                    </label>
+                    {!sysNdtOverride ? (
+                      <NdtRequirementsOverrideTable
+                        variant="compact"
+                        scope="override"
+                        title="NDT (inherited)"
+                        readOnly
+                        readOnlyCaption="Inherited from project — enable override above to edit"
+                        rows={ndtRequirements}
+                        onChange={() => {}}
+                      />
+                    ) : (
+                      <NdtRequirementsOverrideTable
+                        variant="compact"
+                        scope="override"
+                        title="NDT overrides (optional)"
+                        hint="Per-method % for this system. Merges with project defaults; line-level overrides win over system for welds on that line."
+                        rows={Array.isArray(system.ndtRequirements) ? system.ndtRequirements : []}
+                        onChange={(nextReqs) => handleUpdateSystem(system.id, { ndtRequirements: nextReqs })}
+                      />
+                    )}
+                  </div>
                   {safeLines.some((ln) => ln.systemId === system.id) ? (
                     <div className="space-y-2 border-t border-base-300/50 pt-2">
                       <p className="text-[11px] font-medium text-base-content/85">Lines on this system</p>
-                      {safeLines
-                        .filter((ln) => ln.systemId === system.id)
-                        .map((line) => (
-                          <div
-                            key={line.id}
-                            className="rounded-md border border-base-300/70 bg-base-100/60 px-2 py-2 space-y-1.5"
-                          >
-                            <p className="text-xs font-medium truncate" title={line.name || ""}>
+                      <ul className="space-y-1">
+                        {safeLines
+                          .filter((ln) => ln.systemId === system.id)
+                          .map((line) => (
+                            <li
+                              key={line.id}
+                              className="text-xs text-base-content/90 truncate rounded-md border border-base-300/70 bg-base-100/60 px-2 py-1.5"
+                              title={line.name || ""}
+                            >
                               {line.name?.trim() || "Unnamed line"}
-                            </p>
-                            <NdtRequirementsOverrideTable
-                              variant="compact"
-                              scope="override"
-                              title="NDT overrides (optional)"
-                              hint="Per-method %. Merges with project and this system; line wins for welds on this line."
-                              rows={Array.isArray(line.ndtRequirements) ? line.ndtRequirements : []}
-                              onChange={(nextReqs) => handleUpdateLineNdtRequirements(line.id, nextReqs)}
-                            />
-                          </div>
-                        ))}
+                            </li>
+                          ))}
+                      </ul>
+                      <p className="text-[10px] text-base-content/50 leading-snug">
+                        Edit line WPS and NDT in the workspace Lines panel.
+                      </p>
                     </div>
                   ) : null}
                   <div className="flex justify-end">
@@ -918,31 +1063,28 @@ function ModalSettings({
                     </button>
                   </div>
                 </li>
-              ))}
+                );
+              })}
             </ul>
             {safeLines.some((ln) => !ln.systemId) ? (
               <div className="border border-base-300 rounded-lg p-3 bg-base-200/40 space-y-2">
                 <p className="text-xs font-semibold text-base-content/90">Lines not assigned to a system</p>
-                {safeLines
-                  .filter((ln) => !ln.systemId)
-                  .map((line) => (
-                    <div
-                      key={line.id}
-                      className="rounded-md border border-base-300/70 bg-base-100/60 px-2 py-2 space-y-1.5"
-                    >
-                      <p className="text-xs font-medium truncate" title={line.name || ""}>
+                <ul className="space-y-1">
+                  {safeLines
+                    .filter((ln) => !ln.systemId)
+                    .map((line) => (
+                      <li
+                        key={line.id}
+                        className="text-xs text-base-content/90 truncate rounded-md border border-base-300/70 bg-base-100/60 px-2 py-1.5"
+                        title={line.name || ""}
+                      >
                         {line.name?.trim() || "Unnamed line"}
-                      </p>
-                      <NdtRequirementsOverrideTable
-                        variant="compact"
-                        scope="override"
-                        title="NDT overrides (optional)"
-                        hint="Per-method %. Merges with project only (no system layer until you assign a system)."
-                        rows={Array.isArray(line.ndtRequirements) ? line.ndtRequirements : []}
-                        onChange={(nextReqs) => handleUpdateLineNdtRequirements(line.id, nextReqs)}
-                      />
-                    </div>
-                  ))}
+                      </li>
+                    ))}
+                </ul>
+                <p className="text-[10px] text-base-content/50 leading-snug">
+                  Edit line WPS and NDT in the workspace Lines panel.
+                </p>
               </div>
             ) : null}
             {projectSystems.length === 0 && <p className="text-sm text-base-content/50">No systems yet.</p>}
@@ -963,6 +1105,7 @@ function ModalSettings({
               systems={projectSystems}
               lines={lines}
               spools={spools}
+              drawingSettings={{ ndtRequirements, weldingSpec, defaultWps }}
               onAddWps={handleAddWps}
               onUpdateWps={handleUpdateWps}
               onRemoveWps={handleRemoveWps}
@@ -993,7 +1136,7 @@ function ModalSettings({
               weldPoints={weldPoints}
               onSave={(payload) => {
                 onSave?.({
-                  drawingSettings: { ndtRequirements, weldingSpec },
+                  drawingSettings: { ndtRequirements, weldingSpec, defaultWps },
                   personnel,
                   systems: projectSystems,
                   projectMeta: {
@@ -1026,7 +1169,7 @@ function ModalSettings({
               parts={parts}
               onUpdateCertificates={(next) => {
                 onSave?.({
-                  drawingSettings: { ndtRequirements, weldingSpec },
+                  drawingSettings: { ndtRequirements, weldingSpec, defaultWps },
                   personnel,
                   systems: projectSystems,
                   projectMeta: {

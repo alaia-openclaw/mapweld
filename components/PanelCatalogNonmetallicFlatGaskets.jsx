@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo } from "react";
 import {
   NONMETALLIC_FLAT_GASKET_STANDARDS,
   getRowsForStandard,
@@ -12,7 +12,7 @@ import {
 } from "@/lib/nonmetallic-flat-gaskets-data";
 import {
   catalogPanelOuterClass,
-  catalogPanelToolbarClass,
+  catalogMainGridClass,
   catalogTableScrollClass,
   catalogTableClassName,
 } from "@/components/CatalogCategoryToolbar";
@@ -123,7 +123,12 @@ function GasketDiagramSvg({ innerMm, outerMm, thicknessMm }) {
   );
 }
 
-export default function PanelCatalogNonmetallicFlatGaskets({ selectionId, search = "" }) {
+export default function PanelCatalogNonmetallicFlatGaskets({
+  selectionId,
+  search = "",
+  catalogFacets = {},
+  mergeFacets = () => {},
+}) {
   const standard = useMemo(
     () => NONMETALLIC_FLAT_GASKET_STANDARDS.find((s) => s.selectionId === selectionId) || null,
     [selectionId]
@@ -141,16 +146,19 @@ export default function PanelCatalogNonmetallicFlatGaskets({ selectionId, search
     [rowsFiltered, allRows]
   );
 
-  const [dn, setDn] = useState(dns[0] ?? 40);
-  const [pressureClass, setPressureClass] = useState(classes[0] ?? "600#");
+  const dn = useMemo(() => {
+    const fromFacet = catalogFacets.g_dn;
+    const n = fromFacet !== undefined && fromFacet !== "" ? Number(fromFacet) : dns[0];
+    if (dns.length && n != null && !dns.includes(n)) return dns[0];
+    return n ?? 40;
+  }, [catalogFacets.g_dn, dns]);
 
-  useEffect(() => {
-    if (dns.length && !dns.includes(dn)) setDn(dns[0]);
-  }, [dns, dn]);
-
-  useEffect(() => {
-    if (classes.length && !classes.includes(pressureClass)) setPressureClass(classes[0]);
-  }, [classes, pressureClass]);
+  const pressureClass = useMemo(() => {
+    const fromFacet = catalogFacets.g_class;
+    const c = fromFacet !== undefined && fromFacet !== "" ? fromFacet : classes[0];
+    if (classes.length && c != null && !classes.includes(c)) return classes[0];
+    return c ?? "600#";
+  }, [catalogFacets.g_class, classes]);
 
   const activeRow = useMemo(() => {
     const pool = rowsFiltered.length ? rowsFiltered : allRows;
@@ -175,40 +183,46 @@ export default function PanelCatalogNonmetallicFlatGaskets({ selectionId, search
   return (
     <div className={catalogPanelOuterClass}>
       <div className="flex flex-col flex-1 min-h-0">
-        <div className={catalogPanelToolbarClass}>
-          <div className="flex flex-wrap items-end gap-2 flex-1 justify-center w-full">
-            <label className="form-control">
-              <span className="label-text text-[10px] text-base-content/60">Size (DN)</span>
-              <select
-                className="select select-bordered select-xs w-[4.5rem]"
-                value={String(dn)}
-                onChange={(e) => setDn(Number(e.target.value))}
-              >
-                {dns.map((d) => (
-                  <option key={d} value={String(d)}>
-                    {d}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="form-control">
-              <span className="label-text text-[10px] text-base-content/60">Class</span>
-              <select
-                className="select select-bordered select-xs w-[4.5rem]"
-                value={pressureClass}
-                onChange={(e) => setPressureClass(e.target.value)}
-              >
-                {classes.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </label>
+        <div className={catalogMainGridClass}>
+          <div className={`${catalogTableScrollClass} min-h-[200px] lg:min-h-0`}>
+            <table className={catalogTableClassName}>
+              <thead>
+                <tr>
+                  <th>DN</th>
+                  <th>Class</th>
+                  <th>Inner (mm)</th>
+                  <th>Outer (mm)</th>
+                  <th>Thk (mm)</th>
+                  <th>Weight (kg)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {indexList.map((row) => {
+                  const isSel =
+                    activeRow && row.dn === activeRow.dn && row.pressureClass === activeRow.pressureClass;
+                  return (
+                    <tr
+                      key={`${row.dn}-${row.pressureClass}`}
+                      className={isSel ? "bg-primary/10 cursor-pointer" : "cursor-pointer hover:bg-base-200/80"}
+                      onClick={() =>
+                        mergeFacets({
+                          g_dn: String(row.dn),
+                          g_class: row.pressureClass,
+                        })
+                      }
+                    >
+                      <td>{row.dn}</td>
+                      <td>{row.pressureClass}</td>
+                      <td>{row.innerMm}</td>
+                      <td>{row.outerMm}</td>
+                      <td>{row.thicknessMm}</td>
+                      <td>{row.weightKg}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        </div>
-
-        <div className="flex-1 grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)] gap-3 p-3 min-h-0">
           <div className="rounded-lg border border-base-300 bg-base-100 p-3 flex flex-col gap-2 min-h-0 overflow-y-auto">
             <h2 className="text-sm font-semibold leading-snug">{title}</h2>
             {activeRow && (
@@ -231,43 +245,6 @@ export default function PanelCatalogNonmetallicFlatGaskets({ selectionId, search
             <p className="text-[11px] text-base-content/50">
               Diagram is schematic. Confirm dimensions against ASME B16.21 and project requirements.
             </p>
-          </div>
-          <div className={`${catalogTableScrollClass} min-h-[200px] lg:min-h-0`}>
-            <table className={catalogTableClassName}>
-              <thead>
-                <tr>
-                  <th>DN</th>
-                  <th>Class</th>
-                  <th>Inner (mm)</th>
-                  <th>Outer (mm)</th>
-                  <th>Thk (mm)</th>
-                  <th>Weight (kg)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {indexList.map((row) => {
-                  const isSel =
-                    activeRow && row.dn === activeRow.dn && row.pressureClass === activeRow.pressureClass;
-                  return (
-                    <tr
-                      key={`${row.dn}-${row.pressureClass}`}
-                      className={isSel ? "bg-primary/10 cursor-pointer" : "cursor-pointer hover:bg-base-200/80"}
-                      onClick={() => {
-                        setDn(row.dn);
-                        setPressureClass(row.pressureClass);
-                      }}
-                    >
-                      <td>{row.dn}</td>
-                      <td>{row.pressureClass}</td>
-                      <td>{row.innerMm}</td>
-                      <td>{row.outerMm}</td>
-                      <td>{row.thicknessMm}</td>
-                      <td>{row.weightKg}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
           </div>
         </div>
       </div>

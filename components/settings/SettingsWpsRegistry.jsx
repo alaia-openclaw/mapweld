@@ -50,6 +50,7 @@ function SettingsWpsRegistry({
   systems = [],
   lines = [],
   spools = [],
+  drawingSettings = {},
   onAddWps,
   onUpdateWps,
   onRemoveWps,
@@ -71,8 +72,8 @@ function SettingsWpsRegistry({
   }, [wpsLibrary, wpsDocuments]);
 
   const unregisteredWpsGroups = useMemo(
-    () => getUnregisteredWpsUsageGroups(weldPoints, wpsLibrary, systems, lines, spools),
-    [weldPoints, wpsLibrary, systems, lines, spools]
+    () => getUnregisteredWpsUsageGroups(weldPoints, wpsLibrary, systems, lines, spools, drawingSettings),
+    [weldPoints, wpsLibrary, systems, lines, spools, drawingSettings]
   );
 
   const sortedFilteredEntries = useMemo(() => {
@@ -95,12 +96,12 @@ function SettingsWpsRegistry({
       if (!entry?.id) return [];
       return weldPoints.filter((w) => {
         if (w.wpsLibraryEntryId === entry.id) return true;
-        const resolved = getResolvedWpsCode(w, systems, lines, spools).trim();
+        const resolved = getResolvedWpsCode(w, systems, lines, spools, drawingSettings).trim();
         if (!resolved) return false;
         return wpsLibraryEntryMatchesUserText(entry, resolved);
       });
     },
-    [weldPoints, systems, lines, spools]
+    [weldPoints, systems, lines, spools, drawingSettings]
   );
 
   const wqrCodesForWelds = useCallback(

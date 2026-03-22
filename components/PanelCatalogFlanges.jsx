@@ -10,47 +10,19 @@ import {
 } from "@/lib/catalog-structure";
 import { flangeDrawingFallbackImage } from "@/lib/flanges-config";
 import {
-  CatalogFacetDropdown,
   catalogPanelOuterClass,
-  catalogPanelToolbarClass,
+  catalogMainGridClass,
   catalogTableScrollClass,
   catalogTableClassName,
 } from "@/components/CatalogCategoryToolbar";
+import {
+  flattenFlangeStandardRows,
+  rowMatchesFlangeSubtype,
+  showWallScheduleOnBar,
+} from "@/lib/flange-catalog-rows";
 
 function flangePipeScheduleCell(row) {
   return getFlangePipeScheduleDisplay(row) || "—";
-}
-
-function rowMatchesFlangeSubtype(row, activeSubtypeId, subtypes) {
-  if (!subtypes?.length || !activeSubtypeId) return true;
-  const ft = row.attributes?.flangeType;
-  if (ft) return ft === activeSubtypeId;
-  return true;
-}
-
-function showWallScheduleOnBar(subtypeId, subtypes) {
-  if (!subtypes?.length) return false;
-  if (!subtypeId) return true;
-  return ["weldneck", "lapped", "long-welding-neck"].includes(subtypeId);
-}
-
-/** All dimension rows for a flange standard (every rating / class), filtered by unit system only. */
-function flattenFlangeStandardRows(standard, catalogUnitSystem) {
-  const rows = [];
-  for (const cls of standard?.classes ?? []) {
-    for (const ds of cls.datasets ?? []) {
-      if (catalogUnitSystem && ds.system && ds.system !== catalogUnitSystem) continue;
-      for (const row of ds.rows ?? []) {
-        rows.push({
-          ...row,
-          system: ds.system,
-          standardLabel: standard.label,
-          pressureClass: cls.pressureClass,
-        });
-      }
-    }
-  }
-  return rows;
 }
 
 function CardFlangeDrawing({ standard, activeSubtype, selectedRow }) {
@@ -228,6 +200,7 @@ function PanelCatalogFlanges({
   initialStandardId,
   search = "",
   catalogUnitSystem = CATALOG_UNIT_SYSTEMS[0],
+  catalogFacets = {},
 }) {
   const [activeStandardId, setActiveStandardId] = useState(() => {
     if (initialStandardId && standards.some((s) => s.id === initialStandardId))
@@ -246,29 +219,13 @@ function PanelCatalogFlanges({
     [standards, activeStandardId]
   );
 
-  const classes = useMemo(() => activeStandard?.classes ?? [], [activeStandard]);
-
-  const [activeSubtypeId, setActiveSubtypeId] = useState("");
-
-  useEffect(() => {
-    setActiveSubtypeId("");
-  }, [activeStandardId, standards]);
-
-  const [activeRatingFilter, setActiveRatingFilter] = useState("");
-  const [activeFaceType, setActiveFaceType] = useState("");
-  const [activeNps, setActiveNps] = useState("");
-  const [activeWall, setActiveWall] = useState("");
-  const [activeOd, setActiveOd] = useState("");
-  const [activePcd, setActivePcd] = useState("");
-
-  useEffect(() => {
-    setActiveRatingFilter("");
-    setActiveFaceType("");
-    setActiveNps("");
-    setActiveWall("");
-    setActiveOd("");
-    setActivePcd("");
-  }, [activeStandardId, activeSubtypeId, catalogUnitSystem]);
+  const activeSubtypeId = catalogFacets.fl_sub ?? "";
+  const activeRatingFilter = catalogFacets.fl_rating ?? "";
+  const activeFaceType = catalogFacets.fl_face ?? "";
+  const activeNps = catalogFacets.fl_nps ?? "";
+  const activeWall = catalogFacets.fl_wall ?? "";
+  const activeOd = catalogFacets.fl_od ?? "";
+  const activePcd = catalogFacets.fl_pcd ?? "";
 
   const allBaseRows = useMemo(
     () => flattenFlangeStandardRows(activeStandard, catalogUnitSystem),
@@ -283,36 +240,11 @@ function PanelCatalogFlanges({
     [allBaseRows, activeSubtypeId, activeStandard]
   );
 
-  const uniqueFaceTypes = useMemo(
-    () => uniqueSortedFacetValues(baseRowsForSubtype.map((r) => r.attributes?.faceType)),
-    [baseRowsForSubtype]
-  );
-
-  const uniqueNps = useMemo(
-    () => uniqueSortedFacetValues(baseRowsForSubtype.map((r) => r.nps)),
-    [baseRowsForSubtype]
-  );
-
   const uniqueWall = useMemo(
     () =>
       uniqueSortedFacetValues(
         baseRowsForSubtype.map((r) => getFlangePipeScheduleDisplay(r)).filter(Boolean)
       ),
-    [baseRowsForSubtype]
-  );
-
-  const uniqueRatings = useMemo(
-    () => uniqueSortedFacetValues(allBaseRows.map((r) => r.pressureClass)),
-    [allBaseRows]
-  );
-
-  const uniqueOd = useMemo(
-    () => uniqueSortedFacetValues(baseRowsForSubtype.map((r) => r.od)),
-    [baseRowsForSubtype]
-  );
-
-  const uniquePcd = useMemo(
-    () => uniqueSortedFacetValues(baseRowsForSubtype.map((r) => r.pcd)),
     [baseRowsForSubtype]
   );
 
@@ -324,105 +256,10 @@ function PanelCatalogFlanges({
   const drawingSubtypeId =
     activeSubtypeId || activeStandard?.subtypes?.[0]?.id || "";
 
-  const classOptions = useMemo(
-    () => uniqueRatings.map((pc) => ({ id: String(pc), label: String(pc) })),
-    [uniqueRatings]
-  );
-
-  const subtypeOptions = useMemo(
-    () =>
-      (activeStandard?.subtypes ?? []).map((t) => ({
-        id: t.id,
-        label: t.label,
-      })),
-    [activeStandard]
-  );
-
-  const faceOptions = useMemo(
-    () => uniqueFaceTypes.map((ft) => ({ id: ft, label: ft })),
-    [uniqueFaceTypes]
-  );
-
-  const npsOptions = useMemo(
-    () => uniqueNps.map((n) => ({ id: n, label: n })),
-    [uniqueNps]
-  );
-
-  const wallOptions = useMemo(
-    () => uniqueWall.map((w) => ({ id: w, label: w })),
-    [uniqueWall]
-  );
-
-  const odLabel = catalogUnitSystem === "Metric" ? "OD (mm)" : "OD (in)";
-  const pcdLabel = catalogUnitSystem === "Metric" ? "PCD (mm)" : "PCD (in)";
-
   return (
     <div className={catalogPanelOuterClass}>
       <div className="flex-1 flex flex-col min-w-0">
-        <div className={catalogPanelToolbarClass}>
-          {subtypeOptions.length > 1 ? (
-            <CatalogFacetDropdown
-              label="Flange type"
-              options={[{ id: "", label: "All types" }, ...subtypeOptions]}
-              activeId={activeSubtypeId}
-              onSelect={setActiveSubtypeId}
-            />
-          ) : null}
-          {classOptions.length > 0 ? (
-            <CatalogFacetDropdown
-              label="Rating (class)"
-              options={[{ id: "", label: "All ratings" }, ...classOptions]}
-              activeId={activeRatingFilter}
-              onSelect={setActiveRatingFilter}
-            />
-          ) : null}
-          {faceOptions.length > 0 ? (
-            <CatalogFacetDropdown
-              label="Face type"
-              options={[{ id: "", label: "All" }, ...faceOptions]}
-              activeId={activeFaceType}
-              onSelect={(id) => setActiveFaceType(id)}
-            />
-          ) : null}
-          {npsOptions.length > 0 ? (
-            <CatalogFacetDropdown
-              label="Size (NPS / NB)"
-              options={[{ id: "", label: "All sizes" }, ...npsOptions]}
-              activeId={activeNps}
-              onSelect={(id) => setActiveNps(id)}
-            />
-          ) : null}
-          {showPipeScheduleFacet ? (
-            <CatalogFacetDropdown
-              label="Pipe schedule"
-              options={[{ id: "", label: "All" }, ...wallOptions]}
-              activeId={activeWall}
-              onSelect={(id) => setActiveWall(id)}
-            />
-          ) : null}
-          {uniqueOd.length > 0 ? (
-            <CatalogFacetDropdown
-              label={odLabel}
-              options={[{ id: "", label: "All" }, ...uniqueOd.map((o) => ({ id: o, label: o }))]}
-              activeId={activeOd}
-              onSelect={(id) => setActiveOd(id)}
-            />
-          ) : null}
-          {uniquePcd.length > 0 ? (
-            <CatalogFacetDropdown
-              label={pcdLabel}
-              options={[{ id: "", label: "All" }, ...uniquePcd.map((p) => ({ id: p, label: p }))]}
-              activeId={activePcd}
-              onSelect={(id) => setActivePcd(id)}
-            />
-          ) : null}
-        </div>
-        <div className="flex-1 grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)] gap-3 p-3 min-h-0">
-          <CardFlangeDrawing
-            standard={activeStandard}
-            activeSubtype={drawingSubtypeId}
-            selectedRow={selectedRow}
-          />
+        <div className={catalogMainGridClass}>
           <TableFlangeDimensions
             baseRows={baseRowsForSubtype}
             activeRatingFilter={activeRatingFilter}
@@ -436,6 +273,11 @@ function PanelCatalogFlanges({
             showWallBar={showPipeScheduleFacet}
             activeOd={activeOd}
             activePcd={activePcd}
+          />
+          <CardFlangeDrawing
+            standard={activeStandard}
+            activeSubtype={drawingSubtypeId}
+            selectedRow={selectedRow}
           />
         </div>
       </div>

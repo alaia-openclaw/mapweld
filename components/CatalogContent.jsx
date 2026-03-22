@@ -56,6 +56,8 @@ export default function CatalogContent({
   fittingsEntries = [],
   onSelectCategory,
   catalogUnitSystem = CATALOG_UNIT_SYSTEMS[0],
+  catalogFacets = {},
+  mergeFacets = () => {},
 }) {
   if (!selectedId) {
     return (
@@ -87,6 +89,7 @@ export default function CatalogContent({
         initialStandardId={standardId}
         search={search}
         catalogUnitSystem={catalogUnitSystem}
+        catalogFacets={catalogFacets}
       />
     );
   }
@@ -97,7 +100,12 @@ export default function CatalogContent({
     selectedId === "gasket-nonmetallic-flat-b16-47b"
   ) {
     return (
-      <PanelCatalogNonmetallicFlatGaskets selectionId={selectedId} search={search} />
+      <PanelCatalogNonmetallicFlatGaskets
+        selectionId={selectedId}
+        search={search}
+        catalogFacets={catalogFacets}
+        mergeFacets={mergeFacets}
+      />
     );
   }
 
@@ -106,7 +114,14 @@ export default function CatalogContent({
     selectedId === "gasket-spiral-wound-b16-47a" ||
     selectedId === "gasket-spiral-wound-b16-47b"
   ) {
-    return <PanelCatalogSpiralWoundGaskets selectionId={selectedId} search={search} />;
+    return (
+      <PanelCatalogSpiralWoundGaskets
+        selectionId={selectedId}
+        search={search}
+        catalogFacets={catalogFacets}
+        mergeFacets={mergeFacets}
+      />
+    );
   }
 
   if (
@@ -114,7 +129,14 @@ export default function CatalogContent({
     selectedId === "gasket-ring-joint-rx" ||
     selectedId === "gasket-ring-joint-bx"
   ) {
-    return <PanelCatalogRingJointGaskets selectionId={selectedId} search={search} />;
+    return (
+      <PanelCatalogRingJointGaskets
+        selectionId={selectedId}
+        search={search}
+        catalogFacets={catalogFacets}
+        mergeFacets={mergeFacets}
+      />
+    );
   }
 
   if (FLANGED_VALVE_LEAF_IDS.has(selectedId)) {
@@ -122,6 +144,8 @@ export default function CatalogContent({
       <PanelCatalogFlangedValves
         selectionId={selectedId}
         search={search}
+        catalogFacets={catalogFacets}
+        mergeFacets={mergeFacets}
       />
     );
   }
@@ -131,6 +155,8 @@ export default function CatalogContent({
       <PanelCatalogButtweldedValves
         selectionId={selectedId}
         search={search}
+        catalogFacets={catalogFacets}
+        mergeFacets={mergeFacets}
       />
     );
   }
@@ -140,6 +166,8 @@ export default function CatalogContent({
       <PanelCatalogThreadedValves
         selectionId={selectedId}
         search={search}
+        catalogFacets={catalogFacets}
+        mergeFacets={mergeFacets}
       />
     );
   }
@@ -149,6 +177,8 @@ export default function CatalogContent({
       <PanelCatalogSocketweldedValves
         selectionId={selectedId}
         search={search}
+        catalogFacets={catalogFacets}
+        mergeFacets={mergeFacets}
       />
     );
   }
@@ -202,6 +232,7 @@ export default function CatalogContent({
         entries={filtered}
         search={search}
         catalogUnitSystem={catalogUnitSystem}
+        catalogFacets={catalogFacets}
       />
     );
   }
