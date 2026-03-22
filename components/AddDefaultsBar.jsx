@@ -59,6 +59,27 @@ function AddDefaultsBar({
     return line ? String(line.name || line.id).trim() || lineIdLockedBySpool : lineIdLockedBySpool;
   }, [lineIdLockedBySpool, lines, spoolLineChoices]);
 
+  /** Weld mode: line default only after a default spool is chosen. Spool-marker mode has no default spool — line stays choosable. */
+  const canChooseDefaultLine = !showSpoolPickerForWelds || Boolean(addDefaults?.spoolId);
+
+  /** When a line applies (linked spool, or spool + chosen line), only spools on that line appear in the default spool picker. */
+  const effectiveLineIdForSpoolFilter = useMemo(() => {
+    if (lineIdLockedBySpool) return lineIdLockedBySpool;
+    if (!addDefaults?.spoolId) return null;
+    return addDefaults?.spoolLineId ?? null;
+  }, [lineIdLockedBySpool, addDefaults?.spoolId, addDefaults?.spoolLineId]);
+
+  const spoolsForDefaultPicker = useMemo(() => {
+    if (!effectiveLineIdForSpoolFilter) return spools;
+    return spools.filter((s) => s.lineId === effectiveLineIdForSpoolFilter);
+  }, [spools, effectiveLineIdForSpoolFilter]);
+
+  const spoolSelectValue = useMemo(() => {
+    const sid = addDefaults?.spoolId ?? "";
+    if (!sid) return "";
+    return spoolsForDefaultPicker.some((s) => s.id === sid) ? sid : "";
+  }, [addDefaults?.spoolId, spoolsForDefaultPicker]);
+
   const showSpoolLineControl =
     showSpoolLineDefaults && (spoolLineChoices.length > 0 || Boolean(lineIdLockedBySpool));
 
@@ -67,6 +88,21 @@ function AddDefaultsBar({
     if (addDefaults?.spoolLineId === lineIdLockedBySpool) return;
     onAddDefaultsChange({ ...addDefaults, spoolLineId: lineIdLockedBySpool });
   }, [lineIdLockedBySpool, addDefaults, onAddDefaultsChange]);
+
+  useEffect(() => {
+    if (!showSpoolPickerForWelds || !onAddDefaultsChange) return;
+    if (addDefaults?.spoolId) return;
+    if (addDefaults?.spoolLineId == null || addDefaults?.spoolLineId === "") return;
+    onAddDefaultsChange({ ...addDefaults, spoolLineId: null });
+  }, [showSpoolPickerForWelds, addDefaults?.spoolId, addDefaults?.spoolLineId, addDefaults, onAddDefaultsChange]);
+
+  useEffect(() => {
+    if (!onAddDefaultsChange) return;
+    const sid = addDefaults?.spoolId;
+    if (!sid) return;
+    if (spoolsForDefaultPicker.some((s) => s.id === sid)) return;
+    onAddDefaultsChange({ ...addDefaults, spoolId: null });
+  }, [spoolsForDefaultPicker, addDefaults, onAddDefaultsChange]);
 
   function handleCatalogLeafChange(leafId) {
     if (!leafId) {
@@ -145,11 +181,16 @@ function AddDefaultsBar({
           <select
             id="default-spool"
             className="select select-bordered select-xs h-7 min-h-7 py-0.5 w-20 max-w-full text-xs"
-            value={addDefaults?.spoolId ?? ""}
+            value={spoolSelectValue}
+            title={
+              effectiveLineIdForSpoolFilter
+                ? "Only spools linked to the selected line are listed."
+                : undefined
+            }
             onChange={(e) => onAddDefaultsChange?.({ ...addDefaults, spoolId: e.target.value || null })}
           >
             <option value="">—</option>
-            {spools.map((s) => (
+            {spoolsForDefaultPicker.map((s) => (
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </select>
@@ -158,7 +199,9 @@ function AddDefaultsBar({
       {showSpoolLineControl && (
         <div className="flex items-center gap-1">
           <label
-            htmlFor={lineIdLockedBySpool ? undefined : "default-spool-line"}
+            htmlFor={
+              lineIdLockedBySpool || !canChooseDefaultLine ? undefined : "default-spool-line"
+            }
             className="text-[11px] text-base-content/60 whitespace-nowrap"
           >
             Line
@@ -171,6 +214,15 @@ function AddDefaultsBar({
               aria-live="polite"
             >
               {lockedLineLabel}
+            </div>
+          ) : !canChooseDefaultLine ? (
+            <div
+              className="flex items-center h-7 min-h-7 min-w-[6rem] max-w-[10rem] px-2 rounded-md border border-base-300 bg-base-300/40 text-xs text-base-content/50 cursor-not-allowed truncate"
+              title="Choose a default spool first to set the line for new welds."
+              role="status"
+              aria-live="polite"
+            >
+              —
             </div>
           ) : (
             <select

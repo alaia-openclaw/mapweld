@@ -26,6 +26,20 @@ function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+/** Map stored WPS text to select value: `__none__` | `library:id` | `__manual__`. */
+function getWpsSelectValueForLibrary(wpsRaw, libraryWpsEntries) {
+  const trimmed = (wpsRaw || "").trim();
+  if (!trimmed) return "__none__";
+  const matches = findWpsLibraryEntriesMatchingUserText(libraryWpsEntries, trimmed).filter((e) =>
+    isWpsLibraryEntryRegisteredForDropdown(e)
+  );
+  if (matches.length >= 1) {
+    const pick = [...matches].sort((a, b) => (a.id || "").localeCompare(b.id || ""))[0];
+    return `library:${pick.id}`;
+  }
+  return "__manual__";
+}
+
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -117,17 +131,13 @@ function ModalSettings({
   }, [libraryWpsEntries]);
 
   function getSystemWpsSelectValue(wpsRaw) {
-    const trimmed = (wpsRaw || "").trim();
-    if (!trimmed) return "__none__";
-    const matches = findWpsLibraryEntriesMatchingUserText(libraryWpsEntries, trimmed).filter((e) =>
-      isWpsLibraryEntryRegisteredForDropdown(e)
-    );
-    if (matches.length >= 1) {
-      const pick = [...matches].sort((a, b) => (a.id || "").localeCompare(b.id || ""))[0];
-      return `library:${pick.id}`;
-    }
-    return "__manual__";
+    return getWpsSelectValueForLibrary(wpsRaw, libraryWpsEntries);
   }
+
+  const projectDefaultWpsSelectValue = useMemo(
+    () => getWpsSelectValueForLibrary(defaultWps, libraryWpsEntries),
+    [defaultWps, libraryWpsEntries]
+  );
 
   useEffect(() => {
     if (!isOpen) {
@@ -420,6 +430,22 @@ function ModalSettings({
       const entry = libraryWpsEntries.find((x) => x.id === entryId);
       if (!entry) return;
       handleUpdateSystem(systemId, { wps: getWpsLibraryEntryEffectiveCode(entry) });
+      return;
+    }
+    if (v === "__manual__") return;
+  }
+
+  function handleProjectDefaultWpsSelectChange(e) {
+    const v = e.target.value;
+    if (v === "__none__") {
+      setDefaultWps("");
+      return;
+    }
+    if (v.startsWith("library:")) {
+      const entryId = v.slice("library:".length);
+      const entry = libraryWpsEntries.find((x) => x.id === entryId);
+      if (!entry) return;
+      setDefaultWps(getWpsLibraryEntryEffectiveCode(entry));
       return;
     }
     if (v === "__manual__") return;
@@ -861,14 +887,54 @@ function ModalSettings({
               <label className="label py-0" htmlFor="settings-default-wps">
                 <span className="label-text text-xs">Default WPS (project)</span>
               </label>
-              <input
-                id="settings-default-wps"
-                type="text"
-                className="input input-bordered input-xs w-full max-w-xl"
-                value={defaultWps}
-                onChange={(e) => setDefaultWps(e.target.value)}
-                placeholder="Optional — inherited by welds when systems/lines do not override"
-              />
+              <div className="flex flex-col gap-2 max-w-xl">
+                <select
+                  id="settings-default-wps"
+                  className="select select-bordered select-xs w-full min-w-0"
+                  value={projectDefaultWpsSelectValue}
+                  onChange={handleProjectDefaultWpsSelectChange}
+                  aria-describedby={
+                    projectDefaultWpsSelectValue === "__manual__"
+                      ? "settings-default-wps-manual-hint"
+                      : undefined
+                  }
+                >
+                  <option value="__none__">None (no project default)</option>
+                  {libraryWpsRows.length > 0 && (
+                    <optgroup label="Registered WPS">
+                      {libraryWpsRows.map(({ entry, effective }) => (
+                        <option key={entry.id} value={`library:${entry.id}`}>
+                          {effective}
+                          {(entry.description || "").trim()
+                            ? ` — ${(entry.description || "").trim().slice(0, 48)}${(entry.description || "").trim().length > 48 ? "…" : ""}`
+                            : ""}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  <option value="__manual__">Other (manual entry)…</option>
+                </select>
+                {projectDefaultWpsSelectValue === "__manual__" && (
+                  <>
+                    <input
+                      id="settings-default-wps-manual"
+                      type="text"
+                      className="input input-bordered input-xs w-full min-w-0"
+                      value={defaultWps}
+                      onChange={(e) => setDefaultWps(e.target.value)}
+                      placeholder="Type a WPS name or code"
+                      autoComplete="off"
+                    />
+                    <p id="settings-default-wps-manual-hint" className="text-xs text-base-content/50">
+                      Register WPS rows under Settings → Project info & libraries → WPS to pick them from the list
+                      above.
+                    </p>
+                  </>
+                )}
+              </div>
+              <p className="text-xs text-base-content/60 mt-1">
+                Optional — inherited by welds when systems/lines do not override
+              </p>
             </div>
 
             <div className="modal-action mt-4">

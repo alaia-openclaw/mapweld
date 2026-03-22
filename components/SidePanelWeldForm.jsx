@@ -138,6 +138,9 @@ function SidePanelWeldForm({
   const [ndtResultOverrideUnlocked, setNdtResultOverrideUnlocked] = useState(false);
   const [openSections, setOpenSections] = useState({ general: true, fitup: false, welding: false, inspection: false });
   const addWeldingRecordLastRef = useRef(0);
+  /** After "Other (manual entry)…", block auto-link while text still matches {@link manualModeWpsSnapshotRef}. */
+  const skipWpsLibraryAutoLinkRef = useRef(false);
+  const manualModeWpsSnapshotRef = useRef("");
 
   const selectedPart1 = parts.find((p) => p.id === partId1) || null;
   const selectedPart2 = parts.find((p) => p.id === partId2) || null;
@@ -313,17 +316,23 @@ function SidePanelWeldForm({
   function handleWpsSelectChange(e) {
     const v = e.target.value;
     if (v === "__inherit__") {
+      skipWpsLibraryAutoLinkRef.current = false;
+      manualModeWpsSnapshotRef.current = "";
       setWps("");
       setWpsUiMode("inherit");
       setLinkedWpsEntryId("");
       return;
     }
     if (v === "__manual__") {
+      skipWpsLibraryAutoLinkRef.current = true;
+      manualModeWpsSnapshotRef.current = (wps || "").trim();
       setWpsUiMode("custom");
       setLinkedWpsEntryId("");
       return;
     }
     if (v.startsWith("library:")) {
+      skipWpsLibraryAutoLinkRef.current = false;
+      manualModeWpsSnapshotRef.current = "";
       applyLibraryWpsEntry(v.slice("library:".length));
     }
   }
@@ -416,11 +425,15 @@ function SidePanelWeldForm({
     if (!weld) {
       previousWeldIdRef.current = null;
       setWpsUiMode("inherit");
+      skipWpsLibraryAutoLinkRef.current = false;
+      manualModeWpsSnapshotRef.current = "";
       return;
     }
     const isNewWeld = previousWeldIdRef.current !== weld.id;
     previousWeldIdRef.current = weld.id;
     if (!isNewWeld) return;
+    skipWpsLibraryAutoLinkRef.current = false;
+    manualModeWpsSnapshotRef.current = "";
     setWeldType(weld.weldType || "butt");
     setWeldLocation(weld.weldLocation || "shop");
     const wpsTrim = (weld.wps || "").trim();
@@ -492,6 +505,13 @@ function SidePanelWeldForm({
     if (registeredMatches.length === 0) return;
     const pick = [...registeredMatches].sort((a, b) => (a.id || "").localeCompare(b.id || ""))[0];
     const canonical = getWpsLibraryEntryEffectiveCode(pick);
+
+    if (skipWpsLibraryAutoLinkRef.current) {
+      const snap = manualModeWpsSnapshotRef.current;
+      if (wpsTrim === snap) return;
+      skipWpsLibraryAutoLinkRef.current = false;
+      manualModeWpsSnapshotRef.current = "";
+    }
 
     if (linkedWpsEntryId === pick.id && wpsUiMode === "preset") {
       if (canonical !== wpsTrim) setWps(canonical);
