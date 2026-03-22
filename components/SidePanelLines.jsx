@@ -233,23 +233,33 @@ function SidePanelLines({
                           {group.lines.map((line) => {
                             const isExpandedLine = line.id === expandedLineId;
                             return (
-                              <li key={line.id} className="bg-base-100 border border-base-300 rounded-lg overflow-hidden">
-                                <button
-                                  type="button"
-                                  className="w-full text-left text-xs px-2 py-1.5 flex items-center justify-between"
-                                  onClick={() => setExpandedLineId((prev) => (prev === line.id ? null : line.id))}
-                                >
-                                  <span className="truncate font-medium">{line.name || "Unnamed line"}</span>
-                                  <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    className={`h-3 w-3 flex-shrink-0 transition-transform ${isExpandedLine ? "rotate-180" : ""}`}
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
+                              <li key={line.id} className="bg-base-100 border border-primary/40 rounded-lg overflow-hidden">
+                                <div className="flex items-center gap-1 px-2 py-1.5 min-w-0">
+                                  <button
+                                    type="button"
+                                    className="flex-1 min-w-0 text-left text-xs truncate font-medium text-primary"
+                                    onClick={() => setExpandedLineId((prev) => (prev === line.id ? null : line.id))}
                                   >
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                  </svg>
-                                </button>
+                                    {line.name || "Unnamed line"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn btn-ghost btn-xs btn-square shrink-0"
+                                    onClick={() => setExpandedLineId((prev) => (prev === line.id ? null : line.id))}
+                                    aria-expanded={isExpandedLine}
+                                    aria-label={isExpandedLine ? "Collapse" : "Expand"}
+                                  >
+                                    <svg
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      className={`h-3 w-3 transition-transform ${isExpandedLine ? "rotate-180" : ""}`}
+                                      fill="none"
+                                      viewBox="0 0 24 24"
+                                      stroke="currentColor"
+                                    >
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                  </button>
+                                </div>
                                 {isExpandedLine && renderLineForm(line)}
                               </li>
                             );

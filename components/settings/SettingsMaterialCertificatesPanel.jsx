@@ -50,6 +50,7 @@ function SettingsMaterialCertificatesPanel({
   const mtcUploadInputRef = useRef(null);
   const mtcUploadHeatRef = useRef("");
   const orphanMtcUploadInputRef = useRef(null);
+  const [expandedHeat, setExpandedHeat] = useState(null);
 
   const mtcDocuments = useMemo(() => documents.filter((d) => d?.category === "mtc"), [documents]);
 
@@ -165,49 +166,76 @@ function SettingsMaterialCertificatesPanel({
   function renderHeatRow(heat, { showPdfSelect, showLoad }) {
     const linkedEntry = getCertForHeat(heat, materialCertificates);
     const linkedDocId = linkedEntry?.documentId || "";
+    const isOpen = expandedHeat === heat;
 
     return (
       <li
         key={heat}
-        className="border border-base-300 rounded-lg p-2 bg-base-100 space-y-1"
+        className="bg-base-100 rounded-lg overflow-hidden border border-primary/40"
       >
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-mono font-medium truncate max-w-[10rem]" title={heat}>
-            {heat}
-          </span>
-          {showPdfSelect && (
-            <select
-              className="select select-bordered select-xs flex-1 min-w-[8rem] max-w-md"
-              value={linkedDocId}
-              onChange={(e) => updateMtcHeatDocument(heat, e.target.value)}
+        <div className="flex items-center gap-2 p-2 min-w-0">
+          <button
+            type="button"
+            className="flex-1 min-w-0 text-left"
+            onClick={() => setExpandedHeat(isOpen ? null : heat)}
+            title={heat}
+          >
+            <span className="font-medium text-sm text-primary font-mono truncate">{heat}</span>
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost btn-xs btn-square shrink-0"
+            onClick={() => setExpandedHeat(isOpen ? null : heat)}
+            aria-expanded={isOpen}
+            aria-label={isOpen ? "Collapse" : "Expand"}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
             >
-              <option value="">No MTC linked</option>
-              {mtcDocuments.map((doc) => (
-                <option key={doc.id} value={doc.id}>
-                  {doc.title || doc.fileName}
-                </option>
-              ))}
-            </select>
-          )}
-          {showLoad && !linkedDocId && (
-            <button
-              type="button"
-              className="btn btn-ghost btn-xs shrink-0"
-              onClick={() => {
-                mtcUploadHeatRef.current = heat;
-                mtcUploadInputRef.current?.click();
-              }}
-            >
-              Load PDF
-            </button>
-          )}
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
         </div>
-        <details className="collapse collapse-arrow bg-base-200/40 rounded-md min-h-0">
-          <summary className="collapse-title text-[11px] font-medium py-1 min-h-0">
-            Parts for this heat (link for traceability)
-          </summary>
-          <div className="collapse-content !p-2 !pt-0">{renderPartSubmenu(heat)}</div>
-        </details>
+        {isOpen && (
+          <div className="border-t border-base-300 px-2 py-2 space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {showPdfSelect && (
+                <select
+                  className="select select-bordered select-xs flex-1 min-w-[8rem] max-w-md"
+                  value={linkedDocId}
+                  onChange={(e) => updateMtcHeatDocument(heat, e.target.value)}
+                >
+                  <option value="">No MTC linked</option>
+                  {mtcDocuments.map((doc) => (
+                    <option key={doc.id} value={doc.id}>
+                      {doc.title || doc.fileName}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {showLoad && !linkedDocId && (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-xs shrink-0"
+                  onClick={() => {
+                    mtcUploadHeatRef.current = heat;
+                    mtcUploadInputRef.current?.click();
+                  }}
+                >
+                  Load PDF
+                </button>
+              )}
+            </div>
+            <div>
+              <p className="text-[11px] font-medium text-base-content/80 mb-1">Parts for this heat (link for traceability)</p>
+              {renderPartSubmenu(heat)}
+            </div>
+          </div>
+        )}
       </li>
     );
   }
@@ -314,7 +342,7 @@ function SettingsMaterialCertificatesPanel({
 function OrphanMtcRow({ doc, onAssignHeat }) {
   const [heatInput, setHeatInput] = useState("");
   return (
-    <li className="flex flex-wrap items-end gap-2 border border-base-300 rounded-lg p-2 bg-base-100">
+    <li className="flex flex-wrap items-end gap-2 border border-primary/40 rounded-lg p-2 bg-base-100">
       <div className="min-w-0 flex-1">
         <p className="text-xs font-medium truncate">{doc.title || doc.fileName}</p>
         <p className="text-[10px] text-base-content/50 truncate">{doc.fileName}</p>

@@ -64,6 +64,66 @@ function normalizeElectrodeNumbersForSave(arr) {
   return nonEmpty.length > 0 ? nonEmpty : [""];
 }
 
+/** Heat filter for fit-up part pickers (matches existing weld form logic). */
+function filterPartsForFitupHeat(parts, heatField, selectedPartId) {
+  const heat = (heatField ?? "").trim();
+  return (parts || []).filter((p) => {
+    if (!heat) return true;
+    const partHeat = (p.heatNumber ?? "").trim();
+    if (!partHeat) return true;
+    return partHeat === heat || p.id === selectedPartId;
+  });
+}
+
+/**
+ * Same spool as weld first, then others — for &lt;optgroup&gt; ordering.
+ * @returns {{ mode: "flat", list: object[] } | { mode: "grouped", sameSpool: object[], otherParts: object[] }}
+ */
+function partitionFitupPartsByWeldSpool(filteredParts, weldSpoolId) {
+  const sid = (weldSpoolId ?? "").trim() || null;
+  if (!sid) {
+    return {
+      mode: "flat",
+      list: [...filteredParts].sort(comparePartDisplayNumbers),
+    };
+  }
+  const sameSpool = [];
+  const otherParts = [];
+  for (const p of filteredParts) {
+    if (p.spoolId === sid) sameSpool.push(p);
+    else otherParts.push(p);
+  }
+  sameSpool.sort(comparePartDisplayNumbers);
+  otherParts.sort(comparePartDisplayNumbers);
+  return { mode: "grouped", sameSpool, otherParts };
+}
+
+function renderFitupPartSelectOptions(partition, sameSpoolLabel) {
+  const row = (p) => (
+    <option key={p.id} value={p.id}>
+      Part {p.displayNumber}
+      {p.heatNumber ? ` (${p.heatNumber})` : ""}
+      {p.nps ? ` · ${p.nps}` : ""}
+      {p.thickness ? ` – ${p.thickness}` : ""}
+    </option>
+  );
+  if (partition.mode === "flat") {
+    return partition.list.map(row);
+  }
+  return (
+    <>
+      {partition.sameSpool.length > 0 && (
+        <optgroup label={sameSpoolLabel}>{partition.sameSpool.map(row)}</optgroup>
+      )}
+      {partition.otherParts.length > 0 && (
+        <optgroup label={partition.sameSpool.length > 0 ? "Other parts" : "Parts"}>
+          {partition.otherParts.map(row)}
+        </optgroup>
+      )}
+    </>
+  );
+}
+
 function SidePanelWeldForm({
   weldPoints = [],
   weld,
@@ -163,6 +223,30 @@ function SidePanelWeldForm({
     () => getEffectiveJointSide({ jointDimensions: jointDimensionsNorm }, selectedPart2, 2),
     [jointDimensionsNorm, selectedPart2]
   );
+
+  const weldSpoolLabel = useMemo(() => {
+    if (!spoolId) return "";
+    const n = spools.find((s) => s.id === spoolId)?.name?.trim();
+    return n || "";
+  }, [spoolId, spools]);
+
+  const sameSpoolGroupLabel = useMemo(
+    () =>
+      weldSpoolLabel.length > 0
+        ? `Same spool as weld (${weldSpoolLabel})`
+        : "Same spool as weld",
+    [weldSpoolLabel]
+  );
+
+  const fitupPartOptionsSide1 = useMemo(() => {
+    const filtered = filterPartsForFitupHeat(parts, heatNumber1, partId1);
+    return partitionFitupPartsByWeldSpool(filtered, spoolId);
+  }, [parts, heatNumber1, partId1, spoolId]);
+
+  const fitupPartOptionsSide2 = useMemo(() => {
+    const filtered = filterPartsForFitupHeat(parts, heatNumber2, partId2);
+    return partitionFitupPartsByWeldSpool(filtered, spoolId);
+  }, [parts, heatNumber2, partId2, spoolId]);
 
   function setJointSideField(side, field, value) {
     const key = side === 1 ? "side1" : "side2";
@@ -849,7 +933,7 @@ function SidePanelWeldForm({
                     <p className="text-xs text-base-content/55">No welds match this search.</p>
                   ) : null}
                 </div>
-              <ul className="w-full min-w-full max-w-full bg-base-100 rounded-lg p-0 gap-0 list-none">
+              <ul className="w-full min-w-full max-w-full list-none p-0 m-0 space-y-2">
                 {filteredWeldPoints.map((w) => {
                   const isExpanded = w.id === expandedWeldId;
                   const listStatus = weldStatusByWeldId?.get(w.id);
@@ -862,7 +946,10 @@ function SidePanelWeldForm({
                           ? "border-warning"
                           : "border-error";
                   return (
-                    <li key={w.id} className="w-full min-w-full border-b border-base-200 last:border-b-0">
+                    <li
+                      key={w.id}
+                      className="w-full min-w-full bg-base-100 rounded-lg overflow-hidden border border-primary/40"
+                    >
                       <button
                         type="button"
                         onClick={() =>
@@ -871,11 +958,11 @@ function SidePanelWeldForm({
                             : onSelectWeld?.(w)
                         }
                         className={`flex items-center justify-between gap-2 w-full text-left py-2 px-3 border-l-4 ${statusBorder} ${
-                          w.id === selectedWeldId ? "bg-primary/15 font-medium" : ""
+                          w.id === selectedWeldId ? "bg-primary/10 font-medium" : ""
                         }`}
                       >
                         <span className="flex flex-col items-start gap-0.5 min-w-0">
-                          <span className="font-mono text-sm flex items-center gap-1.5">
+                          <span className="font-mono text-sm text-primary flex items-center gap-1.5">
                             {getWeldName(w, weldPoints)}
                             {w.spoolId && (() => {
                               const spool = spools.find((s) => s.id === w.spoolId);
@@ -1147,24 +1234,7 @@ function SidePanelWeldForm({
                                         onChange={(e) => handlePart1Select(e.target.value)}
                                       >
                                         <option value="">— No part (custom joint)</option>
-                                        {parts
-                                          .slice()
-                                          .filter((p) => {
-                                            const heat = (heatNumber1 ?? "").trim();
-                                            if (!heat) return true;
-                                            const partHeat = (p.heatNumber ?? "").trim();
-                                            if (!partHeat) return true;
-                                            return partHeat === heat || p.id === partId1;
-                                          })
-                                          .sort(comparePartDisplayNumbers)
-                                          .map((p) => (
-                                            <option key={p.id} value={p.id}>
-                                              Part {p.displayNumber}
-                                              {p.heatNumber ? ` (${p.heatNumber})` : ""}
-                                              {p.nps ? ` · ${p.nps}` : ""}
-                                              {p.thickness ? ` – ${p.thickness}` : ""}
-                                            </option>
-                                          ))}
+                                        {renderFitupPartSelectOptions(fitupPartOptionsSide1, sameSpoolGroupLabel)}
                                       </select>
                                       {showSync1 && onUpdatePartHeat && selectedPart1 && (
                                         <button
@@ -1256,24 +1326,7 @@ function SidePanelWeldForm({
                                         onChange={(e) => handlePart2Select(e.target.value)}
                                       >
                                         <option value="">— No part (custom joint)</option>
-                                        {parts
-                                          .slice()
-                                          .filter((p) => {
-                                            const heat = (heatNumber2 ?? "").trim();
-                                            if (!heat) return true;
-                                            const partHeat = (p.heatNumber ?? "").trim();
-                                            if (!partHeat) return true;
-                                            return partHeat === heat || p.id === partId2;
-                                          })
-                                          .sort(comparePartDisplayNumbers)
-                                          .map((p) => (
-                                            <option key={p.id} value={p.id}>
-                                              Part {p.displayNumber}
-                                              {p.heatNumber ? ` (${p.heatNumber})` : ""}
-                                              {p.nps ? ` · ${p.nps}` : ""}
-                                              {p.thickness ? ` – ${p.thickness}` : ""}
-                                            </option>
-                                          ))}
+                                        {renderFitupPartSelectOptions(fitupPartOptionsSide2, sameSpoolGroupLabel)}
                                       </select>
                                       {showSync2 && onUpdatePartHeat && selectedPart2 && (
                                         <button

@@ -7,6 +7,7 @@ import {
   getHierarchyForCategory,
   getHierarchyStateFromEntry,
   findEntryByHierarchy,
+  expandHierarchyStateWithAutoFills,
 } from "@/lib/catalog-hierarchy";
 import CatalogHierarchyStepSelects from "@/components/CatalogHierarchyStepSelects";
 import CatalogTreeCascade from "@/components/CatalogTreeCascade";
@@ -87,6 +88,19 @@ function SidePanelPartForm({
     previousSelectedPartIdRef.current = selectedPart.id;
     const leaf = inferCatalogLeafIdFromPart(selectedPart);
     setCatalogLeafId(leaf);
+    const cat = leaf ? leafIdToCatalogCategory(leaf) : (selectedPart.catalogCategory || "").trim();
+    const entriesForCat = cat ? getMergedCatalogEntries(cat, leaf) : [];
+
+    function hydrateHierarchyFromStored() {
+      const raw = selectedPart.catalogHierarchyState;
+      if (raw && typeof raw === "object" && Object.keys(raw).length > 0 && cat) {
+        const expanded = expandHierarchyStateWithAutoFills(cat, entriesForCat, { ...raw });
+        setHierarchyState(expanded);
+      } else {
+        setHierarchyState({});
+      }
+    }
+
     if (selectedPart.catalogPartId) {
       const entry = getCatalogEntry(selectedPart.catalogPartId);
       if (entry) {
@@ -95,13 +109,13 @@ function SidePanelPartForm({
         setNps(entry.nps ?? "");
         setThickness(entry.thickness ?? "");
       } else {
-        setHierarchyState({});
+        hydrateHierarchyFromStored();
         setPartType(selectedPart.partType ?? "");
         setNps(selectedPart.nps ?? "");
         setThickness(selectedPart.thickness ?? "");
       }
     } else {
-      setHierarchyState({});
+      hydrateHierarchyFromStored();
       setPartType(selectedPart.partType ?? "");
       setNps(selectedPart.nps ?? "");
       setThickness(selectedPart.thickness ?? "");
@@ -142,6 +156,8 @@ function SidePanelPartForm({
         catalogLeafId: catalogLeafId || "",
         catalogCategory: catalogCategory || "",
         catalogPartId: entry?.catalogPartId ?? null,
+        catalogHierarchyState:
+          catalogLeafId && Object.keys(hierarchyState).length > 0 ? { ...hierarchyState } : undefined,
         partType: resolvedPartType,
         nps: resolvedNps,
         thickness: resolvedThickness,
@@ -209,6 +225,18 @@ function SidePanelPartForm({
       ) || null,
     [materialCertificates, normalizedHeat]
   );
+
+  /** One row per canvas marker — avoids duplicate React keys when `parts` accidentally contains the same id twice. */
+  const partRows = useMemo(() => {
+    return (partMarkers || [])
+      .map((marker) => {
+        const p = (parts || []).find((x) => x.id === marker.partId);
+        if (!p) return null;
+        return { marker, part: p };
+      })
+      .filter(Boolean)
+      .sort((a, b) => comparePartDisplayNumbers(a.part, b.part));
+  }, [partMarkers, parts]);
 
   function handleCatalogLeafChange(leafId) {
     if (!leafId) {
@@ -510,25 +538,20 @@ function SidePanelPartForm({
       {isOpen && (
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden w-full min-w-0 h-0 basis-0">
           <div className={`flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-auto p-3 space-y-3 pb-12 overscroll-contain [scrollbar-gutter:stable] break-words ${hideHeader ? "mobile-no-scrollbar" : ""}`}>
-            {parts.length === 0 ? (
+            {partRows.length === 0 ? (
               <div className="text-center py-6 text-base-content/60 text-sm break-words min-w-0">
                 <p>No parts yet</p>
                 <p className="mt-1">Add with the Add Part tool on the drawing</p>
               </div>
             ) : (
               <ul className="space-y-2 min-w-0">
-                {parts
-                  .slice()
-                  .sort(comparePartDisplayNumbers)
-                  .map((p) => {
-                    const marker = partMarkers.find((m) => m.partId === p.id);
-                    if (!marker) return null;
+                {partRows.map(({ marker, part: p }) => {
                     const spoolName = p.spoolId ? getSpoolName(p.spoolId) : null;
                     const isExpanded = expandedPartMarkerId === marker.id;
                     const isActivePart = selectedPartMarkerId === marker.id;
                     return (
                       <li
-                        key={p.id}
+                        key={marker.id}
                         className="bg-base-100 border border-base-300 rounded-lg overflow-hidden min-w-0"
                       >
                         <div className="flex items-stretch gap-0 min-w-0">
@@ -563,7 +586,10 @@ function SidePanelPartForm({
                               />
                             </svg>
                           </button>
-                          {appMode === "edition" && isExpanded && isActivePart && selectedPart ? (
+                          {appMode === "edition" &&
+                          isExpanded &&
+                          isActivePart &&
+                          selectedPart?.id === p.id ? (
                             <button
                               type="button"
                               className="btn btn-ghost btn-xs text-error shrink-0 self-center mr-1"
@@ -573,7 +599,9 @@ function SidePanelPartForm({
                             </button>
                           ) : null}
                         </div>
-                        {isExpanded && isActivePart && selectedPart ? renderPartEditorBody() : null}
+                        {isExpanded && isActivePart && selectedPart?.id === p.id
+                          ? renderPartEditorBody()
+                          : null}
                       </li>
                     );
                   })}

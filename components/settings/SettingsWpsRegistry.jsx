@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useCallback, Fragment } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { getWeldName } from "@/lib/weld-utils";
 import { getWeldLineId } from "@/lib/ndt-resolution";
 import {
@@ -137,158 +137,189 @@ function SettingsWpsRegistry({
     [drawings, lines, spools]
   );
 
-  function renderWpsTableRow(entry) {
+  function renderRegisteredWpsCard(entry) {
     const welds = weldsForEntry(entry);
     const wqrList = wqrCodesForWelds(welds);
     const isOpen = expandedId === entry.id;
     const doc = entry?.documentId ? wpsDocuments.find((d) => d.id === entry.documentId) : null;
     const hasPdf = Boolean(entry?.documentId);
+    const headerLabel =
+      (entry.code || "").trim() || (entry.title || "").trim() || "Untitled";
 
     return (
-      <Fragment key={entry.id}>
-        <tr className={`hover ${isOpen ? "bg-base-200/80" : ""}`}>
-          <td className="min-w-0">
-            <div className="flex items-start gap-1.5 min-w-0">
-              {!hasPdf && <MissingPdfWarningIcon />}
-              <input
-                type="text"
-                className="input input-bordered input-xs w-full min-w-[6rem] font-mono"
-                value={entry.code || ""}
-                onChange={(e) => onUpdateWps(entry.id, { code: e.target.value.toUpperCase() })}
-                placeholder="WPS code"
-                title="WPS number or code — used to match typed WPS on welds"
-                aria-label="WPS code"
-              />
+      <li
+        key={entry.id}
+        className="bg-base-100 rounded-lg overflow-hidden border border-primary/40"
+      >
+        <div className="flex items-center gap-2 p-2 min-w-0">
+          <button
+            type="button"
+            className="flex-1 min-w-0 flex items-center gap-1.5 text-left"
+            onClick={() => setExpandedId(isOpen ? null : entry.id)}
+            title={headerLabel}
+          >
+            {!hasPdf && <MissingPdfWarningIcon />}
+            <span className="font-medium text-sm text-primary truncate">{headerLabel}</span>
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost btn-xs btn-square shrink-0"
+            onClick={() => setExpandedId(isOpen ? null : entry.id)}
+            aria-expanded={isOpen}
+            aria-label={isOpen ? "Collapse" : "Expand"}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+        </div>
+        {isOpen && (
+          <div className="border-t border-base-300 px-2 py-2 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="form-control sm:col-span-2">
+                <label className="label py-0 min-h-0">
+                  <span className="label-text text-xs">WPS code</span>
+                </label>
+                <input
+                  type="text"
+                  className="input input-bordered input-xs w-full min-w-0 font-mono"
+                  value={entry.code || ""}
+                  onChange={(e) => onUpdateWps(entry.id, { code: e.target.value.toUpperCase() })}
+                  placeholder="WPS code"
+                  title="WPS number or code — used to match typed WPS on welds"
+                  aria-label="WPS code"
+                />
+              </div>
+              <div className="form-control">
+                <label className="label py-0 min-h-0">
+                  <span className="label-text text-xs">Title (optional)</span>
+                </label>
+                <input
+                  type="text"
+                  className="input input-bordered input-xs w-full min-w-0"
+                  value={entry.title || ""}
+                  onChange={(e) => onUpdateWps(entry.id, { title: e.target.value })}
+                  placeholder="Title"
+                  aria-label="WPS title"
+                />
+              </div>
+              <div className="form-control sm:col-span-2">
+                <label className="label py-0 min-h-0">
+                  <span className="label-text text-xs">Description</span>
+                </label>
+                <input
+                  type="text"
+                  className="input input-bordered input-xs w-full min-w-0"
+                  value={entry.description || ""}
+                  onChange={(e) => onUpdateWps(entry.id, { description: e.target.value })}
+                  placeholder="Description"
+                  aria-label="WPS description"
+                />
+              </div>
+              <div className="form-control sm:col-span-2">
+                <label className="label py-0 min-h-0">
+                  <span className="label-text text-xs">WPS PDF</span>
+                </label>
+                <div className="flex flex-wrap gap-1 items-center min-w-0">
+                  <select
+                    className="select select-bordered select-xs flex-1 min-w-0 max-w-full"
+                    value={entry.documentId || ""}
+                    onChange={(e) => onUpdateWps(entry.id, { documentId: e.target.value || null })}
+                  >
+                    <option value="">No PDF linked</option>
+                    {wpsDocuments.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.title || d.fileName}
+                      </option>
+                    ))}
+                  </select>
+                  {!entry.documentId && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-xs shrink-0"
+                      onClick={() => onRequestWpsUpload?.(entry.id)}
+                    >
+                      Load file
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
-          </td>
-          <td className="min-w-0">
-            <input
-              type="text"
-              className="input input-bordered input-xs w-full min-w-[8rem]"
-              value={entry.title || ""}
-              onChange={(e) => onUpdateWps(entry.id, { title: e.target.value })}
-              placeholder="Title (optional)"
-              aria-label="WPS title"
-            />
-          </td>
-          <td>
-            <input
-              type="text"
-              className="input input-bordered input-xs w-full min-w-[10rem]"
-              value={entry.description || ""}
-              onChange={(e) => onUpdateWps(entry.id, { description: e.target.value })}
-              placeholder="Description"
-              aria-label="WPS description"
-            />
-          </td>
-          <td>
-            <div className="flex flex-wrap gap-1 items-center min-w-0">
-              <select
-                className="select select-bordered select-xs flex-1 min-w-[7rem] max-w-[14rem]"
-                value={entry.documentId || ""}
-                onChange={(e) => onUpdateWps(entry.id, { documentId: e.target.value || null })}
-              >
-                <option value="">No PDF linked</option>
-                {wpsDocuments.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.title || d.fileName}
-                  </option>
-                ))}
-              </select>
-              {!entry.documentId && (
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-xs shrink-0"
-                  onClick={() => onRequestWpsUpload?.(entry.id)}
-                >
-                  Load file
-                </button>
-              )}
-            </div>
-          </td>
-          <td>
-            <div className="flex gap-1 justify-end flex-wrap">
+            <div className="flex flex-wrap gap-1 pt-1 border-t border-base-300">
               <button
                 type="button"
-                className="btn btn-ghost btn-xs"
-                onClick={() => setExpandedId(isOpen ? null : entry.id)}
-              >
-                {isOpen ? "Hide welds" : "Related welds"}
-              </button>
-              <button
-                type="button"
-                className="btn btn-ghost btn-xs text-error"
+                className="btn btn-error btn-outline btn-sm"
                 onClick={() => onRemoveWps(entry.id)}
               >
                 Remove
               </button>
             </div>
-          </td>
-        </tr>
-        {isOpen && (
-          <tr className="bg-base-200/40">
-            <td colSpan={5} className="!p-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                <div>
-                  <p className="font-semibold text-base-content/80 mb-1">Related welds</p>
-                  {welds.length === 0 ? (
-                    <p className="text-base-content/50">
-                      None yet. Assign this WPS on a weld, or set it on the line/system so welds inherit it — they will
-                      appear here when the effective WPS matches this row.
-                    </p>
-                  ) : (
-                    <ul className="space-y-2 max-h-48 overflow-y-auto">
-                      {welds.map((w) => {
-                        const { drawingLabel, pageLabel, lineLabel, spoolLabel } = describeWeldPlacement(w);
-                        return (
-                          <li key={w.id} className="border-b border-base-300/40 pb-2 last:border-0 last:pb-0">
-                            <div className="font-mono font-medium text-base-content">{getWeldName(w, weldPoints)}</div>
-                            <div className="text-[11px] text-base-content/65 mt-0.5 grid gap-0.5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs pt-1 border-t border-base-300">
+              <div>
+                <p className="font-semibold text-base-content/80 mb-1">Related welds</p>
+                {welds.length === 0 ? (
+                  <p className="text-base-content/50">
+                    None yet. Assign this WPS on a weld, or set it on the line/system so welds inherit it — they will
+                    appear here when the effective WPS matches this row.
+                  </p>
+                ) : (
+                  <ul className="space-y-2 max-h-48 overflow-y-auto">
+                    {welds.map((w) => {
+                      const { drawingLabel, pageLabel, lineLabel, spoolLabel } = describeWeldPlacement(w);
+                      return (
+                        <li key={w.id} className="border-b border-base-300/40 pb-2 last:border-0 last:pb-0">
+                          <div className="font-mono font-medium text-base-content">{getWeldName(w, weldPoints)}</div>
+                          <div className="text-[11px] text-base-content/65 mt-0.5 grid gap-0.5">
+                            <span>
+                              <span className="text-base-content/45">Drawing:</span> {drawingLabel}
+                            </span>
+                            <span>
+                              <span className="text-base-content/45">Page:</span> {pageLabel}
+                            </span>
+                            <span>
+                              <span className="text-base-content/45">Line:</span> {lineLabel}
+                            </span>
+                            {spoolLabel ? (
                               <span>
-                                <span className="text-base-content/45">Drawing:</span> {drawingLabel}
+                                <span className="text-base-content/45">Spool:</span> {spoolLabel}
                               </span>
-                              <span>
-                                <span className="text-base-content/45">Page:</span> {pageLabel}
-                              </span>
-                              <span>
-                                <span className="text-base-content/45">Line:</span> {lineLabel}
-                              </span>
-                              {spoolLabel ? (
-                                <span>
-                                  <span className="text-base-content/45">Spool:</span> {spoolLabel}
-                                </span>
-                              ) : null}
-                            </div>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                </div>
-                <div>
-                  <p className="font-semibold text-base-content/80 mb-1">WQR codes (welding records)</p>
-                  {wqrList.length === 0 ? (
-                    <p className="text-base-content/50">None linked on these welds</p>
-                  ) : (
-                    <ul className="flex flex-wrap gap-1">
-                      {wqrList.map((code, i) => (
-                        <li key={`${code}-${i}`} className="badge badge-outline badge-sm">
-                          {code}
+                            ) : null}
+                          </div>
                         </li>
-                      ))}
-                    </ul>
-                  )}
-                  {doc && (
-                    <p className="mt-2 text-base-content/60">
-                      Linked WPS PDF: <strong>{doc.title || doc.fileName}</strong>
-                    </p>
-                  )}
-                </div>
+                      );
+                    })}
+                  </ul>
+                )}
               </div>
-            </td>
-          </tr>
+              <div>
+                <p className="font-semibold text-base-content/80 mb-1">WQR codes (welding records)</p>
+                {wqrList.length === 0 ? (
+                  <p className="text-base-content/50">None linked on these welds</p>
+                ) : (
+                  <ul className="flex flex-wrap gap-1">
+                    {wqrList.map((code, i) => (
+                      <li key={`${code}-${i}`} className="badge badge-outline badge-sm">
+                        {code}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {doc && (
+                  <p className="mt-2 text-base-content/60">
+                    Linked WPS PDF: <strong>{doc.title || doc.fileName}</strong>
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
         )}
-      </Fragment>
+      </li>
     );
   }
 
@@ -316,24 +347,19 @@ function SettingsWpsRegistry({
         </p>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-2 sm:items-end sm:justify-between">
-        <div className="form-control flex-1 min-w-0 max-w-md">
-          <label className="label py-0" htmlFor="wps-registry-filter">
-            <span className="label-text text-xs">Search</span>
-          </label>
-          <input
-            id="wps-registry-filter"
-            type="search"
-            className="input input-bordered input-xs w-full"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            placeholder="Code, title, description…"
-            autoComplete="off"
-          />
-        </div>
-        <button type="button" className="btn btn-primary btn-sm shrink-0" onClick={() => onAddWps?.()}>
-          + Add WPS
-        </button>
+      <div className="form-control flex-1 min-w-0 max-w-md">
+        <label className="label py-0" htmlFor="wps-registry-filter">
+          <span className="label-text text-xs">Search</span>
+        </label>
+        <input
+          id="wps-registry-filter"
+          type="search"
+          className="input input-bordered input-xs w-full"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          placeholder="Code, title, description…"
+          autoComplete="off"
+        />
       </div>
 
       {orphanWpsDocuments.length > 0 && (
@@ -352,40 +378,33 @@ function SettingsWpsRegistry({
         </div>
       )}
 
-      <div className="overflow-x-auto border border-base-300 rounded-lg">
-        <table className="table table-xs table-pin-rows">
-          <thead>
-            <tr className="bg-base-200">
-              <th>WPS code</th>
-              <th>Title</th>
-              <th>Description</th>
-              <th className="min-w-[10rem]">WPS PDF</th>
-              <th className="w-36"> </th>
-            </tr>
-          </thead>
-          <tbody>
-            {!hasAnyWps ? (
-              <tr>
-                <td colSpan={5} className="text-center text-base-content/50 py-6">
-                  No WPS entries yet. Use &quot;Add WPS&quot; to create one, then assign it on welds or upload a PDF when
-                  ready.
-                </td>
-              </tr>
-            ) : sortedFilteredEntries.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="text-center text-base-content/50 py-4 text-[11px]">
-                  {filterNorm
-                    ? `No matches for this search.`
-                    : hasRegisteredWps
-                      ? "No matches for this search."
-                      : "No registered WPS rows yet. WPS typed only on welds are listed under “WPS in use but not registered” below — use Register there or add a row above."}
-                </td>
-              </tr>
-            ) : (
-              sortedFilteredEntries.map((entry) => renderWpsTableRow(entry))
-            )}
-          </tbody>
-        </table>
+      {!hasAnyWps ? (
+        <div className="text-center text-base-content/50 py-6 text-sm rounded-lg border border-base-300 bg-base-100/50">
+          No WPS entries yet. Use &quot;+ Add WPS&quot; below to create one, then assign it on welds or upload a PDF when
+          ready.
+        </div>
+      ) : sortedFilteredEntries.length === 0 ? (
+        <div className="text-center text-base-content/50 py-4 text-[11px] rounded-lg border border-base-300 bg-base-100/50">
+          {filterNorm
+            ? `No matches for this search.`
+            : hasRegisteredWps
+              ? "No matches for this search."
+              : "No registered WPS rows yet. WPS typed only on welds are listed under “WPS in use but not registered” below — use Register there or add a row below."}
+        </div>
+      ) : (
+        <ul className="space-y-2 list-none p-0 m-0">
+          {sortedFilteredEntries.map((entry) => renderRegisteredWpsCard(entry))}
+        </ul>
+      )}
+
+      <div className="mt-3">
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm w-full gap-1"
+          onClick={() => onAddWps?.()}
+        >
+          + Add WPS
+        </button>
       </div>
 
       <div className="space-y-2 pt-2 border-t border-base-300">
@@ -397,111 +416,112 @@ function SettingsWpsRegistry({
         </p>
       </div>
 
-      <div className="overflow-x-auto border border-base-300 rounded-lg">
-        <table className="table table-xs table-pin-rows">
-          <thead>
-            <tr className="bg-base-200">
-              <th>WPS text (resolved)</th>
-              <th className="w-24">Welds</th>
-              <th className="w-44"> </th>
-            </tr>
-          </thead>
-          <tbody>
-            {unregisteredWpsGroups.length === 0 ? (
-              <tr>
-                <td colSpan={3} className="text-center text-base-content/50 py-4 text-[11px]">
-                  None — every weld with a WPS string matches a registered row, or no WPS is set on welds.
-                </td>
-              </tr>
-            ) : (
-              unregisteredWpsGroups.map((group) => {
-                const isOpen = expandedUnregisteredCode === group.displayCode;
-                return (
-                  <Fragment key={group.displayCode}>
-                    <tr className={`hover ${isOpen ? "bg-base-200/80" : ""}`}>
-                      <td className="min-w-0">
-                        <span className="font-mono text-xs break-all">{group.displayCode}</span>
-                      </td>
-                      <td>{group.welds.length}</td>
-                      <td>
-                        <div className="flex gap-1 justify-end flex-wrap">
-                          <button
-                            type="button"
-                            className="btn btn-ghost btn-xs"
-                            onClick={() => onAddWps?.({ code: group.displayCode })}
+      {unregisteredWpsGroups.length === 0 ? (
+        <div className="text-center text-base-content/50 py-4 text-[11px] rounded-lg border border-base-300 bg-base-100/50">
+          None — every weld with a WPS string matches a registered row, or no WPS is set on welds.
+        </div>
+      ) : (
+        <ul className="space-y-2 list-none p-0 m-0">
+          {unregisteredWpsGroups.map((group) => {
+            const isOpen = expandedUnregisteredCode === group.displayCode;
+            return (
+              <li
+                key={group.displayCode}
+                className="bg-base-100 rounded-lg overflow-hidden border border-primary/40"
+              >
+                <div className="flex items-center gap-2 p-2 min-w-0">
+                  <button
+                    type="button"
+                    className="flex-1 min-w-0 flex items-center gap-2 text-left"
+                    onClick={() => setExpandedUnregisteredCode(isOpen ? null : group.displayCode)}
+                    title={group.displayCode}
+                  >
+                    <span className="font-medium text-sm text-primary font-mono break-all">
+                      {group.displayCode}
+                    </span>
+                    <span className="badge badge-ghost badge-xs shrink-0">{group.welds.length} weld(s)</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-xs btn-square shrink-0"
+                    onClick={() => setExpandedUnregisteredCode(isOpen ? null : group.displayCode)}
+                    aria-expanded={isOpen}
+                    aria-label={isOpen ? "Collapse" : "Expand"}
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                </div>
+                {isOpen && (
+                  <div className="border-t border-base-300 px-2 py-2 space-y-2">
+                    <div className="flex flex-wrap gap-1">
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        onClick={() => onAddWps?.({ code: group.displayCode })}
+                      >
+                        Register as WPS row
+                      </button>
+                    </div>
+                    <p className="font-semibold text-base-content/80 text-xs">Welds using this WPS</p>
+                    <ul className="space-y-2 max-h-56 overflow-y-auto text-xs">
+                      {group.welds.map((w) => {
+                        const { drawingLabel, pageLabel, lineLabel, spoolLabel } = describeWeldPlacement(w);
+                        return (
+                          <li
+                            key={w.id}
+                            className="border-b border-base-300/40 pb-2 last:border-0 last:pb-0"
                           >
-                            Register
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-ghost btn-xs"
-                            onClick={() =>
-                              setExpandedUnregisteredCode(isOpen ? null : group.displayCode)
-                            }
-                          >
-                            {isOpen ? "Hide welds" : "Welds"}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                    {isOpen && (
-                      <tr className="bg-base-200/40">
-                        <td colSpan={3} className="!p-3">
-                          <p className="font-semibold text-base-content/80 mb-2 text-xs">Welds using this WPS</p>
-                          <ul className="space-y-2 max-h-56 overflow-y-auto text-xs">
-                            {group.welds.map((w) => {
-                              const { drawingLabel, pageLabel, lineLabel, spoolLabel } = describeWeldPlacement(w);
-                              return (
-                                <li
-                                  key={w.id}
-                                  className="border-b border-base-300/40 pb-2 last:border-0 last:pb-0"
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <div className="font-mono font-medium text-base-content">
+                                  {getWeldName(w, weldPoints)}
+                                </div>
+                                <div className="text-[11px] text-base-content/65 mt-0.5 grid gap-0.5">
+                                  <span>
+                                    <span className="text-base-content/45">Drawing:</span> {drawingLabel}
+                                  </span>
+                                  <span>
+                                    <span className="text-base-content/45">Page:</span> {pageLabel}
+                                  </span>
+                                  <span>
+                                    <span className="text-base-content/45">Line:</span> {lineLabel}
+                                  </span>
+                                  {spoolLabel ? (
+                                    <span>
+                                      <span className="text-base-content/45">Spool:</span> {spoolLabel}
+                                    </span>
+                                  ) : null}
+                                </div>
+                              </div>
+                              {onSelectWeld ? (
+                                <button
+                                  type="button"
+                                  className="btn btn-primary btn-xs shrink-0"
+                                  onClick={() => onSelectWeld(w.id)}
                                 >
-                                  <div className="flex flex-wrap items-start justify-between gap-2">
-                                    <div className="min-w-0">
-                                      <div className="font-mono font-medium text-base-content">
-                                        {getWeldName(w, weldPoints)}
-                                      </div>
-                                      <div className="text-[11px] text-base-content/65 mt-0.5 grid gap-0.5">
-                                        <span>
-                                          <span className="text-base-content/45">Drawing:</span> {drawingLabel}
-                                        </span>
-                                        <span>
-                                          <span className="text-base-content/45">Page:</span> {pageLabel}
-                                        </span>
-                                        <span>
-                                          <span className="text-base-content/45">Line:</span> {lineLabel}
-                                        </span>
-                                        {spoolLabel ? (
-                                          <span>
-                                            <span className="text-base-content/45">Spool:</span> {spoolLabel}
-                                          </span>
-                                        ) : null}
-                                      </div>
-                                    </div>
-                                    {onSelectWeld ? (
-                                      <button
-                                        type="button"
-                                        className="btn btn-primary btn-xs shrink-0"
-                                        onClick={() => onSelectWeld(w.id)}
-                                      >
-                                        Open
-                                      </button>
-                                    ) : null}
-                                  </div>
-                                </li>
-                              );
-                            })}
-                          </ul>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+                                  Open
+                                </button>
+                              ) : null}
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }

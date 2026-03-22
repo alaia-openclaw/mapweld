@@ -485,6 +485,10 @@ export default function WeldTrackerApp() {
         catalogCategory: cat ?? "",
         catalogLeafId: leafId || "",
         catalogPartId: catalogEntry?.catalogPartId ?? null,
+        catalogHierarchyState:
+          hierarchyState && typeof hierarchyState === "object"
+            ? { ...hierarchyState }
+            : undefined,
         weightKg: catalogEntry?.weightKg ?? null,
       });
       const newMarkerId = `pm-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;

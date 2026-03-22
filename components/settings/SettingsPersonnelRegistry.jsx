@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, Fragment } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { getWeldName } from "@/lib/weld-utils";
 import { getResolvedWpsCode } from "@/lib/wps-resolution";
 import { groupFitterNames, groupWelders } from "@/lib/traceability-groups";
@@ -70,6 +70,8 @@ function SettingsPersonnelRegistry({
   const [fitterInput, setFitterInput] = useState("");
   const [welderInput, setWelderInput] = useState("");
   const [expandedWqrId, setExpandedWqrId] = useState(null);
+  const [expandedFitterId, setExpandedFitterId] = useState(null);
+  const [expandedWelderId, setExpandedWelderId] = useState(null);
   const [wqrFilter, setWqrFilter] = useState("");
   const wqrFilterNorm = (wqrFilter || "").trim().toLowerCase();
 
@@ -114,22 +116,29 @@ function SettingsPersonnelRegistry({
     [systems, lines, spools, wpsLibrary, drawingSettings]
   );
 
-  function renderWqrRow(wqr) {
+  function renderWqrCard(wqr) {
     const welder = findWelderForWqr(welders, wqr.id);
     const welds = weldsForWqr(wqr.id);
     const wpsList = wpsCodesForWelds(welds);
-    const isLinksOpen = expandedWqrId === wqr.id;
+    const isOpen = expandedWqrId === wqr.id;
     const doc = wqr.documentId ? wqrDocuments.find((d) => d.id === wqr.documentId) : null;
 
     const missingPdfOnUse = welds.length > 0 && !wqr.documentId;
     const unassignedWelder = !welder;
     const pdfNotUsed = Boolean(wqr.documentId) && welds.length === 0;
 
+    const headerLabel = (wqr.code || "").trim() || (wqr.description || "").trim() || "WQR";
+
     return (
-      <Fragment key={wqr.id}>
-        <tr className={`align-top hover ${isLinksOpen ? "bg-base-200/50" : ""}`}>
-          <td className="w-10 min-w-[2rem]">
-            <div className="flex items-start justify-center gap-0.5 pt-1">
+      <li key={wqr.id} className="bg-base-100 rounded-lg overflow-hidden border border-primary/40">
+        <div className="flex items-center gap-2 p-2 min-w-0">
+          <button
+            type="button"
+            className="flex-1 min-w-0 flex items-center gap-1.5 text-left"
+            onClick={() => setExpandedWqrId(isOpen ? null : wqr.id)}
+            title={headerLabel}
+          >
+            <div className="flex items-center justify-center shrink-0">
               {(missingPdfOnUse || unassignedWelder) && (
                 <RowWarningIcon
                   title={
@@ -144,7 +153,7 @@ function SettingsPersonnelRegistry({
               )}
               {!missingPdfOnUse && !unassignedWelder && pdfNotUsed && (
                 <span
-                  className="inline-flex text-base-content/35 shrink-0 pt-0.5"
+                  className="inline-flex text-base-content/35 shrink-0"
                   title="PDF on file — not referenced on any weld yet"
                   aria-label="PDF not used on welds"
                 >
@@ -154,130 +163,151 @@ function SettingsPersonnelRegistry({
                 </span>
               )}
             </div>
-          </td>
-          <td className="min-w-[7rem]">
-            <select
-              className="select select-bordered select-xs w-full max-w-[11rem]"
-              value={welder?.id || ""}
-              onChange={(e) => {
-                const next = e.target.value;
-                if (next && wqr.id) onMoveWqrToWelder?.(wqr.id, next);
-              }}
+            <span className="font-medium text-sm text-primary truncate">{headerLabel}</span>
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost btn-xs btn-square shrink-0"
+            onClick={() => setExpandedWqrId(isOpen ? null : wqr.id)}
+            aria-expanded={isOpen}
+            aria-label={isOpen ? "Collapse" : "Expand"}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
             >
-              <option value="">Assign to welder…</option>
-              {welders.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.name || w.id.slice(0, 8)}
-                </option>
-              ))}
-            </select>
-          </td>
-          <td>
-            <input
-              type="text"
-              className="input input-bordered input-xs font-mono w-full min-w-[5rem]"
-              value={wqr.code || ""}
-              onChange={(e) => onUpdateWqr?.(wqr.id, { code: e.target.value.toUpperCase() })}
-              placeholder="WQR code"
-            />
-          </td>
-          <td>
-            <input
-              type="text"
-              className="input input-bordered input-xs w-full min-w-[6rem]"
-              value={wqr.description || ""}
-              onChange={(e) => onUpdateWqr?.(wqr.id, { description: e.target.value })}
-              placeholder="Description"
-            />
-          </td>
-          <td>
-            <div className="flex flex-wrap gap-0.5 items-center min-w-0">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+        </div>
+        {isOpen && (
+          <div className="border-t border-base-300 px-2 py-2 space-y-3">
+            <div className="form-control">
+              <label className="label py-0 min-h-0">
+                <span className="label-text text-xs">Welder</span>
+              </label>
               <select
-                className="select select-bordered select-xs flex-1 min-w-0 max-w-[11rem]"
-                value={wqr.documentId || ""}
-                onChange={(e) => onUpdateWqr?.(wqr.id, { documentId: e.target.value || null })}
+                className="select select-bordered select-xs w-full min-w-0"
+                value={welder?.id || ""}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  if (next && wqr.id) onMoveWqrToWelder?.(wqr.id, next);
+                }}
               >
-                <option value="">No PDF</option>
-                {wqrDocuments.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.title || d.fileName}
+                <option value="">Assign to welder…</option>
+                {welders.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name || w.id.slice(0, 8)}
                   </option>
                 ))}
               </select>
-              {!wqr.documentId && (
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-xs shrink-0 px-1.5"
-                  onClick={() => {
-                    wqrUploadTargetRef.current = wqr.id;
-                    wqrUploadInputRef.current?.click();
-                  }}
-                >
-                  Load
-                </button>
-              )}
             </div>
-          </td>
-          <td>
-            <div className="flex flex-wrap gap-0.5 justify-end">
-              <button
-                type="button"
-                className="btn btn-ghost btn-xs px-1.5"
-                onClick={() => setExpandedWqrId(isLinksOpen ? null : wqr.id)}
-              >
-                {isLinksOpen ? "Hide" : "Links"}
-              </button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="form-control">
+                <label className="label py-0 min-h-0">
+                  <span className="label-text text-xs">WQR code</span>
+                </label>
+                <input
+                  type="text"
+                  className="input input-bordered input-xs font-mono w-full min-w-0"
+                  value={wqr.code || ""}
+                  onChange={(e) => onUpdateWqr?.(wqr.id, { code: e.target.value.toUpperCase() })}
+                  placeholder="WQR code"
+                />
+              </div>
+              <div className="form-control sm:col-span-2">
+                <label className="label py-0 min-h-0">
+                  <span className="label-text text-xs">Description</span>
+                </label>
+                <input
+                  type="text"
+                  className="input input-bordered input-xs w-full min-w-0"
+                  value={wqr.description || ""}
+                  onChange={(e) => onUpdateWqr?.(wqr.id, { description: e.target.value })}
+                  placeholder="Description"
+                />
+              </div>
+              <div className="form-control sm:col-span-2">
+                <label className="label py-0 min-h-0">
+                  <span className="label-text text-xs">Qualification PDF</span>
+                </label>
+                <div className="flex flex-wrap gap-0.5 items-center min-w-0">
+                  <select
+                    className="select select-bordered select-xs flex-1 min-w-0"
+                    value={wqr.documentId || ""}
+                    onChange={(e) => onUpdateWqr?.(wqr.id, { documentId: e.target.value || null })}
+                  >
+                    <option value="">No PDF</option>
+                    {wqrDocuments.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.title || d.fileName}
+                      </option>
+                    ))}
+                  </select>
+                  {!wqr.documentId && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-xs shrink-0"
+                      onClick={() => {
+                        wqrUploadTargetRef.current = wqr.id;
+                        wqrUploadInputRef.current?.click();
+                      }}
+                    >
+                      Load
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-1 pt-1 border-t border-base-300">
               {welder && (
                 <button
                   type="button"
-                  className="btn btn-ghost btn-xs text-error px-1.5"
+                  className="btn btn-outline btn-sm"
                   onClick={() => onUnlinkWqrFromWelder?.(welder.id, wqr.id)}
                 >
-                  Unlink
+                  Unlink from welder
                 </button>
               )}
             </div>
-          </td>
-        </tr>
-        {isLinksOpen && (
-          <tr className="bg-base-200/30">
-            <td colSpan={6} className="!p-2 !pt-0">
-              <div className="text-[11px] space-y-0.5 pl-1 border-l-2 border-primary/30">
-                <p>
-                  <span className="text-base-content/55">Welds: </span>
-                  {welds.length === 0 ? (
-                    <span className="text-base-content/45">—</span>
-                  ) : (
-                    <span className="font-mono">
-                      {welds.map((wp) => getWeldName(wp, weldPoints)).join(", ")}
-                    </span>
-                  )}
-                </p>
-                <p>
-                  <span className="text-base-content/55">WPS: </span>
-                  {wpsList.length === 0 ? (
-                    <span className="text-base-content/45">—</span>
-                  ) : (
-                    <span className="font-mono">{wpsList.join(", ")}</span>
-                  )}
-                </p>
-                {doc && (
-                  <p className="text-base-content/70">
-                    PDF: {doc.title || doc.fileName}
-                  </p>
+            <div className="text-[11px] space-y-0.5 pl-1 border-l-2 border-primary/30 pt-1">
+              <p>
+                <span className="text-base-content/55">Welds: </span>
+                {welds.length === 0 ? (
+                  <span className="text-base-content/45">—</span>
+                ) : (
+                  <span className="font-mono">
+                    {welds.map((wp) => getWeldName(wp, weldPoints)).join(", ")}
+                  </span>
                 )}
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-xs text-error mt-0.5 px-1"
-                  onClick={() => onDeleteWqr?.(wqr.id)}
-                >
-                  Delete qualification from project
-                </button>
-              </div>
-            </td>
-          </tr>
+              </p>
+              <p>
+                <span className="text-base-content/55">WPS: </span>
+                {wpsList.length === 0 ? (
+                  <span className="text-base-content/45">—</span>
+                ) : (
+                  <span className="font-mono">{wpsList.join(", ")}</span>
+                )}
+              </p>
+              {doc && (
+                <p className="text-base-content/70">
+                  PDF: {doc.title || doc.fileName}
+                </p>
+              )}
+              <button
+                type="button"
+                className="btn btn-ghost btn-xs text-error mt-0.5 px-1"
+                onClick={() => onDeleteWqr?.(wqr.id)}
+              >
+                Delete qualification from project
+              </button>
+            </div>
+          </div>
         )}
-      </Fragment>
+      </li>
     );
   }
 
@@ -303,29 +333,7 @@ function SettingsPersonnelRegistry({
       {/* ——— Fitters ——— */}
       {showFitters && (
       <div className="space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
-          <h4 className="font-medium text-sm text-base-content/90">Fitters</h4>
-          <form
-            className="flex gap-2 flex-1 max-w-md"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!fitterInput.trim()) return;
-              onAddFitter?.(fitterInput.trim());
-              setFitterInput("");
-            }}
-          >
-            <input
-              type="text"
-              className="input input-bordered input-xs flex-1"
-              value={fitterInput}
-              onChange={(e) => setFitterInput(e.target.value)}
-              placeholder="Fitter name"
-            />
-            <button type="submit" className="btn btn-primary btn-xs shrink-0">
-              Add
-            </button>
-          </form>
-        </div>
+        <h4 className="font-medium text-sm text-base-content/90">Fitters</h4>
 
         {strayFitterNames.length > 0 && (
           <div className="alert alert-warning py-2 px-3 text-[11px]">
@@ -345,46 +353,89 @@ function SettingsPersonnelRegistry({
           </div>
         )}
 
-        <div className="overflow-x-auto border border-base-300 rounded-lg">
-          <table className="table table-xs table-pin-rows">
-            <thead>
-              <tr className="bg-base-200">
-                <th>Name</th>
-                <th className="w-24 text-end" />
-              </tr>
-            </thead>
-            <tbody>
-              {fitters.length === 0 && (
-                <tr>
-                  <td colSpan={2} className="text-center text-base-content/50 py-4 text-[11px]">
-                    No fitters yet.
-                  </td>
-                </tr>
-              )}
-              {fitters.map((f) => (
-                <tr key={f.id} className="hover">
-                  <td>
-                    <input
-                      type="text"
-                      className="input input-bordered input-xs w-full max-w-md"
-                      value={f.name || ""}
-                      onChange={(e) => onUpdateFitterName?.(f.id, e.target.value)}
-                      placeholder="Name"
-                    />
-                  </td>
-                  <td className="text-end">
+        {fitters.length === 0 ? (
+          <div className="text-center text-base-content/50 py-4 text-[11px] rounded-lg border border-base-300 bg-base-100/50">
+            No fitters yet.
+          </div>
+        ) : (
+          <ul className="space-y-2 list-none p-0 m-0">
+            {fitters.map((f) => {
+              const isOpen = expandedFitterId === f.id;
+              const headerLabel = (f.name || "").trim() || "Untitled";
+              return (
+                <li key={f.id} className="bg-base-100 rounded-lg overflow-hidden border border-primary/40">
+                  <div className="flex items-center gap-2 p-2 min-w-0">
                     <button
                       type="button"
-                      className="btn btn-ghost btn-xs text-error"
-                      onClick={() => onRemoveFitter?.(f.id)}
+                      className="flex-1 min-w-0 text-left"
+                      onClick={() => setExpandedFitterId(isOpen ? null : f.id)}
+                      title={headerLabel}
                     >
-                      Remove
+                      <span className="font-medium text-sm text-primary truncate">{headerLabel}</span>
                     </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-xs btn-square shrink-0"
+                      onClick={() => setExpandedFitterId(isOpen ? null : f.id)}
+                      aria-expanded={isOpen}
+                      aria-label={isOpen ? "Collapse" : "Expand"}
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`}
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                  </div>
+                  {isOpen && (
+                    <div className="border-t border-base-300 px-2 py-2 space-y-2">
+                      <input
+                        type="text"
+                        className="input input-bordered input-xs w-full max-w-md"
+                        value={f.name || ""}
+                        onChange={(e) => onUpdateFitterName?.(f.id, e.target.value)}
+                        placeholder="Name"
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-error btn-outline btn-sm"
+                        onClick={() => onRemoveFitter?.(f.id)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        <div className="mt-3">
+          <form
+            className="flex gap-2 w-full"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!fitterInput.trim()) return;
+              onAddFitter?.(fitterInput.trim());
+              setFitterInput("");
+            }}
+          >
+            <input
+              type="text"
+              className="input input-bordered input-xs flex-1 min-w-0"
+              value={fitterInput}
+              onChange={(e) => setFitterInput(e.target.value)}
+              placeholder="Fitter name"
+            />
+            <button type="submit" className="btn btn-primary btn-xs shrink-0">
+              Add
+            </button>
+          </form>
         </div>
       </div>
       )}
@@ -392,29 +443,7 @@ function SettingsPersonnelRegistry({
       {/* ——— Welders ——— */}
       {showWeldersWqr && (
       <div className="space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
-          <h4 className="font-medium text-sm text-base-content/90">Welders</h4>
-          <form
-            className="flex gap-2 flex-1 max-w-md"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!welderInput.trim()) return;
-              onAddWelder?.(welderInput.trim());
-              setWelderInput("");
-            }}
-          >
-            <input
-              type="text"
-              className="input input-bordered input-xs flex-1"
-              value={welderInput}
-              onChange={(e) => setWelderInput(e.target.value)}
-              placeholder="Welder name"
-            />
-            <button type="submit" className="btn btn-primary btn-xs shrink-0">
-              Add
-            </button>
-          </form>
-        </div>
+        <h4 className="font-medium text-sm text-base-content/90">Welders</h4>
 
         {strayWelderItems.length > 0 && (
           <div className="alert alert-warning py-2 px-3 text-[11px]">
@@ -440,55 +469,98 @@ function SettingsPersonnelRegistry({
           </div>
         )}
 
-        <div className="overflow-x-auto border border-base-300 rounded-lg">
-          <table className="table table-xs table-pin-rows">
-            <thead>
-              <tr className="bg-base-200">
-                <th>Welder</th>
-                <th className="w-44 text-end">WQR</th>
-              </tr>
-            </thead>
-            <tbody>
-              {welders.length === 0 && (
-                <tr>
-                  <td colSpan={2} className="text-center text-base-content/50 py-4 text-[11px]">
-                    No welders yet.
-                  </td>
-                </tr>
-              )}
-              {welders.map((w) => (
-                <tr key={w.id} className="hover align-top">
-                  <td>
-                    <input
-                      type="text"
-                      className="input input-bordered input-xs w-full max-w-[14rem]"
-                      value={w.name || ""}
-                      onChange={(e) => onUpdateWelderName?.(w.id, e.target.value)}
-                      placeholder="Welder name"
-                    />
-                  </td>
-                  <td className="text-end whitespace-nowrap">
-                    <div className="flex flex-wrap gap-1 justify-end">
-                      <button
-                        type="button"
-                        className="btn btn-outline btn-xs"
-                        onClick={() => onAddWqrForWelder?.(w.id)}
+        {welders.length === 0 ? (
+          <div className="text-center text-base-content/50 py-4 text-[11px] rounded-lg border border-base-300 bg-base-100/50">
+            No welders yet.
+          </div>
+        ) : (
+          <ul className="space-y-2 list-none p-0 m-0">
+            {welders.map((w) => {
+              const isOpen = expandedWelderId === w.id;
+              const headerLabel = (w.name || "").trim() || "Untitled";
+              return (
+                <li key={w.id} className="bg-base-100 rounded-lg overflow-hidden border border-primary/40">
+                  <div className="flex items-center gap-2 p-2 min-w-0">
+                    <button
+                      type="button"
+                      className="flex-1 min-w-0 text-left"
+                      onClick={() => setExpandedWelderId(isOpen ? null : w.id)}
+                      title={headerLabel}
+                    >
+                      <span className="font-medium text-sm text-primary truncate">{headerLabel}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-xs btn-square shrink-0"
+                      onClick={() => setExpandedWelderId(isOpen ? null : w.id)}
+                      aria-expanded={isOpen}
+                      aria-label={isOpen ? "Collapse" : "Expand"}
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`}
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
                       >
-                        + WQR
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-xs text-error"
-                        onClick={() => onRemoveWelder?.(w.id)}
-                      >
-                        Remove
-                      </button>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                  </div>
+                  {isOpen && (
+                    <div className="border-t border-base-300 px-2 py-2 space-y-2">
+                      <input
+                        type="text"
+                        className="input input-bordered input-xs w-full max-w-[14rem]"
+                        value={w.name || ""}
+                        onChange={(e) => onUpdateWelderName?.(w.id, e.target.value)}
+                        placeholder="Welder name"
+                      />
+                      <div className="flex flex-wrap gap-1">
+                        <button
+                          type="button"
+                          className="btn btn-outline btn-sm"
+                          onClick={() => onAddWqrForWelder?.(w.id)}
+                        >
+                          + WQR
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-error btn-outline btn-sm"
+                          onClick={() => onRemoveWelder?.(w.id)}
+                        >
+                          Remove welder
+                        </button>
+                      </div>
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        <div className="mt-3">
+          <form
+            className="flex gap-2 w-full"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!welderInput.trim()) return;
+              onAddWelder?.(welderInput.trim());
+              setWelderInput("");
+            }}
+          >
+            <input
+              type="text"
+              className="input input-bordered input-xs flex-1 min-w-0"
+              value={welderInput}
+              onChange={(e) => setWelderInput(e.target.value)}
+              placeholder="Welder name"
+            />
+            <button type="submit" className="btn btn-primary btn-xs shrink-0">
+              Add
+            </button>
+          </form>
         </div>
       </div>
       )}
@@ -518,37 +590,17 @@ function SettingsPersonnelRegistry({
           Warning: missing PDF on a used WQR, or not assigned to a welder. Info: PDF loaded but not on any weld yet.
         </p>
 
-        <div className="overflow-x-auto border border-base-300 rounded-lg">
-          <table className="table table-xs">
-            <thead>
-              <tr className="bg-base-200">
-                <th className="w-10" aria-hidden />
-                <th className="min-w-[7rem]">Welder</th>
-                <th>Code</th>
-                <th>Description</th>
-                <th className="min-w-[9rem]">PDF</th>
-                <th className="w-28 text-end" />
-              </tr>
-            </thead>
-            <tbody>
-              {!wqrs.length && (
-                <tr>
-                  <td colSpan={6} className="text-center text-base-content/50 py-4 text-[11px]">
-                    No WQR qualifications yet. Use <strong>+ WQR</strong> on a welder row.
-                  </td>
-                </tr>
-              )}
-              {wqrs.length > 0 && filteredWqrs.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="text-center text-base-content/50 py-4 text-[11px]">
-                    No entries match this search.
-                  </td>
-                </tr>
-              )}
-              {filteredWqrs.map((wqr) => renderWqrRow(wqr))}
-            </tbody>
-          </table>
-        </div>
+        {!wqrs.length ? (
+          <div className="text-center text-base-content/50 py-4 text-[11px] rounded-lg border border-base-300 bg-base-100/50">
+            No WQR qualifications yet. Use <strong>+ WQR</strong> on a welder row.
+          </div>
+        ) : filteredWqrs.length === 0 ? (
+          <div className="text-center text-base-content/50 py-4 text-[11px] rounded-lg border border-base-300 bg-base-100/50">
+            No entries match this search.
+          </div>
+        ) : (
+          <ul className="space-y-2 list-none p-0 m-0">{filteredWqrs.map((wqr) => renderWqrCard(wqr))}</ul>
+        )}
       </div>
       )}
     </div>

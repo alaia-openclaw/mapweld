@@ -98,19 +98,19 @@ function SidePanelDrawings({
                     <li
                       key={dwg.id}
                       className={`bg-base-100 rounded-lg overflow-hidden border ${
-                        isActive ? "border-primary/50 ring-1 ring-primary/20" : "border-base-300"
+                        isActive ? "border-primary/50 ring-1 ring-primary/20" : "border-primary/40"
                       }`}
                     >
                       <div className="flex items-center gap-2 p-2">
                         <button
                           type="button"
-                          className="flex-1 text-left truncate"
+                          className="flex-1 text-left truncate min-w-0"
                           onClick={() => {
                             if (!isActive) onSwitchDrawing?.(dwg.id);
                           }}
                           title={dwg.filename}
                         >
-                          <span className={`font-medium text-sm ${isActive ? "text-primary" : ""}`}>
+                          <span className={`font-medium text-sm ${isActive ? "text-primary" : "text-primary"}`}>
                             {dwg.filename || "Untitled"}
                           </span>
                           {dwg.revision && (
