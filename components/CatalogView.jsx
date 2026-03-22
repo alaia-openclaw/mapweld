@@ -4,7 +4,6 @@ import { useState, useMemo } from "react";
 import CatalogSidebar from "@/components/CatalogSidebar";
 import CatalogContent from "@/components/CatalogContent";
 import CatalogFilterBar from "@/components/CatalogFilterBar";
-import { CatalogToolbarProvider } from "@/contexts/CatalogToolbarContext";
 import {
   CATEGORY_TREE,
   getFirstSelectableCategoryId,
@@ -50,35 +49,33 @@ export default function CatalogView({
   );
 
   return (
-    <CatalogToolbarProvider>
-      <div className="flex flex-col rounded-xl border border-base-300 bg-base-100 overflow-hidden min-h-[calc(100dvh-7rem)]">
-        <CatalogFilterBar
-          search={search}
-          onSearchChange={setSearch}
-          catalogUnitSystem={catalogUnitSystem}
-          onCatalogUnitSystemChange={setCatalogUnitSystem}
+    <div className="flex flex-col rounded-xl border border-base-300 bg-base-100 overflow-hidden min-h-[calc(100dvh-7rem)]">
+      <CatalogFilterBar
+        search={search}
+        onSearchChange={setSearch}
+        catalogUnitSystem={catalogUnitSystem}
+        onCatalogUnitSystemChange={setCatalogUnitSystem}
+      />
+      <div className="flex flex-1 min-h-0">
+        <CatalogSidebar
+          tree={tree}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+          counts={counts}
         />
-        <div className="flex flex-1 min-h-0">
-          <CatalogSidebar
+        <div className="flex-1 min-w-0 p-3 overflow-auto">
+          <CatalogContent
             tree={tree}
             selectedId={selectedId}
-            onSelect={setSelectedId}
-            counts={counts}
+            search={search}
+            flangesStandards={flangesStandards}
+            pipeEntries={pipeEntries}
+            fittingsEntries={fittingsEntries}
+            onSelectCategory={setSelectedId}
+            catalogUnitSystem={catalogUnitSystem}
           />
-          <div className="flex-1 min-w-0 p-3 overflow-auto">
-            <CatalogContent
-              tree={tree}
-              selectedId={selectedId}
-              search={search}
-              flangesStandards={flangesStandards}
-              pipeEntries={pipeEntries}
-              fittingsEntries={fittingsEntries}
-              onSelectCategory={setSelectedId}
-              catalogUnitSystem={catalogUnitSystem}
-            />
-          </div>
         </div>
       </div>
-    </CatalogToolbarProvider>
+    </div>
   );
 }

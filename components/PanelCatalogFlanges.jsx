@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect, useLayoutEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   matchFlangeRowSearch,
   CATALOG_UNIT_SYSTEMS,
@@ -11,12 +11,11 @@ import {
 import { flangeDrawingFallbackImage } from "@/lib/flanges-config";
 import {
   CatalogFacetDropdown,
-  CatalogReadOnlyFacet,
   catalogPanelOuterClass,
+  catalogPanelToolbarClass,
   catalogTableScrollClass,
   catalogTableClassName,
 } from "@/components/CatalogCategoryToolbar";
-import { useCatalogToolbar } from "@/contexts/CatalogToolbarContext";
 
 function flangePipeScheduleCell(row) {
   return getFlangePipeScheduleDisplay(row) || "—";
@@ -230,7 +229,6 @@ function PanelCatalogFlanges({
   search = "",
   catalogUnitSystem = CATALOG_UNIT_SYSTEMS[0],
 }) {
-  const { setToolbar } = useCatalogToolbar();
   const [activeStandardId, setActiveStandardId] = useState(() => {
     if (initialStandardId && standards.some((s) => s.id === initialStandardId))
       return initialStandardId;
@@ -326,11 +324,6 @@ function PanelCatalogFlanges({
   const drawingSubtypeId =
     activeSubtypeId || activeStandard?.subtypes?.[0]?.id || "";
 
-  const standardOptions = useMemo(
-    () => standards.map((s) => ({ id: s.id, label: s.label })),
-    [standards]
-  );
-
   const classOptions = useMemo(
     () => uniqueRatings.map((pc) => ({ id: String(pc), label: String(pc) })),
     [uniqueRatings]
@@ -363,105 +356,67 @@ function PanelCatalogFlanges({
   const odLabel = catalogUnitSystem === "Metric" ? "OD (mm)" : "OD (in)";
   const pcdLabel = catalogUnitSystem === "Metric" ? "PCD (mm)" : "PCD (in)";
 
-  useLayoutEffect(() => {
-    setToolbar(
-      <>
-        <CatalogReadOnlyFacet label="Category" value="Flanges" />
-        <CatalogFacetDropdown
-          label="Flange standard"
-          options={standardOptions}
-          activeId={activeStandardId}
-          onSelect={(id) => {
-            setActiveStandardId(id);
-          }}
-        />
-        {subtypeOptions.length > 1 ? (
-          <CatalogFacetDropdown
-            label="Flange type"
-            options={[{ id: "", label: "All types" }, ...subtypeOptions]}
-            activeId={activeSubtypeId}
-            onSelect={setActiveSubtypeId}
-          />
-        ) : subtypeOptions.length === 1 ? (
-          <CatalogReadOnlyFacet label="Flange type" value={subtypeOptions[0].label} />
-        ) : null}
-        {classOptions.length > 0 ? (
-          <CatalogFacetDropdown
-            label="Rating (class)"
-            options={[{ id: "", label: "All ratings" }, ...classOptions]}
-            activeId={activeRatingFilter}
-            onSelect={setActiveRatingFilter}
-          />
-        ) : null}
-        {faceOptions.length > 0 ? (
-          <CatalogFacetDropdown
-            label="Face type"
-            options={[{ id: "", label: "All" }, ...faceOptions]}
-            activeId={activeFaceType}
-            onSelect={(id) => setActiveFaceType(id)}
-          />
-        ) : null}
-        {npsOptions.length > 0 ? (
-          <CatalogFacetDropdown
-            label="Size (NPS / NB)"
-            options={[{ id: "", label: "All sizes" }, ...npsOptions]}
-            activeId={activeNps}
-            onSelect={(id) => setActiveNps(id)}
-          />
-        ) : null}
-        {showPipeScheduleFacet ? (
-          <CatalogFacetDropdown
-            label="Pipe schedule"
-            options={[{ id: "", label: "All" }, ...wallOptions]}
-            activeId={activeWall}
-            onSelect={(id) => setActiveWall(id)}
-          />
-        ) : null}
-        {uniqueOd.length > 0 ? (
-          <CatalogFacetDropdown
-            label={odLabel}
-            options={[{ id: "", label: "All" }, ...uniqueOd.map((o) => ({ id: o, label: o }))]}
-            activeId={activeOd}
-            onSelect={(id) => setActiveOd(id)}
-          />
-        ) : null}
-        {uniquePcd.length > 0 ? (
-          <CatalogFacetDropdown
-            label={pcdLabel}
-            options={[{ id: "", label: "All" }, ...uniquePcd.map((p) => ({ id: p, label: p }))]}
-            activeId={activePcd}
-            onSelect={(id) => setActivePcd(id)}
-          />
-        ) : null}
-      </>
-    );
-    return () => setToolbar(null);
-  }, [
-    setToolbar,
-    standardOptions,
-    activeStandardId,
-    subtypeOptions,
-    activeSubtypeId,
-    classOptions,
-    activeRatingFilter,
-    faceOptions,
-    activeFaceType,
-    npsOptions,
-    activeNps,
-    showPipeScheduleFacet,
-    wallOptions,
-    activeWall,
-    odLabel,
-    pcdLabel,
-    uniqueOd,
-    uniquePcd,
-    activeOd,
-    activePcd,
-  ]);
-
   return (
     <div className={catalogPanelOuterClass}>
       <div className="flex-1 flex flex-col min-w-0">
+        <div className={catalogPanelToolbarClass}>
+          {subtypeOptions.length > 1 ? (
+            <CatalogFacetDropdown
+              label="Flange type"
+              options={[{ id: "", label: "All types" }, ...subtypeOptions]}
+              activeId={activeSubtypeId}
+              onSelect={setActiveSubtypeId}
+            />
+          ) : null}
+          {classOptions.length > 0 ? (
+            <CatalogFacetDropdown
+              label="Rating (class)"
+              options={[{ id: "", label: "All ratings" }, ...classOptions]}
+              activeId={activeRatingFilter}
+              onSelect={setActiveRatingFilter}
+            />
+          ) : null}
+          {faceOptions.length > 0 ? (
+            <CatalogFacetDropdown
+              label="Face type"
+              options={[{ id: "", label: "All" }, ...faceOptions]}
+              activeId={activeFaceType}
+              onSelect={(id) => setActiveFaceType(id)}
+            />
+          ) : null}
+          {npsOptions.length > 0 ? (
+            <CatalogFacetDropdown
+              label="Size (NPS / NB)"
+              options={[{ id: "", label: "All sizes" }, ...npsOptions]}
+              activeId={activeNps}
+              onSelect={(id) => setActiveNps(id)}
+            />
+          ) : null}
+          {showPipeScheduleFacet ? (
+            <CatalogFacetDropdown
+              label="Pipe schedule"
+              options={[{ id: "", label: "All" }, ...wallOptions]}
+              activeId={activeWall}
+              onSelect={(id) => setActiveWall(id)}
+            />
+          ) : null}
+          {uniqueOd.length > 0 ? (
+            <CatalogFacetDropdown
+              label={odLabel}
+              options={[{ id: "", label: "All" }, ...uniqueOd.map((o) => ({ id: o, label: o }))]}
+              activeId={activeOd}
+              onSelect={(id) => setActiveOd(id)}
+            />
+          ) : null}
+          {uniquePcd.length > 0 ? (
+            <CatalogFacetDropdown
+              label={pcdLabel}
+              options={[{ id: "", label: "All" }, ...uniquePcd.map((p) => ({ id: p, label: p }))]}
+              activeId={activePcd}
+              onSelect={(id) => setActivePcd(id)}
+            />
+          ) : null}
+        </div>
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)] gap-3 p-3 min-h-0">
           <CardFlangeDrawing
             standard={activeStandard}

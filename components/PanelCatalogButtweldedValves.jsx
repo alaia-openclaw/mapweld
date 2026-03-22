@@ -2,7 +2,6 @@
 
 import { useMemo, useState, useEffect, useCallback } from "react";
 import {
-  BUTTWELDED_VALVE_TYPES,
   getButtweldedValveRowsForType,
   getButtweldedValveTypeBySelectionId,
   matchButtweldedValveRow,
@@ -11,7 +10,6 @@ import {
   BUTTWELDED_VALVE_PRESSURE_CLASSES,
 } from "@/lib/buttwelded-valves-data";
 import {
-  CatalogToolbarIconButton,
   catalogPanelOuterClass,
   catalogPanelToolbarClass,
   catalogTableScrollClass,
@@ -153,7 +151,7 @@ function ButtweldedValveDiagramSvg({ valveTypeId, dims }) {
   return null;
 }
 
-export default function PanelCatalogButtweldedValves({ selectionId, search = "", onSelectCategory }) {
+export default function PanelCatalogButtweldedValves({ selectionId, search = "" }) {
   const typeDef = useMemo(() => getButtweldedValveTypeBySelectionId(selectionId), [selectionId]);
   const allRows = useMemo(
     () => (typeDef ? getButtweldedValveRowsForType(typeDef.id) : []),
@@ -191,17 +189,6 @@ export default function PanelCatalogButtweldedValves({ selectionId, search = "",
 
   const currentRow = sortedRows[rowIndex] ?? null;
 
-  const goFirst = useCallback(() => setRowIndex(0), []);
-  const goPrev = useCallback(() => {
-    setRowIndex((i) => (sortedRows.length ? (i - 1 + sortedRows.length) % sortedRows.length : 0));
-  }, [sortedRows.length]);
-  const goNext = useCallback(() => {
-    setRowIndex((i) => (sortedRows.length ? (i + 1) % sortedRows.length : 0));
-  }, [sortedRows.length]);
-  const goLast = useCallback(() => {
-    setRowIndex(Math.max(0, sortedRows.length - 1));
-  }, [sortedRows.length]);
-
   const onDnChange = useCallback(
     (dn) => {
       const idx = sortedRows.findIndex(
@@ -236,33 +223,7 @@ export default function PanelCatalogButtweldedValves({ selectionId, search = "",
     <div className={catalogPanelOuterClass}>
       <div className="flex flex-col flex-1 min-h-0">
         <div className={catalogPanelToolbarClass}>
-          <div className="flex items-center gap-0.5 shrink-0">
-            <CatalogToolbarIconButton title="First" onClick={goFirst}>
-              <span className="text-xs font-mono">|◀</span>
-            </CatalogToolbarIconButton>
-            <CatalogToolbarIconButton title="Previous" onClick={goPrev}>
-              <span className="text-xs">◀</span>
-            </CatalogToolbarIconButton>
-            <select
-              className="select select-bordered select-xs max-w-[13rem]"
-              value={selectionId}
-              onChange={(e) => onSelectCategory?.(e.target.value)}
-            >
-              {BUTTWELDED_VALVE_TYPES.map((t) => (
-                <option key={t.selectionId} value={t.selectionId}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-            <CatalogToolbarIconButton title="Next" onClick={goNext}>
-              <span className="text-xs">▶</span>
-            </CatalogToolbarIconButton>
-            <CatalogToolbarIconButton title="Last" onClick={goLast}>
-              <span className="text-xs font-mono">▶|</span>
-            </CatalogToolbarIconButton>
-          </div>
-
-          <div className="flex flex-wrap items-end gap-2 flex-1 justify-center">
+          <div className="flex flex-wrap items-end gap-2 flex-1 justify-center w-full">
             <label className="form-control">
               <span className="label-text text-[10px] text-base-content/60">Size (DN)</span>
               <select

@@ -27,6 +27,10 @@ import {
   findWpsLibraryEntriesMatchingUserText,
   isWpsLibraryEntryRegisteredForDropdown,
 } from "@/lib/wps-resolution";
+import {
+  getResolvedNdtRequirementsForWeld,
+  getPctFromResolvedRequirements,
+} from "@/lib/ndt-resolution";
 import { comparePartDisplayNumbers } from "@/lib/part-display-number";
 import {
   createDefaultJointDimensions,
@@ -455,6 +459,31 @@ function SidePanelWeldForm({
     setNdtResultOverrideUnlocked(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only reset local form when switching weld
   }, [weld]);
+
+  /**
+   * When the WPS library gains a registered row that matches the current weld text (e.g. user registered the code in
+   * Settings while this weld stayed selected), switch from manual entry to the library select + link.
+   */
+  useEffect(() => {
+    if (!weld?.id) return;
+    const wpsTrim = (wps || "").trim();
+    if (!wpsTrim) return;
+    const registeredMatches = findWpsLibraryEntriesMatchingUserText(libraryWpsEntries, wpsTrim).filter((e) =>
+      isWpsLibraryEntryRegisteredForDropdown(e)
+    );
+    if (registeredMatches.length === 0) return;
+    const pick = [...registeredMatches].sort((a, b) => (a.id || "").localeCompare(b.id || ""))[0];
+    const canonical = getWpsLibraryEntryEffectiveCode(pick);
+
+    if (linkedWpsEntryId === pick.id && wpsUiMode === "preset") {
+      if (canonical !== wpsTrim) setWps(canonical);
+      return;
+    }
+
+    setLinkedWpsEntryId(pick.id);
+    setWpsUiMode("preset");
+    if (canonical !== wpsTrim) setWps(canonical);
+  }, [libraryWpsEntries, weld?.id, wps, linkedWpsEntryId, wpsUiMode]);
 
   useEffect(() => {
     if (!linkedWpsEntryId) return;
@@ -1500,16 +1529,39 @@ function SidePanelWeldForm({
                                     <tbody>
                                       {inspectionMethods.map((m) => {
                                         const virtualW = {
-                                          id: weld?.id,
-                                          weldLocation: weld?.weldLocation,
+                                          ...weld,
                                           ndtRequired,
                                           visualInspection,
                                           ndtOverrides,
+                                          ndtResults,
+                                          ndtResultOutcome,
                                         };
                                         const sel = computeNdtSelection(virtualW, drawingSettings, weldPoints, ndtContext);
                                         const isRequired = !!sel[m];
                                         const overrideVal = ndtOverrides[m] ?? NDT_OVERRIDE_OPTIONS.AUTO;
                                         const outcome = ndtResultOutcome[m];
+                                        const ndtLoc =
+                                          (virtualW.weldLocation || "shop") === "field" ? "field" : "shop";
+                                        const hasNdtScope =
+                                          ndtContext != null &&
+                                          Array.isArray(ndtContext.systems) &&
+                                          ndtContext.systems.length > 0 &&
+                                          Array.isArray(ndtContext.lines) &&
+                                          ndtContext.lines.length > 0;
+                                        const resolvedNdtReqs = hasNdtScope
+                                          ? getResolvedNdtRequirementsForWeld(
+                                              virtualW,
+                                              drawingSettings,
+                                              ndtContext.systems,
+                                              ndtContext.lines,
+                                              ndtContext.spools || []
+                                            )
+                                          : drawingSettings.ndtRequirements || [];
+                                        const policyPct = getPctFromResolvedRequirements(
+                                          resolvedNdtReqs,
+                                          m,
+                                          ndtLoc
+                                        );
                                         return (
                                           <tr key={m}>
                                             <td className="font-medium">{NDT_METHOD_LABELS[m] || m}</td>
@@ -1532,7 +1584,27 @@ function SidePanelWeldForm({
                                                 <option value={NDT_OVERRIDE_OPTIONS.EXEMPT}>Exclude</option>
                                               </select>
                                             </td>
-                                            <td className="text-sm">{isRequired ? "Yes" : "No"}</td>
+                                            <td
+                                              className="text-sm"
+                                              title={
+                                                policyPct < 100
+                                                  ? `Merged NDT for this weld (project → system → line): ${policyPct}% ${ndtLoc}. ${
+                                                      isRequired
+                                                        ? "This weld is in the sample for this method."
+                                                        : "This weld is not in the sample for this method."
+                                                    }`
+                                                  : isRequired
+                                                    ? "Required for this weld (100% policy or Include override)."
+                                                    : "Not required (exempt, not in scope, or policy)."
+                                              }
+                                            >
+                                              <span>{isRequired ? "Yes" : "No"}</span>
+                                              {policyPct < 100 ? (
+                                                <span className="inline-block ml-1 text-[10px] text-base-content/60 tabular-nums">
+                                                  ({policyPct}% {ndtLoc})
+                                                </span>
+                                              ) : null}
+                                            </td>
                                             <td className="text-sm">
                                               {!isRequired ? (
                                                 <span className="text-base-content/50">N/A</span>

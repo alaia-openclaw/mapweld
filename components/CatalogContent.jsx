@@ -122,7 +122,6 @@ export default function CatalogContent({
       <PanelCatalogFlangedValves
         selectionId={selectedId}
         search={search}
-        onSelectCategory={onSelectCategory}
       />
     );
   }
@@ -132,7 +131,6 @@ export default function CatalogContent({
       <PanelCatalogButtweldedValves
         selectionId={selectedId}
         search={search}
-        onSelectCategory={onSelectCategory}
       />
     );
   }
@@ -142,7 +140,6 @@ export default function CatalogContent({
       <PanelCatalogThreadedValves
         selectionId={selectedId}
         search={search}
-        onSelectCategory={onSelectCategory}
       />
     );
   }
@@ -152,7 +149,6 @@ export default function CatalogContent({
       <PanelCatalogSocketweldedValves
         selectionId={selectedId}
         search={search}
-        onSelectCategory={onSelectCategory}
       />
     );
   }
@@ -200,15 +196,12 @@ export default function CatalogContent({
       connectionType,
       subtypeId
     );
-    const subNode = findNodeById(tree, selectedId);
     return (
       <PanelCatalogFittings
         key={selectedId}
         entries={filtered}
         search={search}
         catalogUnitSystem={catalogUnitSystem}
-        connectionType={connectionType}
-        subcategoryLabel={subNode?.label ?? ""}
       />
     );
   }

@@ -2459,7 +2459,6 @@ export default function WeldTrackerApp() {
                             lines={linesOnCurrentPage}
                             selectedLineId={selectedLineIdFromMarker}
                             spools={spoolsOnCurrentPage}
-                            drawingSettings={drawingSettings}
                             wpsLibrary={wpsLibrary}
                             isOpen
                             onToggle={() => {}}
@@ -2667,7 +2666,6 @@ export default function WeldTrackerApp() {
                 lines={linesOnCurrentPage}
                 selectedLineId={selectedLineIdFromMarker}
                 spools={spoolsOnCurrentPage}
-                drawingSettings={drawingSettings}
                 wpsLibrary={wpsLibrary}
                 isOpen={true}
                 onToggle={() => {}}
@@ -2784,6 +2782,7 @@ export default function WeldTrackerApp() {
           ndtReports: nr,
           ndtRequests: nreq,
           weldPoints: wp,
+          lines: ln,
         }) => {
           if (s != null) setDrawingSettings(s);
           if (p != null) setPersonnel(p);
@@ -2797,6 +2796,7 @@ export default function WeldTrackerApp() {
           if (nr != null) setNdtReports(nr);
           if (nreq != null) setNdtRequests(nreq);
           if (wp != null) setWeldPoints(wp);
+          if (ln != null) setLines(ln);
         }}
       />
 

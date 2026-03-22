@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useCallback, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   SPIRAL_WOUND_GASKET_STANDARDS,
   getSpiralRowsForStandard,
@@ -11,7 +11,6 @@ import {
   matchSpiralWoundRow,
 } from "@/lib/spiral-wound-gaskets-data";
 import {
-  CatalogToolbarIconButton,
   catalogPanelOuterClass,
   catalogPanelToolbarClass,
   catalogTableScrollClass,
@@ -197,40 +196,6 @@ export default function PanelCatalogSpiralWoundGaskets({ selectionId, search = "
     return [...pool].sort((a, b) => a.dn - b.dn || a.pressureClass.localeCompare(b.pressureClass));
   }, [rowsFiltered, allRows]);
 
-  const currentIndex = useMemo(() => {
-    if (!activeRow) return -1;
-    return indexList.findIndex(
-      (r) => r.dn === activeRow.dn && r.pressureClass === activeRow.pressureClass
-    );
-  }, [indexList, activeRow]);
-
-  const step = useCallback(
-    (delta) => {
-      if (indexList.length === 0) return;
-      const next = (currentIndex + delta + indexList.length) % indexList.length;
-      const r = indexList[next];
-      setDn(r.dn);
-      setPressureClass(r.pressureClass);
-    },
-    [indexList, currentIndex]
-  );
-
-  const goFirst = useCallback(() => {
-    const r = indexList[0];
-    if (r) {
-      setDn(r.dn);
-      setPressureClass(r.pressureClass);
-    }
-  }, [indexList]);
-
-  const goLast = useCallback(() => {
-    const r = indexList[indexList.length - 1];
-    if (r) {
-      setDn(r.dn);
-      setPressureClass(r.pressureClass);
-    }
-  }, [indexList]);
-
   if (!standard) {
     return (
       <div className="rounded-xl border border-base-300 bg-base-200/60 p-8 text-center text-base-content/60">
@@ -245,51 +210,36 @@ export default function PanelCatalogSpiralWoundGaskets({ selectionId, search = "
     <div className={catalogPanelOuterClass}>
       <div className="flex flex-col flex-1 min-h-0">
         <div className={catalogPanelToolbarClass}>
-          <div className="flex items-center gap-0.5 shrink-0">
-            <CatalogToolbarIconButton title="First" onClick={goFirst}>
-              <span className="text-xs font-mono">|◀</span>
-            </CatalogToolbarIconButton>
-            <CatalogToolbarIconButton title="Previous" onClick={() => step(-1)}>
-              <span className="text-xs">◀</span>
-            </CatalogToolbarIconButton>
-            <CatalogToolbarIconButton title="Next" onClick={() => step(1)}>
-              <span className="text-xs">▶</span>
-            </CatalogToolbarIconButton>
-            <CatalogToolbarIconButton title="Last" onClick={goLast}>
-              <span className="text-xs font-mono">▶|</span>
-            </CatalogToolbarIconButton>
+          <div className="flex flex-wrap items-end gap-2 flex-1 justify-center w-full">
+            <label className="form-control">
+              <span className="label-text text-[10px] text-base-content/60">Size (DN)</span>
+              <select
+                className="select select-bordered select-xs w-[4.5rem]"
+                value={String(dn)}
+                onChange={(e) => setDn(Number(e.target.value))}
+              >
+                {dns.map((d) => (
+                  <option key={d} value={String(d)}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="form-control">
+              <span className="label-text text-[10px] text-base-content/60">Class</span>
+              <select
+                className="select select-bordered select-xs w-[4.5rem]"
+                value={pressureClass}
+                onChange={(e) => setPressureClass(e.target.value)}
+              >
+                {classes.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
-          <div className="flex-1 min-w-[8rem] text-xs font-semibold truncate px-1 text-base-content/90">
-            {standard.label}
-          </div>
-          <label className="flex flex-col gap-0.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-base-content/60">Size (DN)</span>
-            <select
-              className="select select-bordered select-xs min-w-[5rem]"
-              value={String(dn)}
-              onChange={(e) => setDn(Number(e.target.value))}
-            >
-              {dns.map((d) => (
-                <option key={d} value={String(d)}>
-                  {d}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-0.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-base-content/60">Class</span>
-            <select
-              className="select select-bordered select-xs min-w-[5rem]"
-              value={pressureClass}
-              onChange={(e) => setPressureClass(e.target.value)}
-            >
-              {classes.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </label>
         </div>
 
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)] gap-3 p-3 min-h-0">

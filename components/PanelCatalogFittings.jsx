@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect, useLayoutEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   matchEntrySearch,
   entryMatchesCatalogUnitSystem,
@@ -9,25 +9,16 @@ import {
 } from "@/lib/catalog-structure";
 import {
   CatalogFacetDropdown,
-  CatalogReadOnlyFacet,
   catalogPanelOuterClass,
+  catalogPanelToolbarClass,
   catalogTableScrollClass,
   catalogTableClassName,
 } from "@/components/CatalogCategoryToolbar";
-import { useCatalogToolbar } from "@/contexts/CatalogToolbarContext";
-
-const CONNECTION_TYPE_LABELS = {
-  "fittings-buttwelding": "Butt weld",
-  "fittings-threaded": "Threaded",
-  "fittings-socketwelded": "Socket weld",
-};
 
 export default function PanelCatalogFittings({
   entries,
   search = "",
   catalogUnitSystem,
-  connectionType = "",
-  subcategoryLabel = "",
 }) {
   const [scheduleFilter, setScheduleFilter] = useState("");
   const [radiusFilter, setRadiusFilter] = useState("");
@@ -35,7 +26,6 @@ export default function PanelCatalogFittings({
   const [npsFilter, setNpsFilter] = useState("");
   const [partTypeFilter, setPartTypeFilter] = useState("");
   const [odFilter, setOdFilter] = useState("");
-  const { setToolbar } = useCatalogToolbar();
 
   const scheduleOptions = useMemo(
     () => uniqueSortedFacetValues(entries.map((e) => e.attributes?.schedule ?? e.thickness)),
@@ -72,89 +62,6 @@ export default function PanelCatalogFittings({
     setPartTypeFilter("");
     setOdFilter("");
   }, [catalogUnitSystem]);
-
-  const connectionDisplay =
-    (connectionType && CONNECTION_TYPE_LABELS[connectionType]) || connectionType || "";
-
-  useLayoutEffect(() => {
-    setToolbar(
-      <>
-        <CatalogReadOnlyFacet label="Category" value="Fittings" />
-        {connectionDisplay ? (
-          <CatalogReadOnlyFacet label="Connection" value={connectionDisplay} />
-        ) : null}
-        {subcategoryLabel ? <CatalogReadOnlyFacet label="Subcategory" value={subcategoryLabel} /> : null}
-        {partTypeOptions.length > 1 ? (
-          <CatalogFacetDropdown
-            label="Part type"
-            options={[{ id: "", label: "All types" }, ...partTypeOptions.map((p) => ({ id: p, label: p }))]}
-            activeId={partTypeFilter}
-            onSelect={setPartTypeFilter}
-          />
-        ) : partTypeOptions.length === 1 ? (
-          <CatalogReadOnlyFacet label="Part type" value={partTypeOptions[0]} />
-        ) : null}
-        {npsOptions.length > 0 ? (
-          <CatalogFacetDropdown
-            label="Size (NPS / NB)"
-            options={[{ id: "", label: "All sizes" }, ...npsOptions.map((n) => ({ id: n, label: n }))]}
-            activeId={npsFilter}
-            onSelect={setNpsFilter}
-          />
-        ) : null}
-        {scheduleOptions.length > 0 ? (
-          <CatalogFacetDropdown
-            label="Schedule"
-            options={[{ id: "", label: "All schedules" }, ...scheduleOptions.map((s) => ({ id: s, label: s }))]}
-            activeId={scheduleFilter}
-            onSelect={setScheduleFilter}
-          />
-        ) : null}
-        {radiusOptions.length > 0 ? (
-          <CatalogFacetDropdown
-            label="Radius"
-            options={[{ id: "", label: "All" }, ...radiusOptions.map((r) => ({ id: r, label: r }))]}
-            activeId={radiusFilter}
-            onSelect={setRadiusFilter}
-          />
-        ) : null}
-        {angleOptions.length > 0 ? (
-          <CatalogFacetDropdown
-            label="Angle"
-            options={[{ id: "", label: "All" }, ...angleOptions.map((a) => ({ id: a, label: a }))]}
-            activeId={angleFilter}
-            onSelect={setAngleFilter}
-          />
-        ) : null}
-        {odOptions.length > 0 ? (
-          <CatalogFacetDropdown
-            label={catalogUnitSystem === "Metric" ? "OD (mm)" : "OD (in)"}
-            options={[{ id: "", label: "All" }, ...odOptions.map((o) => ({ id: o, label: o }))]}
-            activeId={odFilter}
-            onSelect={setOdFilter}
-          />
-        ) : null}
-      </>
-    );
-    return () => setToolbar(null);
-  }, [
-    setToolbar,
-    connectionDisplay,
-    subcategoryLabel,
-    partTypeOptions,
-    npsOptions,
-    scheduleOptions,
-    radiusOptions,
-    angleOptions,
-    odOptions,
-    catalogUnitSystem,
-    npsFilter,
-    scheduleFilter,
-    radiusFilter,
-    angleFilter,
-    partTypeFilter,
-    odFilter,
-  ]);
 
   const filtered = useMemo(() => {
     return entries.filter((e) => {
@@ -193,6 +100,56 @@ export default function PanelCatalogFittings({
   return (
     <div className={catalogPanelOuterClass}>
       <div className="flex-1 flex flex-col min-h-0">
+        <div className={catalogPanelToolbarClass}>
+          {partTypeOptions.length > 1 ? (
+            <CatalogFacetDropdown
+              label="Part type"
+              options={[{ id: "", label: "All types" }, ...partTypeOptions.map((p) => ({ id: p, label: p }))]}
+              activeId={partTypeFilter}
+              onSelect={setPartTypeFilter}
+            />
+          ) : null}
+          {npsOptions.length > 0 ? (
+            <CatalogFacetDropdown
+              label="Size (NPS / NB)"
+              options={[{ id: "", label: "All sizes" }, ...npsOptions.map((n) => ({ id: n, label: n }))]}
+              activeId={npsFilter}
+              onSelect={setNpsFilter}
+            />
+          ) : null}
+          {scheduleOptions.length > 0 ? (
+            <CatalogFacetDropdown
+              label="Schedule"
+              options={[{ id: "", label: "All schedules" }, ...scheduleOptions.map((s) => ({ id: s, label: s }))]}
+              activeId={scheduleFilter}
+              onSelect={setScheduleFilter}
+            />
+          ) : null}
+          {radiusOptions.length > 0 ? (
+            <CatalogFacetDropdown
+              label="Radius"
+              options={[{ id: "", label: "All" }, ...radiusOptions.map((r) => ({ id: r, label: r }))]}
+              activeId={radiusFilter}
+              onSelect={setRadiusFilter}
+            />
+          ) : null}
+          {angleOptions.length > 0 ? (
+            <CatalogFacetDropdown
+              label="Angle"
+              options={[{ id: "", label: "All" }, ...angleOptions.map((a) => ({ id: a, label: a }))]}
+              activeId={angleFilter}
+              onSelect={setAngleFilter}
+            />
+          ) : null}
+          {odOptions.length > 0 ? (
+            <CatalogFacetDropdown
+              label={catalogUnitSystem === "Metric" ? "OD (mm)" : "OD (in)"}
+              options={[{ id: "", label: "All" }, ...odOptions.map((o) => ({ id: o, label: o }))]}
+              activeId={odFilter}
+              onSelect={setOdFilter}
+            />
+          ) : null}
+        </div>
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)] gap-3 min-h-0">
           <div className="rounded-lg border border-base-300 bg-base-100 p-3 flex flex-col gap-2 min-h-[200px]">
             <h2 className="text-sm font-semibold truncate">Fittings</h2>

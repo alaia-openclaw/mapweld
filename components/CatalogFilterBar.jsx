@@ -1,7 +1,6 @@
 "use client";
 
 import { CATALOG_UNIT_SYSTEMS } from "@/lib/catalog-structure";
-import { useCatalogToolbar } from "@/contexts/CatalogToolbarContext";
 
 export default function CatalogFilterBar({
   search,
@@ -9,8 +8,6 @@ export default function CatalogFilterBar({
   catalogUnitSystem = CATALOG_UNIT_SYSTEMS[0],
   onCatalogUnitSystemChange,
 }) {
-  const { toolbar } = useCatalogToolbar();
-
   return (
     <div className="shrink-0 flex flex-wrap items-end gap-2 gap-y-2 px-3 py-2 border-b border-base-300 bg-base-200/60">
       <div className="flex flex-col gap-0.5 shrink-0">
@@ -48,11 +45,6 @@ export default function CatalogFilterBar({
           ))}
         </div>
       </div>
-      {toolbar ? (
-        <div className="flex flex-wrap items-end gap-2 gap-y-2 flex-1 min-w-0 [&_.dropdown]:max-w-[min(100vw-2rem,16rem)]">
-          {toolbar}
-        </div>
-      ) : null}
       {search.trim() ? (
         <button
           type="button"

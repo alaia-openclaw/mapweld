@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useCallback, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   getRingRowsForType,
   getRingJointTypeBySelectionId,
@@ -9,7 +9,6 @@ import {
   matchRingJointRow,
 } from "@/lib/ring-joint-gaskets-data";
 import {
-  CatalogToolbarIconButton,
   catalogPanelOuterClass,
   catalogPanelToolbarClass,
   catalogTableScrollClass,
@@ -200,29 +199,6 @@ export default function PanelCatalogRingJointGaskets({ selectionId, search = "" 
     return [...pool].sort((a, b) => a.sizeCode.localeCompare(b.sizeCode, undefined, { numeric: true }));
   }, [rowsFiltered, allRows]);
 
-  const currentIndex = useMemo(() => {
-    if (!activeRow) return -1;
-    return indexList.findIndex((r) => r.sizeCode === activeRow.sizeCode);
-  }, [indexList, activeRow]);
-
-  const step = useCallback(
-    (delta) => {
-      if (indexList.length === 0) return;
-      const next = (currentIndex + delta + indexList.length) % indexList.length;
-      setSizeCode(indexList[next].sizeCode);
-    },
-    [indexList, currentIndex]
-  );
-
-  const goFirst = useCallback(() => {
-    if (indexList[0]) setSizeCode(indexList[0].sizeCode);
-  }, [indexList]);
-
-  const goLast = useCallback(() => {
-    const r = indexList[indexList.length - 1];
-    if (r) setSizeCode(r.sizeCode);
-  }, [indexList]);
-
   if (!typeDef) {
     return (
       <div className="rounded-xl border border-base-300 bg-base-200/60 p-8 text-center text-base-content/60">
@@ -237,37 +213,22 @@ export default function PanelCatalogRingJointGaskets({ selectionId, search = "" 
     <div className={catalogPanelOuterClass}>
       <div className="flex flex-col flex-1 min-h-0">
         <div className={catalogPanelToolbarClass}>
-          <div className="flex items-center gap-0.5 shrink-0">
-            <CatalogToolbarIconButton title="First" onClick={goFirst}>
-              <span className="text-xs font-mono">|◀</span>
-            </CatalogToolbarIconButton>
-            <CatalogToolbarIconButton title="Previous" onClick={() => step(-1)}>
-              <span className="text-xs">◀</span>
-            </CatalogToolbarIconButton>
-            <CatalogToolbarIconButton title="Next" onClick={() => step(1)}>
-              <span className="text-xs">▶</span>
-            </CatalogToolbarIconButton>
-            <CatalogToolbarIconButton title="Last" onClick={goLast}>
-              <span className="text-xs font-mono">▶|</span>
-            </CatalogToolbarIconButton>
+          <div className="flex flex-wrap items-end gap-2 flex-1 justify-center w-full">
+            <label className="form-control">
+              <span className="label-text text-[10px] text-base-content/60">Size</span>
+              <select
+                className="select select-bordered select-xs min-w-[6rem]"
+                value={sizeCode}
+                onChange={(e) => setSizeCode(e.target.value)}
+              >
+                {sizeCodes.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
-          <div className="flex-1 min-w-[8rem] text-xs font-semibold truncate px-1 text-base-content/90">
-            {typeDef.label}
-          </div>
-          <label className="flex flex-col gap-0.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-base-content/60">Size</span>
-            <select
-              className="select select-bordered select-xs min-w-[6rem]"
-              value={sizeCode}
-              onChange={(e) => setSizeCode(e.target.value)}
-            >
-              {sizeCodes.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </label>
         </div>
 
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)] gap-3 p-3 min-h-0">

@@ -6,6 +6,7 @@ import SidePanelLines from "@/components/SidePanelLines";
 import SidePanelSpools from "@/components/SidePanelSpools";
 import SidePanelWeldForm from "@/components/SidePanelWeldForm";
 import NdtRequirementsOverrideTable from "@/components/NdtRequirementsOverrideTable";
+import NdtInheritanceHelpModal from "@/components/NdtInheritanceHelpModal";
 import SettingsWpsRegistry from "@/components/settings/SettingsWpsRegistry";
 import SettingsElectrodePanel from "@/components/settings/SettingsElectrodePanel";
 import SettingsMaterialCertificatesPanel from "@/components/settings/SettingsMaterialCertificatesPanel";
@@ -96,6 +97,7 @@ function ModalSettings({
   const wqrDocuments = (documents || []).filter((doc) => doc?.category === "wqr");
   const wpsDocuments = (documents || []).filter((doc) => doc?.category === "wps");
   const safeElectrodeLibrary = Array.isArray(electrodeLibrary) ? electrodeLibrary : [];
+  const safeLines = Array.isArray(lines) ? lines : [];
 
   useEffect(() => {
     if (!isOpen) {
@@ -374,10 +376,35 @@ function ModalSettings({
     setProjectSystems(nextSystems);
   }
 
+  function handleUpdateLineNdtRequirements(lineId, nextReqs) {
+    const nextLines = safeLines.map((l) =>
+      l.id === lineId ? { ...l, ndtRequirements: nextReqs } : l
+    );
+    onSave?.({
+      drawingSettings: { ndtRequirements, weldingSpec },
+      personnel,
+      projectMeta: {
+        projectName: metaProjectName,
+        client: metaClient,
+        spec: metaSpec,
+        revision: metaRevision,
+        date: metaDate,
+      },
+      systems: projectSystems,
+      wpsLibrary: projectWpsLibrary,
+      electrodeLibrary: safeElectrodeLibrary,
+      lines: nextLines,
+    });
+  }
+
   function handleAddWps(initial) {
     const init = initial && typeof initial === "object" ? initial : {};
-    const codeFromInit = typeof init.code === "string" ? init.code.trim().toUpperCase() : "";
+    let codeFromInit = typeof init.code === "string" ? init.code.trim().toUpperCase() : "";
     const titleFromInit = typeof init.title === "string" ? init.title.trim() : "";
+    // Blank rows are excluded from the registered table (see isWpsLibraryEntryRegisteredForDropdown in wps-resolution).
+    if (!codeFromInit) {
+      codeFromInit = `WPS-${Date.now().toString(36).toUpperCase()}`;
+    }
     const nextWpsLibrary = [
       ...projectWpsLibrary,
       {
@@ -775,11 +802,14 @@ function ModalSettings({
             </div>
 
             <div className="border border-base-300 rounded-lg p-3 bg-base-200/30 space-y-2">
+              <div className="flex flex-wrap items-start justify-end gap-2">
+                <NdtInheritanceHelpModal />
+              </div>
               <NdtRequirementsOverrideTable
                 variant="default"
                 scope="project"
                 title="Project NDT defaults"
-                hint="Base sampling when NDT on the weld is Auto. Use Settings → Systems and the Lines panel for optional overrides per method (line wins over system over project)."
+                hint="Base sampling when NDT on the weld is Auto. Optional system and line overrides are under Settings → Project info → Systems (line wins over system over project)."
                 rows={ndtRequirements}
                 onChange={setNdtRequirements}
               />
@@ -806,9 +836,13 @@ function ModalSettings({
 
         {activeSection === "systems" && (
           <div className="mt-2 md:mt-0 space-y-4">
-            <p className="text-sm text-base-content/70">
-              Systems group lines and inherit default WPS / NDT settings.
-            </p>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <p className="text-sm text-base-content/70 flex-1 min-w-0">
+                Systems group lines and inherit default WPS / NDT settings. Line NDT overrides are edited here only (not
+                in the workspace Lines panel).
+              </p>
+              <NdtInheritanceHelpModal />
+            </div>
             <div className="flex justify-end">
               <button type="button" className="btn btn-ghost btn-sm" onClick={handleAddSystem}>
                 + Add system
@@ -853,6 +887,31 @@ function ModalSettings({
                     rows={Array.isArray(system.ndtRequirements) ? system.ndtRequirements : []}
                     onChange={(nextReqs) => handleUpdateSystem(system.id, { ndtRequirements: nextReqs })}
                   />
+                  {safeLines.some((ln) => ln.systemId === system.id) ? (
+                    <div className="space-y-2 border-t border-base-300/50 pt-2">
+                      <p className="text-[11px] font-medium text-base-content/85">Lines on this system</p>
+                      {safeLines
+                        .filter((ln) => ln.systemId === system.id)
+                        .map((line) => (
+                          <div
+                            key={line.id}
+                            className="rounded-md border border-base-300/70 bg-base-100/60 px-2 py-2 space-y-1.5"
+                          >
+                            <p className="text-xs font-medium truncate" title={line.name || ""}>
+                              {line.name?.trim() || "Unnamed line"}
+                            </p>
+                            <NdtRequirementsOverrideTable
+                              variant="compact"
+                              scope="override"
+                              title="NDT overrides (optional)"
+                              hint="Per-method %. Merges with project and this system; line wins for welds on this line."
+                              rows={Array.isArray(line.ndtRequirements) ? line.ndtRequirements : []}
+                              onChange={(nextReqs) => handleUpdateLineNdtRequirements(line.id, nextReqs)}
+                            />
+                          </div>
+                        ))}
+                    </div>
+                  ) : null}
                   <div className="flex justify-end">
                     <button type="button" className="btn btn-ghost btn-xs text-error" onClick={() => handleRemoveSystem(system.id)}>
                       Remove
@@ -861,6 +920,31 @@ function ModalSettings({
                 </li>
               ))}
             </ul>
+            {safeLines.some((ln) => !ln.systemId) ? (
+              <div className="border border-base-300 rounded-lg p-3 bg-base-200/40 space-y-2">
+                <p className="text-xs font-semibold text-base-content/90">Lines not assigned to a system</p>
+                {safeLines
+                  .filter((ln) => !ln.systemId)
+                  .map((line) => (
+                    <div
+                      key={line.id}
+                      className="rounded-md border border-base-300/70 bg-base-100/60 px-2 py-2 space-y-1.5"
+                    >
+                      <p className="text-xs font-medium truncate" title={line.name || ""}>
+                        {line.name?.trim() || "Unnamed line"}
+                      </p>
+                      <NdtRequirementsOverrideTable
+                        variant="compact"
+                        scope="override"
+                        title="NDT overrides (optional)"
+                        hint="Per-method %. Merges with project only (no system layer until you assign a system)."
+                        rows={Array.isArray(line.ndtRequirements) ? line.ndtRequirements : []}
+                        onChange={(nextReqs) => handleUpdateLineNdtRequirements(line.id, nextReqs)}
+                      />
+                    </div>
+                  ))}
+              </div>
+            ) : null}
             {projectSystems.length === 0 && <p className="text-sm text-base-content/50">No systems yet.</p>}
             <div className="modal-action mt-4">
               <button type="button" className="btn btn-ghost" onClick={onClose}>Close</button>
@@ -1142,7 +1226,6 @@ function ModalSettings({
               systemsManagedExternally
               selectedLineId={null}
               {...structureIntegration.lines}
-              drawingSettings={settings}
             />
           </div>
         )}

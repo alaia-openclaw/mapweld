@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect, useLayoutEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   matchEntrySearch,
   entryMatchesCatalogUnitSystem,
@@ -9,12 +9,11 @@ import {
 } from "@/lib/catalog-structure";
 import {
   CatalogFacetDropdown,
-  CatalogReadOnlyFacet,
   catalogPanelOuterClass,
+  catalogPanelToolbarClass,
   catalogTableScrollClass,
   catalogTableClassName,
 } from "@/components/CatalogCategoryToolbar";
-import { useCatalogToolbar } from "@/contexts/CatalogToolbarContext";
 
 export default function PanelCatalogPipe({ entries, search = "", catalogUnitSystem }) {
   const [scheduleFilter, setScheduleFilter] = useState("");
@@ -23,7 +22,6 @@ export default function PanelCatalogPipe({ entries, search = "", catalogUnitSyst
   const [odFilter, setOdFilter] = useState("");
   const [wallThkFilter, setWallThkFilter] = useState("");
   const [idFilter, setIdFilter] = useState("");
-  const { setToolbar } = useCatalogToolbar();
 
   const scheduleOptions = useMemo(
     () => uniqueSortedFacetValues(entries.map((e) => e.attributes?.schedule)),
@@ -62,78 +60,6 @@ export default function PanelCatalogPipe({ entries, search = "", catalogUnitSyst
     setIdFilter("");
   }, [catalogUnitSystem]);
 
-  useLayoutEffect(() => {
-    setToolbar(
-      <>
-        <CatalogReadOnlyFacet label="Category" value="Pipe" />
-        {npsOptions.length > 0 ? (
-          <CatalogFacetDropdown
-            label="Size (NPS / NB)"
-            options={[{ id: "", label: "All sizes" }, ...npsOptions.map((n) => ({ id: n, label: n }))]}
-            activeId={npsFilter}
-            onSelect={setNpsFilter}
-          />
-        ) : null}
-        {scheduleOptions.length > 0 ? (
-          <CatalogFacetDropdown
-            label="Schedule"
-            options={[{ id: "", label: "All schedules" }, ...scheduleOptions.map((s) => ({ id: s, label: s }))]}
-            activeId={scheduleFilter}
-            onSelect={setScheduleFilter}
-          />
-        ) : null}
-        {formOptions.length > 0 ? (
-          <CatalogFacetDropdown
-            label="Form"
-            options={[{ id: "", label: "All" }, ...formOptions.map((f) => ({ id: f, label: f }))]}
-            activeId={formFilter}
-            onSelect={setFormFilter}
-          />
-        ) : null}
-        {odOptions.length > 0 ? (
-          <CatalogFacetDropdown
-            label={catalogUnitSystem === "Metric" ? "OD (mm)" : "OD (in)"}
-            options={[{ id: "", label: "All" }, ...odOptions.map((o) => ({ id: o, label: o }))]}
-            activeId={odFilter}
-            onSelect={setOdFilter}
-          />
-        ) : null}
-        {wallThkOptions.length > 0 ? (
-          <CatalogFacetDropdown
-            label={catalogUnitSystem === "Metric" ? "Wall thk (mm)" : "Wall thk (in)"}
-            options={[{ id: "", label: "All" }, ...wallThkOptions.map((w) => ({ id: w, label: w }))]}
-            activeId={wallThkFilter}
-            onSelect={setWallThkFilter}
-          />
-        ) : null}
-        {idOptions.length > 0 ? (
-          <CatalogFacetDropdown
-            label={catalogUnitSystem === "Metric" ? "ID (mm)" : "ID (in)"}
-            options={[{ id: "", label: "All" }, ...idOptions.map((i) => ({ id: i, label: i }))]}
-            activeId={idFilter}
-            onSelect={setIdFilter}
-          />
-        ) : null}
-      </>
-    );
-    return () => setToolbar(null);
-  }, [
-    setToolbar,
-    catalogUnitSystem,
-    npsOptions,
-    scheduleOptions,
-    formOptions,
-    odOptions,
-    wallThkOptions,
-    idOptions,
-    npsFilter,
-    scheduleFilter,
-    formFilter,
-    odFilter,
-    wallThkFilter,
-    idFilter,
-  ]);
-
   const filtered = useMemo(() => {
     return entries.filter((e) => {
       if (!entryMatchesCatalogUnitSystem(e, catalogUnitSystem)) return false;
@@ -171,6 +97,56 @@ export default function PanelCatalogPipe({ entries, search = "", catalogUnitSyst
   return (
     <div className={catalogPanelOuterClass}>
       <div className="flex-1 flex flex-col min-h-0">
+        <div className={catalogPanelToolbarClass}>
+          {npsOptions.length > 0 ? (
+            <CatalogFacetDropdown
+              label="Size (NPS / NB)"
+              options={[{ id: "", label: "All sizes" }, ...npsOptions.map((n) => ({ id: n, label: n }))]}
+              activeId={npsFilter}
+              onSelect={setNpsFilter}
+            />
+          ) : null}
+          {scheduleOptions.length > 0 ? (
+            <CatalogFacetDropdown
+              label="Schedule"
+              options={[{ id: "", label: "All schedules" }, ...scheduleOptions.map((s) => ({ id: s, label: s }))]}
+              activeId={scheduleFilter}
+              onSelect={setScheduleFilter}
+            />
+          ) : null}
+          {formOptions.length > 0 ? (
+            <CatalogFacetDropdown
+              label="Form"
+              options={[{ id: "", label: "All" }, ...formOptions.map((f) => ({ id: f, label: f }))]}
+              activeId={formFilter}
+              onSelect={setFormFilter}
+            />
+          ) : null}
+          {odOptions.length > 0 ? (
+            <CatalogFacetDropdown
+              label={catalogUnitSystem === "Metric" ? "OD (mm)" : "OD (in)"}
+              options={[{ id: "", label: "All" }, ...odOptions.map((o) => ({ id: o, label: o }))]}
+              activeId={odFilter}
+              onSelect={setOdFilter}
+            />
+          ) : null}
+          {wallThkOptions.length > 0 ? (
+            <CatalogFacetDropdown
+              label={catalogUnitSystem === "Metric" ? "Wall thk (mm)" : "Wall thk (in)"}
+              options={[{ id: "", label: "All" }, ...wallThkOptions.map((w) => ({ id: w, label: w }))]}
+              activeId={wallThkFilter}
+              onSelect={setWallThkFilter}
+            />
+          ) : null}
+          {idOptions.length > 0 ? (
+            <CatalogFacetDropdown
+              label={catalogUnitSystem === "Metric" ? "ID (mm)" : "ID (in)"}
+              options={[{ id: "", label: "All" }, ...idOptions.map((i) => ({ id: i, label: i }))]}
+              activeId={idFilter}
+              onSelect={setIdFilter}
+            />
+          ) : null}
+        </div>
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)] gap-3 min-h-0">
           <div className="rounded-lg border border-base-300 bg-base-100 p-3 flex flex-col gap-2 min-h-[200px]">
             <h2 className="text-sm font-semibold truncate">Pipe</h2>

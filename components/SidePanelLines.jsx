@@ -1,8 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { formatNdtRequirements } from "@/lib/constants";
-import NdtRequirementsOverrideTable from "@/components/NdtRequirementsOverrideTable";
 import {
   getWpsLibraryEntryEffectiveCode,
   findWpsLibraryEntriesMatchingUserText,
@@ -22,7 +20,6 @@ function SidePanelLines({
   onToggle,
   isStacked = false,
   hideHeader = false,
-  drawingSettings = { ndtRequirements: [] },
   wpsLibrary = [],
 }) {
   const [expandedLineId, setExpandedLineId] = useState(null);
@@ -332,24 +329,9 @@ function SidePanelLines({
           </div>
         </div>
         {appMode === "edition" && (
-          <div className="border border-base-300/80 rounded-md p-2 bg-base-200/50">
-            <NdtRequirementsOverrideTable
-              variant="compact"
-              scope="override"
-              title="NDT overrides (optional)"
-              hint={
-                formatNdtRequirements(drawingSettings?.ndtRequirements || []).trim()
-                  ? `Project base: ${formatNdtRequirements(drawingSettings.ndtRequirements)}. Line overrides system; both merge per method with project.`
-                  : "Per-method % override. Line overrides system; both merge with project defaults."
-              }
-              rows={Array.isArray(line.ndtRequirements) ? line.ndtRequirements : []}
-              onChange={(nextReqs) => {
-                onSaveLines?.(
-                  lines.map((l) => (l.id === line.id ? { ...l, ndtRequirements: nextReqs } : l))
-                );
-              }}
-            />
-          </div>
+          <p className="text-[10px] text-base-content/50 leading-snug">
+            NDT sampling overrides for this line are edited in Settings → Project info → Systems.
+          </p>
         )}
         <div className="grid grid-cols-2 gap-1.5">
           <div className="form-control">
