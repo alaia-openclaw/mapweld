@@ -1,60 +1,99 @@
 "use client";
 
 import { useMemo, useState, useEffect, useLayoutEffect } from "react";
-import { matchEntrySearch, entryMatchesCatalogUnitSystem } from "@/lib/catalog-structure";
+import {
+  matchEntrySearch,
+  entryMatchesCatalogUnitSystem,
+  uniqueSortedFacetValues,
+  catalogFacetMatchesScalar,
+} from "@/lib/catalog-structure";
 import {
   CatalogFacetDropdown,
   CatalogReadOnlyFacet,
   catalogPanelOuterClass,
+  catalogTableScrollClass,
+  catalogTableClassName,
 } from "@/components/CatalogCategoryToolbar";
 import { useCatalogToolbar } from "@/contexts/CatalogToolbarContext";
 
-function uniqueSortedStrings(values) {
-  const set = new Set();
-  for (const v of values) {
-    const s = v != null && String(v).trim() !== "" ? String(v).trim() : null;
-    if (s) set.add(s);
-  }
-  return Array.from(set).sort((a, b) =>
-    a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" })
-  );
-}
+const CONNECTION_TYPE_LABELS = {
+  "fittings-buttwelding": "Butt weld",
+  "fittings-threaded": "Threaded",
+  "fittings-socketwelded": "Socket weld",
+};
 
-export default function PanelCatalogFittings({ entries, search = "", catalogUnitSystem }) {
+export default function PanelCatalogFittings({
+  entries,
+  search = "",
+  catalogUnitSystem,
+  connectionType = "",
+  subcategoryLabel = "",
+}) {
   const [scheduleFilter, setScheduleFilter] = useState("");
   const [radiusFilter, setRadiusFilter] = useState("");
   const [angleFilter, setAngleFilter] = useState("");
   const [npsFilter, setNpsFilter] = useState("");
+  const [partTypeFilter, setPartTypeFilter] = useState("");
+  const [odFilter, setOdFilter] = useState("");
   const { setToolbar } = useCatalogToolbar();
 
   const scheduleOptions = useMemo(
-    () => uniqueSortedStrings(entries.map((e) => e.attributes?.schedule ?? e.thickness)),
+    () => uniqueSortedFacetValues(entries.map((e) => e.attributes?.schedule ?? e.thickness)),
     [entries]
   );
 
   const radiusOptions = useMemo(
-    () => uniqueSortedStrings(entries.map((e) => e.attributes?.radius)),
+    () => uniqueSortedFacetValues(entries.map((e) => e.attributes?.radius)),
     [entries]
   );
 
   const angleOptions = useMemo(
-    () => uniqueSortedStrings(entries.map((e) => e.attributes?.angle)),
+    () => uniqueSortedFacetValues(entries.map((e) => e.attributes?.angle)),
     [entries]
   );
 
   const npsOptions = useMemo(
-    () => uniqueSortedStrings(entries.map((e) => e.nps)),
+    () => uniqueSortedFacetValues(entries.map((e) => e.nps)),
+    [entries]
+  );
+
+  const partTypeOptions = useMemo(
+    () => uniqueSortedFacetValues(entries.map((e) => e.partTypeLabel)),
+    [entries]
+  );
+
+  const odOptions = useMemo(
+    () => uniqueSortedFacetValues(entries.map((e) => e.attributes?.od)),
     [entries]
   );
 
   useEffect(() => {
     setNpsFilter("");
+    setPartTypeFilter("");
+    setOdFilter("");
   }, [catalogUnitSystem]);
+
+  const connectionDisplay =
+    (connectionType && CONNECTION_TYPE_LABELS[connectionType]) || connectionType || "";
 
   useLayoutEffect(() => {
     setToolbar(
       <>
         <CatalogReadOnlyFacet label="Category" value="Fittings" />
+        {connectionDisplay ? (
+          <CatalogReadOnlyFacet label="Connection" value={connectionDisplay} />
+        ) : null}
+        {subcategoryLabel ? <CatalogReadOnlyFacet label="Subcategory" value={subcategoryLabel} /> : null}
+        {partTypeOptions.length > 1 ? (
+          <CatalogFacetDropdown
+            label="Part type"
+            options={[{ id: "", label: "All types" }, ...partTypeOptions.map((p) => ({ id: p, label: p }))]}
+            activeId={partTypeFilter}
+            onSelect={setPartTypeFilter}
+          />
+        ) : partTypeOptions.length === 1 ? (
+          <CatalogReadOnlyFacet label="Part type" value={partTypeOptions[0]} />
+        ) : null}
         {npsOptions.length > 0 ? (
           <CatalogFacetDropdown
             label="Size (NPS / NB)"
@@ -87,32 +126,59 @@ export default function PanelCatalogFittings({ entries, search = "", catalogUnit
             onSelect={setAngleFilter}
           />
         ) : null}
+        {odOptions.length > 0 ? (
+          <CatalogFacetDropdown
+            label={catalogUnitSystem === "Metric" ? "OD (mm)" : "OD (in)"}
+            options={[{ id: "", label: "All" }, ...odOptions.map((o) => ({ id: o, label: o }))]}
+            activeId={odFilter}
+            onSelect={setOdFilter}
+          />
+        ) : null}
       </>
     );
     return () => setToolbar(null);
   }, [
     setToolbar,
+    connectionDisplay,
+    subcategoryLabel,
+    partTypeOptions,
     npsOptions,
     scheduleOptions,
     radiusOptions,
     angleOptions,
+    odOptions,
+    catalogUnitSystem,
     npsFilter,
     scheduleFilter,
     radiusFilter,
     angleFilter,
+    partTypeFilter,
+    odFilter,
   ]);
 
   const filtered = useMemo(() => {
     return entries.filter((e) => {
       if (!entryMatchesCatalogUnitSystem(e, catalogUnitSystem)) return false;
+      if (partTypeFilter && String(e.partTypeLabel ?? "").trim() !== partTypeFilter) return false;
       if (npsFilter && String(e.nps ?? "").trim() !== npsFilter) return false;
       if (scheduleFilter && String(e.attributes?.schedule ?? e.thickness ?? "") !== scheduleFilter) return false;
       if (radiusFilter && String(e.attributes?.radius ?? "") !== radiusFilter) return false;
       if (angleFilter && String(e.attributes?.angle ?? "") !== angleFilter) return false;
+      if (!catalogFacetMatchesScalar(e.attributes?.od, odFilter)) return false;
       if (!matchEntrySearch(e, search)) return false;
       return true;
     });
-  }, [entries, catalogUnitSystem, npsFilter, scheduleFilter, radiusFilter, angleFilter, search]);
+  }, [
+    entries,
+    catalogUnitSystem,
+    partTypeFilter,
+    npsFilter,
+    scheduleFilter,
+    radiusFilter,
+    angleFilter,
+    odFilter,
+    search,
+  ]);
 
   if (!entries.length) {
     return (
@@ -139,8 +205,8 @@ export default function PanelCatalogFittings({ entries, search = "", catalogUnit
               />
             </div>
           </div>
-          <div className="flex-1 overflow-auto rounded-xl min-h-0 border border-base-300 bg-base-100">
-            <table className="table table-xs table-pin-rows">
+          <div className={`flex-1 ${catalogTableScrollClass} rounded-xl`}>
+            <table className={catalogTableClassName}>
               <thead>
                 <tr>
                   <th>Type</th>

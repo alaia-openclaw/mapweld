@@ -200,8 +200,16 @@ export default function CatalogContent({
       connectionType,
       subtypeId
     );
+    const subNode = findNodeById(tree, selectedId);
     return (
-      <PanelCatalogFittings entries={filtered} search={search} catalogUnitSystem={catalogUnitSystem} />
+      <PanelCatalogFittings
+        key={selectedId}
+        entries={filtered}
+        search={search}
+        catalogUnitSystem={catalogUnitSystem}
+        connectionType={connectionType}
+        subcategoryLabel={subNode?.label ?? ""}
+      />
     );
   }
 

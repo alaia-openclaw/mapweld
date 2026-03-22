@@ -8,19 +8,13 @@ import {
   buildRingJointTitle,
   matchRingJointRow,
 } from "@/lib/ring-joint-gaskets-data";
-
-function ToolbarIconButton({ title, children, onClick }) {
-  return (
-    <button
-      type="button"
-      className="btn btn-ghost btn-xs text-primary-content border-0 hover:bg-primary-focus/30"
-      title={title}
-      onClick={onClick}
-    >
-      {children}
-    </button>
-  );
-}
+import {
+  CatalogToolbarIconButton,
+  catalogPanelOuterClass,
+  catalogPanelToolbarClass,
+  catalogTableScrollClass,
+  catalogTableClassName,
+} from "@/components/CatalogCategoryToolbar";
 
 /** Type R — octagonal and oval cross-sections (schematic). */
 function DiagramTypeR({ row }) {
@@ -240,28 +234,30 @@ export default function PanelCatalogRingJointGaskets({ selectionId, search = "" 
   const title = activeRow ? buildRingJointTitle(typeDef, activeRow) : typeDef.label;
 
   return (
-    <div className="flex flex-col rounded-xl border border-base-300 bg-base-100 overflow-hidden min-h-[460px]">
-      <div className="bg-primary text-primary-content shrink-0">
-        <div className="flex flex-wrap items-center gap-2 px-2 py-2">
+    <div className={catalogPanelOuterClass}>
+      <div className="flex flex-col flex-1 min-h-0">
+        <div className={catalogPanelToolbarClass}>
           <div className="flex items-center gap-0.5 shrink-0">
-            <ToolbarIconButton title="First" onClick={goFirst}>
+            <CatalogToolbarIconButton title="First" onClick={goFirst}>
               <span className="text-xs font-mono">|◀</span>
-            </ToolbarIconButton>
-            <ToolbarIconButton title="Previous" onClick={() => step(-1)}>
+            </CatalogToolbarIconButton>
+            <CatalogToolbarIconButton title="Previous" onClick={() => step(-1)}>
               <span className="text-xs">◀</span>
-            </ToolbarIconButton>
-            <ToolbarIconButton title="Next" onClick={() => step(1)}>
+            </CatalogToolbarIconButton>
+            <CatalogToolbarIconButton title="Next" onClick={() => step(1)}>
               <span className="text-xs">▶</span>
-            </ToolbarIconButton>
-            <ToolbarIconButton title="Last" onClick={goLast}>
+            </CatalogToolbarIconButton>
+            <CatalogToolbarIconButton title="Last" onClick={goLast}>
               <span className="text-xs font-mono">▶|</span>
-            </ToolbarIconButton>
+            </CatalogToolbarIconButton>
           </div>
-          <div className="flex-1 min-w-[8rem] text-xs font-semibold truncate px-1">{typeDef.label}</div>
+          <div className="flex-1 min-w-[8rem] text-xs font-semibold truncate px-1 text-base-content/90">
+            {typeDef.label}
+          </div>
           <label className="flex flex-col gap-0.5">
-            <span className="text-[10px] uppercase opacity-90">Size</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-base-content/60">Size</span>
             <select
-              className="select select-bordered select-xs bg-base-100 text-base-content border-primary-content/30 min-w-[6rem]"
+              className="select select-bordered select-xs min-w-[6rem]"
               value={sizeCode}
               onChange={(e) => setSizeCode(e.target.value)}
             >
@@ -272,50 +268,53 @@ export default function PanelCatalogRingJointGaskets({ selectionId, search = "" 
               ))}
             </select>
           </label>
-          <div className="hidden sm:flex items-center gap-0.5 ml-auto">
-            <ToolbarIconButton title="Search" onClick={() => {}}>
-              <span className="text-[10px] px-0.5">Sr</span>
-            </ToolbarIconButton>
-            <ToolbarIconButton title="Print" onClick={() => globalThis.print?.()}>
-              <span className="text-[10px] px-0.5">Prt</span>
-            </ToolbarIconButton>
-            <ToolbarIconButton title="Export" onClick={() => {}}>
-              <span className="text-[10px] px-0.5">Exp</span>
-            </ToolbarIconButton>
-            <ToolbarIconButton title="Settings" onClick={() => {}}>
-              <span className="text-[10px] px-0.5">Set</span>
-            </ToolbarIconButton>
-            <ToolbarIconButton title="Help" onClick={() => {}}>
-              <span className="text-[10px] px-0.5">?</span>
-            </ToolbarIconButton>
+        </div>
+
+        <div className="flex-1 grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)] gap-3 p-3 min-h-0">
+          <div className="rounded-lg border border-base-300 bg-base-100 p-3 flex flex-col gap-2 min-h-0 overflow-y-auto">
+            <h2 className="text-sm font-semibold leading-snug">{title}</h2>
+            {activeRow && (
+              <p className="text-xs text-base-content/70">
+                Weight = <strong>{activeRow.weightKg}</strong> kg
+              </p>
+            )}
+            {activeRow && typeDef.id === "r" && <DiagramTypeR row={activeRow} />}
+            {activeRow && typeDef.id === "rx" && <DiagramTypeRx row={activeRow} />}
+            {activeRow && typeDef.id === "bx" && <DiagramTypeBx row={activeRow} />}
+            {!activeRow && (
+              <p className="text-base-content/60 text-sm">No sizes match the current search.</p>
+            )}
+            <p className="text-right text-[11px] text-base-content/55">{typeDef.referenceStandard}</p>
+            <p className="text-[11px] text-base-content/50">
+              Schematic drawings — verify against ASME B16.20 and project specifications.
+            </p>
+          </div>
+          <div className={`${catalogTableScrollClass} min-h-[200px] lg:min-h-0`}>
+            <table className={catalogTableClassName}>
+              <thead>
+                <tr>
+                  <th>Size</th>
+                  <th>Weight (kg)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {indexList.map((row) => {
+                  const isSel = activeRow && row.sizeCode === activeRow.sizeCode;
+                  return (
+                    <tr
+                      key={row.sizeCode}
+                      className={isSel ? "bg-primary/10 cursor-pointer" : "cursor-pointer hover:bg-base-200/80"}
+                      onClick={() => setSizeCode(row.sizeCode)}
+                    >
+                      <td className="font-mono">{row.sizeCode}</td>
+                      <td>{row.weightKg}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
-      </div>
-
-      <div className="flex-1 p-4 md:p-6 space-y-4 overflow-auto">
-        <div>
-          <h2 className="text-lg md:text-xl font-bold leading-snug">{title}</h2>
-          {activeRow && (
-            <p className="text-sm text-base-content/70 mt-1">
-              Weight = <strong>{activeRow.weightKg}</strong> kg
-            </p>
-          )}
-        </div>
-
-        {activeRow && typeDef.id === "r" && <DiagramTypeR row={activeRow} />}
-        {activeRow && typeDef.id === "rx" && <DiagramTypeRx row={activeRow} />}
-        {activeRow && typeDef.id === "bx" && <DiagramTypeBx row={activeRow} />}
-
-        {!activeRow && (
-          <p className="text-base-content/60 text-sm">No sizes match the current search.</p>
-        )}
-
-        <p className="text-right text-[11px] text-base-content/55">{typeDef.referenceStandard}</p>
-
-        <p className="text-[11px] text-base-content/50 max-w-prose">
-          Drawings are schematic. Verify groove dimensions, hardness, and identification against ASME B16.20 and
-          project specifications.
-        </p>
       </div>
     </div>
   );

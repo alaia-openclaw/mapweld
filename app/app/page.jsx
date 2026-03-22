@@ -1877,6 +1877,7 @@ export default function WeldTrackerApp() {
               lines,
               spools,
               drawingSettings,
+              wpsLibrary,
               onSaveLines: handleSaveAllLines,
               onSaveSpools: handleSaveAllSpools,
               appMode,
@@ -2459,6 +2460,7 @@ export default function WeldTrackerApp() {
                             selectedLineId={selectedLineIdFromMarker}
                             spools={spoolsOnCurrentPage}
                             drawingSettings={drawingSettings}
+                            wpsLibrary={wpsLibrary}
                             isOpen
                             onToggle={() => {}}
                             onSaveLines={handleSaveVisibleLines}
@@ -2666,6 +2668,7 @@ export default function WeldTrackerApp() {
                 selectedLineId={selectedLineIdFromMarker}
                 spools={spoolsOnCurrentPage}
                 drawingSettings={drawingSettings}
+                wpsLibrary={wpsLibrary}
                 isOpen={true}
                 onToggle={() => {}}
                 onSaveLines={handleSaveVisibleLines}

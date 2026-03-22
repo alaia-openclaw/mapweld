@@ -411,9 +411,12 @@ function ModalSettings({
   }
 
   function handleUpdateWps(wpsId, updates) {
-    const nextWpsLibrary = projectWpsLibrary.map((entry) =>
-      entry.id === wpsId ? { ...entry, ...updates } : entry
-    );
+    const nextWpsLibrary = projectWpsLibrary.map((entry) => {
+      if (entry.id !== wpsId) return entry;
+      const merged = { ...entry, ...updates };
+      if ((merged.code || "").trim() || merged.documentId) return { ...merged, weldSyncAuto: false };
+      return merged;
+    });
     setProjectWpsLibrary(nextWpsLibrary);
   }
 
@@ -426,7 +429,7 @@ function ModalSettings({
     if (!entry) return;
     const newDoc = await uploadLinkedDocument(file, "wps", "WPS");
     const nextWpsLibrary = projectWpsLibrary.map((e) =>
-      e.id === resolvedId ? { ...e, documentId: newDoc.id } : e
+      e.id === resolvedId ? { ...e, documentId: newDoc.id, weldSyncAuto: false } : e
     );
     setProjectWpsLibrary(nextWpsLibrary);
     onSave?.({
@@ -769,6 +772,30 @@ function ModalSettings({
                 <label className="label"><span className="label-text">Date</span></label>
                 <input type="date" className="input input-bordered input-xs" value={metaDate} onChange={(e) => setMetaDate(e.target.value)} />
               </div>
+            </div>
+
+            <div className="border border-base-300 rounded-lg p-3 bg-base-200/30 space-y-2">
+              <NdtRequirementsOverrideTable
+                variant="default"
+                scope="project"
+                title="Project NDT defaults"
+                hint="Base sampling when NDT on the weld is Auto. Use Settings → Systems and the Lines panel for optional overrides per method (line wins over system over project)."
+                rows={ndtRequirements}
+                onChange={setNdtRequirements}
+              />
+            </div>
+            <div className="form-control">
+              <label className="label py-0" htmlFor="settings-welding-spec">
+                <span className="label-text text-xs">Welding spec (reference)</span>
+              </label>
+              <input
+                id="settings-welding-spec"
+                type="text"
+                className="input input-bordered input-xs w-full max-w-xl"
+                value={weldingSpec}
+                onChange={(e) => setWeldingSpec(e.target.value)}
+                placeholder="e.g. Company WPS index, ASME IX — optional note for exports"
+              />
             </div>
 
             <div className="modal-action mt-4">

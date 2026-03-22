@@ -1,48 +1,65 @@
 "use client";
 
 import { useMemo, useState, useEffect, useLayoutEffect } from "react";
-import { matchEntrySearch, entryMatchesCatalogUnitSystem } from "@/lib/catalog-structure";
+import {
+  matchEntrySearch,
+  entryMatchesCatalogUnitSystem,
+  uniqueSortedFacetValues,
+  catalogFacetMatchesScalar,
+} from "@/lib/catalog-structure";
 import {
   CatalogFacetDropdown,
   CatalogReadOnlyFacet,
   catalogPanelOuterClass,
+  catalogTableScrollClass,
+  catalogTableClassName,
 } from "@/components/CatalogCategoryToolbar";
 import { useCatalogToolbar } from "@/contexts/CatalogToolbarContext";
-
-function uniqueSortedStrings(values) {
-  const set = new Set();
-  for (const v of values) {
-    const s = v != null && String(v).trim() !== "" ? String(v).trim() : null;
-    if (s) set.add(s);
-  }
-  return Array.from(set).sort((a, b) =>
-    a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" })
-  );
-}
 
 export default function PanelCatalogPipe({ entries, search = "", catalogUnitSystem }) {
   const [scheduleFilter, setScheduleFilter] = useState("");
   const [formFilter, setFormFilter] = useState("");
   const [npsFilter, setNpsFilter] = useState("");
+  const [odFilter, setOdFilter] = useState("");
+  const [wallThkFilter, setWallThkFilter] = useState("");
+  const [idFilter, setIdFilter] = useState("");
   const { setToolbar } = useCatalogToolbar();
 
   const scheduleOptions = useMemo(
-    () => uniqueSortedStrings(entries.map((e) => e.attributes?.schedule)),
+    () => uniqueSortedFacetValues(entries.map((e) => e.attributes?.schedule)),
     [entries]
   );
 
   const formOptions = useMemo(
-    () => uniqueSortedStrings(entries.map((e) => e.attributes?.pipeForm ?? "Seamless")),
+    () => uniqueSortedFacetValues(entries.map((e) => e.attributes?.pipeForm ?? "Seamless")),
     [entries]
   );
 
   const npsOptions = useMemo(
-    () => uniqueSortedStrings(entries.map((e) => e.nps)),
+    () => uniqueSortedFacetValues(entries.map((e) => e.nps)),
+    [entries]
+  );
+
+  const odOptions = useMemo(
+    () => uniqueSortedFacetValues(entries.map((e) => e.attributes?.od)),
+    [entries]
+  );
+
+  const wallThkOptions = useMemo(
+    () => uniqueSortedFacetValues(entries.map((e) => e.attributes?.wallThk)),
+    [entries]
+  );
+
+  const idOptions = useMemo(
+    () => uniqueSortedFacetValues(entries.map((e) => e.attributes?.id)),
     [entries]
   );
 
   useEffect(() => {
     setNpsFilter("");
+    setOdFilter("");
+    setWallThkFilter("");
+    setIdFilter("");
   }, [catalogUnitSystem]);
 
   useLayoutEffect(() => {
@@ -73,10 +90,49 @@ export default function PanelCatalogPipe({ entries, search = "", catalogUnitSyst
             onSelect={setFormFilter}
           />
         ) : null}
+        {odOptions.length > 0 ? (
+          <CatalogFacetDropdown
+            label={catalogUnitSystem === "Metric" ? "OD (mm)" : "OD (in)"}
+            options={[{ id: "", label: "All" }, ...odOptions.map((o) => ({ id: o, label: o }))]}
+            activeId={odFilter}
+            onSelect={setOdFilter}
+          />
+        ) : null}
+        {wallThkOptions.length > 0 ? (
+          <CatalogFacetDropdown
+            label={catalogUnitSystem === "Metric" ? "Wall thk (mm)" : "Wall thk (in)"}
+            options={[{ id: "", label: "All" }, ...wallThkOptions.map((w) => ({ id: w, label: w }))]}
+            activeId={wallThkFilter}
+            onSelect={setWallThkFilter}
+          />
+        ) : null}
+        {idOptions.length > 0 ? (
+          <CatalogFacetDropdown
+            label={catalogUnitSystem === "Metric" ? "ID (mm)" : "ID (in)"}
+            options={[{ id: "", label: "All" }, ...idOptions.map((i) => ({ id: i, label: i }))]}
+            activeId={idFilter}
+            onSelect={setIdFilter}
+          />
+        ) : null}
       </>
     );
     return () => setToolbar(null);
-  }, [setToolbar, npsOptions, scheduleOptions, formOptions, npsFilter, scheduleFilter, formFilter]);
+  }, [
+    setToolbar,
+    catalogUnitSystem,
+    npsOptions,
+    scheduleOptions,
+    formOptions,
+    odOptions,
+    wallThkOptions,
+    idOptions,
+    npsFilter,
+    scheduleFilter,
+    formFilter,
+    odFilter,
+    wallThkFilter,
+    idFilter,
+  ]);
 
   const filtered = useMemo(() => {
     return entries.filter((e) => {
@@ -84,10 +140,23 @@ export default function PanelCatalogPipe({ entries, search = "", catalogUnitSyst
       if (npsFilter && String(e.nps ?? "").trim() !== npsFilter) return false;
       if (scheduleFilter && String(e.attributes?.schedule ?? "") !== scheduleFilter) return false;
       if (formFilter && String(e.attributes?.pipeForm ?? "Seamless") !== formFilter) return false;
+      if (!catalogFacetMatchesScalar(e.attributes?.od, odFilter)) return false;
+      if (!catalogFacetMatchesScalar(e.attributes?.wallThk, wallThkFilter)) return false;
+      if (!catalogFacetMatchesScalar(e.attributes?.id, idFilter)) return false;
       if (!matchEntrySearch(e, search)) return false;
       return true;
     });
-  }, [entries, catalogUnitSystem, npsFilter, scheduleFilter, formFilter, search]);
+  }, [
+    entries,
+    catalogUnitSystem,
+    npsFilter,
+    scheduleFilter,
+    formFilter,
+    odFilter,
+    wallThkFilter,
+    idFilter,
+    search,
+  ]);
 
   if (!entries.length) {
     return (
@@ -114,8 +183,8 @@ export default function PanelCatalogPipe({ entries, search = "", catalogUnitSyst
               />
             </div>
           </div>
-          <div className="flex-1 overflow-auto rounded-xl min-h-0 border border-base-300 bg-base-100">
-            <table className="table table-xs table-pin-rows">
+          <div className={`flex-1 ${catalogTableScrollClass} rounded-xl`}>
+            <table className={catalogTableClassName}>
               <thead>
                 <tr>
                   <th>NPS / NB</th>

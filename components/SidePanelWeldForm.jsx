@@ -25,6 +25,7 @@ import {
   getWpsLibraryEntryById,
   getWpsLibraryEntryEffectiveCode,
   findWpsLibraryEntriesMatchingUserText,
+  isWpsLibraryEntryRegisteredForDropdown,
 } from "@/lib/wps-resolution";
 import { comparePartDisplayNumbers } from "@/lib/part-display-number";
 import {
@@ -189,11 +190,11 @@ function SidePanelWeldForm({
     () => (Array.isArray(wpsLibrary) ? wpsLibrary : []),
     [wpsLibrary]
   );
-  /** Library rows that have a usable code (code or title). */
+  /** Library rows that have a usable code (code or title) and are registered (not weld-only auto rows). */
   const libraryWpsRows = useMemo(() => {
     return libraryWpsEntries
       .map((entry) => ({ entry, effective: getWpsLibraryEntryEffectiveCode(entry) }))
-      .filter((row) => row.effective)
+      .filter((row) => row.effective && isWpsLibraryEntryRegisteredForDropdown(row.entry))
       .sort((a, b) => a.effective.localeCompare(b.effective));
   }, [libraryWpsEntries]);
 
@@ -203,7 +204,9 @@ function SidePanelWeldForm({
     if (!trimmed && wpsUiMode === "inherit") return "__inherit__";
     if (linkedWpsEntryId) {
       const linked = libraryWpsEntries.find((e) => e.id === linkedWpsEntryId);
-      if (linked && getWpsLibraryEntryEffectiveCode(linked)) return `library:${linkedWpsEntryId}`;
+      if (linked && getWpsLibraryEntryEffectiveCode(linked) && isWpsLibraryEntryRegisteredForDropdown(linked)) {
+        return `library:${linkedWpsEntryId}`;
+      }
     }
     return "__manual__";
   }, [wps, wpsUiMode, linkedWpsEntryId, libraryWpsEntries]);
@@ -404,14 +407,20 @@ function SidePanelWeldForm({
     if (!wpsTrim) {
       setWpsUiMode("inherit");
     } else if (weld.wpsLibraryEntryId && getWpsLibraryEntryById(libraryWpsEntries, weld.wpsLibraryEntryId)) {
-      setWpsUiMode("preset");
+      const linkedEntry = getWpsLibraryEntryById(libraryWpsEntries, weld.wpsLibraryEntryId);
+      setWpsUiMode(isWpsLibraryEntryRegisteredForDropdown(linkedEntry) ? "preset" : "custom");
     } else {
       const matches = findWpsLibraryEntriesMatchingUserText(libraryWpsEntries, wpsTrim);
       if (matches.length >= 1) {
         const pick = [...matches].sort((a, b) => (a.id || "").localeCompare(b.id || ""))[0];
-        setWpsUiMode("preset");
-        setLinkedWpsEntryId(pick.id);
-        setWps(getWpsLibraryEntryEffectiveCode(pick));
+        if (isWpsLibraryEntryRegisteredForDropdown(pick)) {
+          setWpsUiMode("preset");
+          setLinkedWpsEntryId(pick.id);
+          setWps(getWpsLibraryEntryEffectiveCode(pick));
+        } else {
+          setWpsUiMode("custom");
+          setLinkedWpsEntryId(pick.id);
+        }
       } else {
         setWpsUiMode("custom");
       }

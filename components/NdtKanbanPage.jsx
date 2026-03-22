@@ -22,6 +22,7 @@ import {
   isWeldAlreadyAcceptedForMethod,
   computeNdtSelection,
   getWeldDisambiguatedLabel,
+  getWeldDisambiguatedLabelParts,
 } from "@/lib/weld-utils";
 import { useNdtScope } from "@/contexts/NdtScopeContext";
 import FormNdtRequest from "@/components/FormNdtRequest";
@@ -32,6 +33,18 @@ function generateRequestId() {
 }
 function generateReportId() {
   return `ndt-rpt-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+/** Weld number on first line; drawing · page · line · spool on a smaller second line. */
+function WeldKanbanWeldCaption({ weld, context }) {
+  if (!weld) return null;
+  const { primary, secondary } = getWeldDisambiguatedLabelParts(weld, context);
+  return (
+    <div className="min-w-0 flex-1">
+      <div className="font-mono font-semibold text-sm text-base-content leading-tight">{primary}</div>
+      <div className="text-[10px] text-base-content/60 leading-snug mt-0.5 break-words">{secondary}</div>
+    </div>
+  );
 }
 
 function getResultLabel(result) {
@@ -488,9 +501,9 @@ function NdtKanbanPage({
                             draggable
                             onDragStart={(e) => handleDragStart(e, "weld", { weldId: w.id })}
                             onDragEnd={handleDragEnd}
-                            className="px-2 py-1 rounded bg-base-100 border border-base-300 cursor-grab active:cursor-grabbing text-xs leading-snug break-words"
+                            className="px-2 py-1.5 rounded bg-base-100 border border-base-300 cursor-grab active:cursor-grabbing text-xs"
                           >
-                            {getWeldDisambiguatedLabel(w, weldLabelContext)}
+                            <WeldKanbanWeldCaption weld={w} context={weldLabelContext} />
                           </li>
                         ))}
                       </ul>
@@ -537,11 +550,13 @@ function NdtKanbanPage({
                           draggable
                           onDragStart={(e) => handleDragStart(e, "weld", { weldId })}
                           onDragEnd={handleDragEnd}
-                          className="flex items-center justify-between gap-1 px-2 py-0.5 rounded bg-base-200 text-xs"
+                          className="flex items-start justify-between gap-1 px-2 py-1 rounded bg-base-200 text-xs"
                         >
-                          <span className="min-w-0 break-words leading-snug">
-                            {w ? getWeldDisambiguatedLabel(w, weldLabelContext) : weldId}
-                          </span>
+                          {w ? (
+                            <WeldKanbanWeldCaption weld={w} context={weldLabelContext} />
+                          ) : (
+                            <span className="min-w-0 break-words leading-snug font-mono text-sm">{weldId}</span>
+                          )}
                           <button
                             type="button"
                             className="btn btn-ghost btn-xs px-1 min-h-0 h-5"
@@ -652,14 +667,17 @@ function NdtKanbanPage({
                   <ul className="mt-1 space-y-0.5">
                     {(report.weldResults || []).slice(0, 5).map((wr) => {
                       const w = weldPoints.find((p) => p.id === wr.weldId);
-                      const name = w ? getWeldDisambiguatedLabel(w, weldLabelContext) : wr.weldId;
                       const statusLabel = getResultLabel(wr.result);
                       const statusClass = getResultClass(wr.result);
                       return (
-                        <li key={wr.weldId} className="flex items-center justify-between gap-1 px-2 py-0.5 rounded bg-base-200 text-xs">
-                          <span className="min-w-0 flex items-start gap-1">
-                            <span className="break-words leading-snug">{name}</span>
-                            {statusLabel && <span className={`flex-shrink-0 font-medium ${statusClass}`}>· {statusLabel}</span>}
+                        <li key={wr.weldId} className="flex items-start justify-between gap-1 px-2 py-1 rounded bg-base-200 text-xs">
+                          <span className="min-w-0 flex items-start gap-1.5 flex-1">
+                            {w ? (
+                              <WeldKanbanWeldCaption weld={w} context={weldLabelContext} />
+                            ) : (
+                              <span className="font-mono text-sm">{wr.weldId}</span>
+                            )}
+                            {statusLabel && <span className={`flex-shrink-0 font-medium pt-0.5 ${statusClass}`}>{statusLabel}</span>}
                           </span>
                           <button
                             type="button"
@@ -713,13 +731,16 @@ function NdtKanbanPage({
                   <ul className="mt-1 space-y-0.5">
                     {(report.weldResults || []).slice(0, 5).map((wr) => {
                       const w = weldPoints.find((p) => p.id === wr.weldId);
-                      const name = w ? getWeldDisambiguatedLabel(w, weldLabelContext) : wr.weldId;
                       const statusLabel = getResultLabel(wr.result);
                       const statusClass = getResultClass(wr.result);
                       return (
-                        <li key={wr.weldId} className="px-2 py-0.5 rounded bg-base-200 text-xs flex items-start gap-1">
-                          <span className="min-w-0 break-words leading-snug">{name}</span>
-                          {statusLabel && <span className={`flex-shrink-0 font-medium ${statusClass}`}>· {statusLabel}</span>}
+                        <li key={wr.weldId} className="px-2 py-1 rounded bg-base-200 text-xs flex items-start gap-1.5">
+                          {w ? (
+                            <WeldKanbanWeldCaption weld={w} context={weldLabelContext} />
+                          ) : (
+                            <span className="font-mono text-sm">{wr.weldId}</span>
+                          )}
+                          {statusLabel && <span className={`flex-shrink-0 font-medium pt-0.5 ${statusClass}`}>{statusLabel}</span>}
                         </li>
                       );
                     })}
@@ -816,8 +837,12 @@ function NdtKanbanPage({
                       {(req.weldIds || []).map((weldId) => {
                         const w = weldPoints.find((p) => p.id === weldId);
                         return (
-                          <li key={weldId} className="text-xs break-words leading-snug">
-                            {w ? getWeldDisambiguatedLabel(w, weldLabelContext) : weldId}
+                          <li key={weldId} className="text-xs py-0.5 border-b border-base-300/40 last:border-0">
+                            {w ? (
+                              <WeldKanbanWeldCaption weld={w} context={weldLabelContext} />
+                            ) : (
+                              <span className="font-mono text-sm">{weldId}</span>
+                            )}
                           </li>
                         );
                       })}

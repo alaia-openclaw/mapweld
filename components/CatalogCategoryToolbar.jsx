@@ -81,3 +81,24 @@ export const catalogPanelOuterClass =
 
 export const catalogPanelToolbarClass =
   "shrink-0 px-3 py-2 border-b border-base-300 bg-base-200/60 flex flex-wrap items-end gap-2 gap-y-2";
+
+/** Scroll region wrapping catalog data tables (Pipe / Flanges / Fittings / unified category panels). */
+export const catalogTableScrollClass =
+  "min-h-0 overflow-auto rounded-lg border border-base-300 bg-base-100";
+
+/** DaisyUI table — keep in sync across all part catalog categories. */
+export const catalogTableClassName = "table table-xs table-pin-rows";
+
+/** Small icon button for catalog panel toolbars (neutral — not primary bar). */
+export function CatalogToolbarIconButton({ title, children, onClick }) {
+  return (
+    <button
+      type="button"
+      className="btn btn-ghost btn-xs min-h-8 px-1.5 border border-transparent hover:border-base-300 hover:bg-base-200/80"
+      title={title}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}

@@ -3,6 +3,11 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { formatNdtRequirements } from "@/lib/constants";
 import NdtRequirementsOverrideTable from "@/components/NdtRequirementsOverrideTable";
+import {
+  getWpsLibraryEntryEffectiveCode,
+  findWpsLibraryEntriesMatchingUserText,
+  isWpsLibraryEntryRegisteredForDropdown,
+} from "@/lib/wps-resolution";
 
 function SidePanelLines({
   systems = [],
@@ -18,6 +23,7 @@ function SidePanelLines({
   isStacked = false,
   hideHeader = false,
   drawingSettings = { ndtRequirements: [] },
+  wpsLibrary = [],
 }) {
   const [expandedLineId, setExpandedLineId] = useState(null);
   const [spoolMenuLineId, setSpoolMenuLineId] = useState(null);
@@ -31,6 +37,52 @@ function SidePanelLines({
   const [editWps, setEditWps] = useState("");
 
   const prevExpandedLineRef = useRef(null);
+
+  const libraryWpsEntries = useMemo(
+    () => (Array.isArray(wpsLibrary) ? wpsLibrary : []),
+    [wpsLibrary]
+  );
+  const libraryWpsRows = useMemo(() => {
+    return libraryWpsEntries
+      .map((entry) => ({ entry, effective: getWpsLibraryEntryEffectiveCode(entry) }))
+      .filter((row) => row.effective && isWpsLibraryEntryRegisteredForDropdown(row.entry))
+      .sort((a, b) => a.effective.localeCompare(b.effective));
+  }, [libraryWpsEntries]);
+
+  const lineWpsSelectValue = useMemo(() => {
+    const trimmed = (editWps || "").trim();
+    if (!trimmed) return "__none__";
+    const matches = findWpsLibraryEntriesMatchingUserText(libraryWpsEntries, trimmed).filter((e) =>
+      isWpsLibraryEntryRegisteredForDropdown(e)
+    );
+    if (matches.length >= 1) {
+      const pick = [...matches].sort((a, b) => (a.id || "").localeCompare(b.id || ""))[0];
+      return `library:${pick.id}`;
+    }
+    return "__manual__";
+  }, [editWps, libraryWpsEntries]);
+
+  function persistLineWps(lineId, nextWps) {
+    const t = (nextWps ?? "").trim();
+    setEditWps(t);
+    onSaveLines?.(lines.map((l) => (l.id === lineId ? { ...l, wps: t } : l)));
+  }
+
+  function handleLineWpsSelectChange(lineId, e) {
+    const v = e.target.value;
+    if (v === "__none__") {
+      persistLineWps(lineId, "");
+      return;
+    }
+    if (v.startsWith("library:")) {
+      const entryId = v.slice("library:".length);
+      const entry = libraryWpsEntries.find((x) => x.id === entryId);
+      if (!entry) return;
+      persistLineWps(lineId, getWpsLibraryEntryEffectiveCode(entry));
+      return;
+    }
+    if (v === "__manual__") return;
+  }
 
   useEffect(() => {
     if (!expandedLineId) { prevExpandedLineRef.current = null; return; }
@@ -231,17 +283,53 @@ function SidePanelLines({
           <input type="text" className="input input-xs input-bordered w-full min-w-0" value={editLineName} onChange={(e) => setEditLineName(e.target.value)} onBlur={() => handleUpdateLine(line.id)} />
         </div>
         <div className="form-control">
-          <label className="label py-0 min-h-0">
+          <label className="label py-0 min-h-0" htmlFor={`line-default-wps-select-${line.id}`}>
             <span className="label-text text-xs">Default WPS</span>
           </label>
-          <input
-            type="text"
-            className="input input-xs input-bordered w-full min-w-0"
-            value={editWps}
-            onChange={(e) => setEditWps(e.target.value)}
-            onBlur={() => handleUpdateLine(line.id)}
-            placeholder="Overrides system; welds can override again"
-          />
+          <div className="flex flex-col gap-2">
+            <select
+              id={`line-default-wps-select-${line.id}`}
+              className="select select-bordered select-xs w-full min-w-0"
+              value={lineWpsSelectValue}
+              onChange={(e) => handleLineWpsSelectChange(line.id, e)}
+              aria-describedby={
+                lineWpsSelectValue === "__manual__" ? `line-default-wps-manual-hint-${line.id}` : undefined
+              }
+            >
+              <option value="__none__">No line default (inherit from system)</option>
+              {libraryWpsRows.length > 0 && (
+                <optgroup label="Registered WPS">
+                  {libraryWpsRows.map(({ entry, effective }) => (
+                    <option key={entry.id} value={`library:${entry.id}`}>
+                      {effective}
+                      {(entry.description || "").trim()
+                        ? ` — ${(entry.description || "").trim().slice(0, 48)}${(entry.description || "").trim().length > 48 ? "…" : ""}`
+                        : ""}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              <option value="__manual__">Other (manual entry)…</option>
+            </select>
+            {lineWpsSelectValue === "__manual__" && (
+              <>
+                <input
+                  id={`line-default-wps-manual-${line.id}`}
+                  type="text"
+                  className="input input-bordered input-xs w-full min-w-0"
+                  value={editWps}
+                  onChange={(e) => setEditWps(e.target.value)}
+                  onBlur={() => handleUpdateLine(line.id)}
+                  placeholder="Type a WPS name or code"
+                  autoComplete="off"
+                />
+                <p id={`line-default-wps-manual-hint-${line.id}`} className="text-xs text-base-content/50">
+                  Overrides system; welds can override again. Add the WPS in Settings → Project info to pick it from the
+                  list.
+                </p>
+              </>
+            )}
+          </div>
         </div>
         {appMode === "edition" && (
           <div className="border border-base-300/80 rounded-md p-2 bg-base-200/50">

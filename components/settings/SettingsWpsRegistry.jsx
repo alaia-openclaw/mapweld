@@ -3,7 +3,12 @@
 import { useMemo, useState, useCallback, Fragment } from "react";
 import { getWeldName } from "@/lib/weld-utils";
 import { getWeldLineId } from "@/lib/ndt-resolution";
-import { getUnregisteredWpsUsageGroups } from "@/lib/wps-resolution";
+import {
+  getUnregisteredWpsUsageGroups,
+  getResolvedWpsCode,
+  isWpsLibraryEntryRegisteredForDropdown,
+  wpsLibraryEntryMatchesUserText,
+} from "@/lib/wps-resolution";
 
 function filterWpsEntries(entries, filterNorm) {
   if (!filterNorm) return entries;
@@ -32,7 +37,8 @@ function MissingPdfWarningIcon() {
 }
 
 /**
- * WPS library: code (match key), optional title, description, optional PDF. Welds link via wpsLibraryEntryId.
+ * WPS library: code (match key), optional title, description, optional PDF. Related welds include explicit links and
+ * any weld whose resolved WPS (weld → line → system) matches the row.
  * Registered rows + a second list: effective WPS on welds that do not match any library row.
  */
 function SettingsWpsRegistry({
@@ -70,7 +76,9 @@ function SettingsWpsRegistry({
   );
 
   const sortedFilteredEntries = useMemo(() => {
-    const filtered = filterWpsEntries(wpsLibrary, filterNorm);
+    const list = Array.isArray(wpsLibrary) ? wpsLibrary : [];
+    const registeredOnly = list.filter((e) => isWpsLibraryEntryRegisteredForDropdown(e));
+    const filtered = filterWpsEntries(registeredOnly, filterNorm);
     return [...filtered].sort((a, b) => {
       const ca = (a.code || "").toLowerCase();
       const cb = (b.code || "").toLowerCase();
@@ -83,11 +91,16 @@ function SettingsWpsRegistry({
   }, [wpsLibrary, filterNorm]);
 
   const weldsForEntry = useCallback(
-    (entryId) => {
-      if (!entryId) return [];
-      return weldPoints.filter((w) => w.wpsLibraryEntryId === entryId);
+    (entry) => {
+      if (!entry?.id) return [];
+      return weldPoints.filter((w) => {
+        if (w.wpsLibraryEntryId === entry.id) return true;
+        const resolved = getResolvedWpsCode(w, systems, lines, spools).trim();
+        if (!resolved) return false;
+        return wpsLibraryEntryMatchesUserText(entry, resolved);
+      });
     },
-    [weldPoints]
+    [weldPoints, systems, lines, spools]
   );
 
   const wqrCodesForWelds = useCallback(
@@ -124,7 +137,7 @@ function SettingsWpsRegistry({
   );
 
   function renderWpsTableRow(entry) {
-    const welds = weldsForEntry(entry.id);
+    const welds = weldsForEntry(entry);
     const wqrList = wqrCodesForWelds(welds);
     const isOpen = expandedId === entry.id;
     const doc = entry?.documentId ? wpsDocuments.find((d) => d.id === entry.documentId) : null;
@@ -219,8 +232,8 @@ function SettingsWpsRegistry({
                   <p className="font-semibold text-base-content/80 mb-1">Related welds</p>
                   {welds.length === 0 ? (
                     <p className="text-base-content/50">
-                      None yet. Assign this WPS on a weld from the weld form, or resolve inherited codes until no ad-hoc
-                      entry is needed.
+                      None yet. Assign this WPS on a weld, or set it on the line/system so welds inherit it — they will
+                      appear here when the effective WPS matches this row.
                     </p>
                   ) : (
                     <ul className="space-y-2 max-h-48 overflow-y-auto">
@@ -279,21 +292,26 @@ function SettingsWpsRegistry({
   }
 
   const hasAnyWps = (wpsLibrary || []).length > 0;
+  const hasRegisteredWps = useMemo(
+    () =>
+      (Array.isArray(wpsLibrary) ? wpsLibrary : []).some((e) => isWpsLibraryEntryRegisteredForDropdown(e)),
+    [wpsLibrary]
+  );
 
   return (
     <div className="space-y-4 min-w-0">
       <p className="text-xs text-base-content/70">
         Maintain the project WPS register here. Each registered row has a <strong>code</strong> (matches typed WPS on
         welds), optional <strong>title</strong>, and <strong>description</strong>. Link a certificate PDF when you have
-        it. The second section lists effective WPS text on welds that still does not match any registered row — register
-        it or open those welds to change the WPS.
+        it. WPS text only ever typed on welds (not added here) appears under{" "}
+        <strong>WPS in use but not registered</strong> — register it there or open those welds to change the WPS.
       </p>
 
       <div className="space-y-2">
         <h3 className="text-sm font-semibold text-base-content">Registered WPS</h3>
         <p className="text-[11px] text-base-content/60">
-          Rows you add here (with or without a PDF). Welds link via the weld form when the typed WPS matches code or
-          title.
+          Rows you add here (with or without a PDF), or promote from the section below. Auto-created placeholders from
+          weld saves are not listed here.
         </p>
       </div>
 
@@ -355,7 +373,11 @@ function SettingsWpsRegistry({
             ) : sortedFilteredEntries.length === 0 ? (
               <tr>
                 <td colSpan={5} className="text-center text-base-content/50 py-4 text-[11px]">
-                  No matches{filterNorm ? " for this search" : ""}.
+                  {filterNorm
+                    ? `No matches for this search.`
+                    : hasRegisteredWps
+                      ? "No matches for this search."
+                      : "No registered WPS rows yet. WPS typed only on welds are listed under “WPS in use but not registered” below — use Register there or add a row above."}
                 </td>
               </tr>
             ) : (
@@ -368,8 +390,9 @@ function SettingsWpsRegistry({
       <div className="space-y-2 pt-2 border-t border-base-300">
         <h3 className="text-sm font-semibold text-base-content">WPS in use but not registered</h3>
         <p className="text-[11px] text-base-content/60">
-          Effective WPS on each weld (explicit weld field, else line, else system) that does not match any row above.
-          Register a matching row, or open a weld to point it at a registered WPS or change the text.
+          Effective WPS on each weld (explicit weld field, else line, else system) that does not match any row in the
+          registered table above (including when the weld only matched an auto-created placeholder row). Register a
+          matching row, or open a weld to point it at a registered WPS or change the text.
         </p>
       </div>
 

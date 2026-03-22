@@ -5,12 +5,16 @@ import {
   matchFlangeRowSearch,
   CATALOG_UNIT_SYSTEMS,
   getFlangePipeScheduleDisplay,
+  uniqueSortedFacetValues,
+  catalogFacetMatchesScalar,
 } from "@/lib/catalog-structure";
 import { flangeDrawingFallbackImage } from "@/lib/flanges-config";
 import {
   CatalogFacetDropdown,
   CatalogReadOnlyFacet,
   catalogPanelOuterClass,
+  catalogTableScrollClass,
+  catalogTableClassName,
 } from "@/components/CatalogCategoryToolbar";
 import { useCatalogToolbar } from "@/contexts/CatalogToolbarContext";
 
@@ -29,17 +33,6 @@ function showWallScheduleOnBar(subtypeId, subtypes) {
   if (!subtypes?.length) return false;
   if (!subtypeId) return true;
   return ["weldneck", "lapped", "long-welding-neck"].includes(subtypeId);
-}
-
-function uniqueSortedStrings(values) {
-  const set = new Set();
-  for (const v of values) {
-    const s = v != null && String(v).trim() !== "" ? String(v).trim() : null;
-    if (s) set.add(s);
-  }
-  return Array.from(set).sort((a, b) =>
-    a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" })
-  );
 }
 
 /** All dimension rows for a flange standard (every rating / class), filtered by unit system only. */
@@ -146,6 +139,8 @@ function TableFlangeDimensions({
   activeNps = "",
   activeWall = "",
   showWallBar = true,
+  activeOd = "",
+  activePcd = "",
 }) {
   const rowsToShow = useMemo(() => {
     return baseRows.filter((row) => {
@@ -161,9 +156,21 @@ function TableFlangeDimensions({
       if (showWallBar && activeWall) {
         if (getFlangePipeScheduleDisplay(row) !== activeWall) return false;
       }
+      if (!catalogFacetMatchesScalar(row.od, activeOd)) return false;
+      if (!catalogFacetMatchesScalar(row.pcd, activePcd)) return false;
       return true;
     });
-  }, [baseRows, activeRatingFilter, search, activeFaceType, activeNps, activeWall, showWallBar]);
+  }, [
+    baseRows,
+    activeRatingFilter,
+    search,
+    activeFaceType,
+    activeNps,
+    activeWall,
+    showWallBar,
+    activeOd,
+    activePcd,
+  ]);
 
   if (!baseRows.length) {
     return (
@@ -179,8 +186,8 @@ function TableFlangeDimensions({
   const isMetric = catalogUnitSystem === "Metric";
 
   return (
-    <div className="overflow-auto h-full rounded-lg border border-base-300 bg-base-100">
-      <table className="table table-xs">
+    <div className={`h-full min-h-0 ${catalogTableScrollClass}`}>
+      <table className={catalogTableClassName}>
         <thead>
           <tr>
             <th>System</th>
@@ -253,12 +260,16 @@ function PanelCatalogFlanges({
   const [activeFaceType, setActiveFaceType] = useState("");
   const [activeNps, setActiveNps] = useState("");
   const [activeWall, setActiveWall] = useState("");
+  const [activeOd, setActiveOd] = useState("");
+  const [activePcd, setActivePcd] = useState("");
 
   useEffect(() => {
     setActiveRatingFilter("");
     setActiveFaceType("");
     setActiveNps("");
     setActiveWall("");
+    setActiveOd("");
+    setActivePcd("");
   }, [activeStandardId, activeSubtypeId, catalogUnitSystem]);
 
   const allBaseRows = useMemo(
@@ -275,26 +286,36 @@ function PanelCatalogFlanges({
   );
 
   const uniqueFaceTypes = useMemo(
-    () => uniqueSortedStrings(baseRowsForSubtype.map((r) => r.attributes?.faceType)),
+    () => uniqueSortedFacetValues(baseRowsForSubtype.map((r) => r.attributes?.faceType)),
     [baseRowsForSubtype]
   );
 
   const uniqueNps = useMemo(
-    () => uniqueSortedStrings(baseRowsForSubtype.map((r) => r.nps)),
+    () => uniqueSortedFacetValues(baseRowsForSubtype.map((r) => r.nps)),
     [baseRowsForSubtype]
   );
 
   const uniqueWall = useMemo(
     () =>
-      uniqueSortedStrings(
+      uniqueSortedFacetValues(
         baseRowsForSubtype.map((r) => getFlangePipeScheduleDisplay(r)).filter(Boolean)
       ),
     [baseRowsForSubtype]
   );
 
   const uniqueRatings = useMemo(
-    () => uniqueSortedStrings(allBaseRows.map((r) => r.pressureClass)),
+    () => uniqueSortedFacetValues(allBaseRows.map((r) => r.pressureClass)),
     [allBaseRows]
+  );
+
+  const uniqueOd = useMemo(
+    () => uniqueSortedFacetValues(baseRowsForSubtype.map((r) => r.od)),
+    [baseRowsForSubtype]
+  );
+
+  const uniquePcd = useMemo(
+    () => uniqueSortedFacetValues(baseRowsForSubtype.map((r) => r.pcd)),
+    [baseRowsForSubtype]
   );
 
   const showPipeScheduleFacet =
@@ -339,9 +360,13 @@ function PanelCatalogFlanges({
     [uniqueWall]
   );
 
+  const odLabel = catalogUnitSystem === "Metric" ? "OD (mm)" : "OD (in)";
+  const pcdLabel = catalogUnitSystem === "Metric" ? "PCD (mm)" : "PCD (in)";
+
   useLayoutEffect(() => {
     setToolbar(
       <>
+        <CatalogReadOnlyFacet label="Category" value="Flanges" />
         <CatalogFacetDropdown
           label="Flange standard"
           options={standardOptions}
@@ -392,6 +417,22 @@ function PanelCatalogFlanges({
             onSelect={(id) => setActiveWall(id)}
           />
         ) : null}
+        {uniqueOd.length > 0 ? (
+          <CatalogFacetDropdown
+            label={odLabel}
+            options={[{ id: "", label: "All" }, ...uniqueOd.map((o) => ({ id: o, label: o }))]}
+            activeId={activeOd}
+            onSelect={(id) => setActiveOd(id)}
+          />
+        ) : null}
+        {uniquePcd.length > 0 ? (
+          <CatalogFacetDropdown
+            label={pcdLabel}
+            options={[{ id: "", label: "All" }, ...uniquePcd.map((p) => ({ id: p, label: p }))]}
+            activeId={activePcd}
+            onSelect={(id) => setActivePcd(id)}
+          />
+        ) : null}
       </>
     );
     return () => setToolbar(null);
@@ -410,6 +451,12 @@ function PanelCatalogFlanges({
     showPipeScheduleFacet,
     wallOptions,
     activeWall,
+    odLabel,
+    pcdLabel,
+    uniqueOd,
+    uniquePcd,
+    activeOd,
+    activePcd,
   ]);
 
   return (
@@ -432,6 +479,8 @@ function PanelCatalogFlanges({
             activeNps={activeNps}
             activeWall={activeWall}
             showWallBar={showPipeScheduleFacet}
+            activeOd={activeOd}
+            activePcd={activePcd}
           />
         </div>
       </div>
