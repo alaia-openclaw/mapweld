@@ -57,6 +57,12 @@ function ModalWeldForm({
     if (!weld || !isOpen) return;
     if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
     autoSaveTimeoutRef.current = setTimeout(() => {
+      const nextNdtResultOutcome = { ...(weld.ndtResultOutcome || {}) };
+      const nextNdtResults = { ...(weld.ndtResults || {}) };
+      if (visualInspection && !nextNdtResultOutcome.VT) {
+        nextNdtResultOutcome.VT = "accepted";
+        nextNdtResults.VT = "ok";
+      }
       onSave?.({
         ...weld,
         welderName,
@@ -71,6 +77,8 @@ function ModalWeldForm({
         weldLocation,
         ndtRequired,
         visualInspection,
+        ndtResultOutcome: Object.keys(nextNdtResultOutcome).length ? nextNdtResultOutcome : undefined,
+        ndtResults: Object.keys(nextNdtResults).length ? nextNdtResults : undefined,
         spoolId: spoolId || null,
       });
     }, 500);

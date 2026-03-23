@@ -3,11 +3,10 @@
 import Link from "next/link";
 
 /**
- * First-run chooser: open file, saved projects, or new project wizard.
+ * First-run chooser: open file or start the new project wizard.
  */
 function ProjectSetupHub({
   onNewProject,
-  onOpenSavedProjects,
   onLoadProjectFile,
   onSkipToWorkspace,
   projectFileInputRef,
@@ -30,8 +29,8 @@ function ProjectSetupHub({
           </div>
           <h1 className="text-2xl font-bold text-base-content">Project setup</h1>
           <p className="text-sm text-base-content/70 leading-relaxed">
-            Open an existing <span className="font-mono text-xs">.weldproject</span> file, continue from a saved copy on this
-            device, or start a new project and walk through the basics.
+            Open an existing <span className="font-mono text-xs">.weldproject</span> file or start a new project and walk
+            through the basics.
           </p>
         </div>
 
@@ -62,17 +61,6 @@ function ProjectSetupHub({
               />
             </svg>
             Open project file
-          </button>
-          <button type="button" className="btn btn-outline gap-2 w-full border-base-300" onClick={onOpenSavedProjects}>
-            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7C5 4 4 5 4 7zm8 3v6m-3-3h6"
-              />
-            </svg>
-            Saved projects on this device
           </button>
           <button type="button" className="btn btn-ghost gap-2 w-full" onClick={onNewProject}>
             <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">

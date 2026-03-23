@@ -1,8 +1,6 @@
 "use client";
 
 import { useMemo, useRef, useCallback, useState } from "react";
-import { TRACEABILITY } from "@/lib/traceability-groups";
-import SettingsTraceabilitySection from "@/components/settings/SettingsTraceabilitySection";
 
 function generateId(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -37,7 +35,20 @@ function partLabel(p) {
   return [n, t].filter(Boolean).join(" · ") || p?.id?.slice(0, 12) || "Part";
 }
 
-/** MTC by heat — three groups: PDF without part links, heats missing PDF, heats with PDF (+ part links). */
+function filterHeatRows(heats, filterNorm, materialCertificates, documents) {
+  if (!filterNorm) return heats;
+  return heats.filter((heat) => {
+    const cert = getCertForHeat(heat, materialCertificates);
+    const doc = cert?.documentId
+      ? (documents || []).find((d) => d?.id === cert.documentId)
+      : null;
+    const heatText = (heat || "").toLowerCase();
+    const docText = (doc?.title || doc?.fileName || "").toLowerCase();
+    return heatText.includes(filterNorm) || docText.includes(filterNorm);
+  });
+}
+
+/** Heat/MTC registry with WPS-style setup: registered heats + in-use unregistered heats. */
 function SettingsMaterialCertificatesPanel({
   materialCertificates = [],
   documents = [],
@@ -50,7 +61,11 @@ function SettingsMaterialCertificatesPanel({
   const mtcUploadInputRef = useRef(null);
   const mtcUploadHeatRef = useRef("");
   const orphanMtcUploadInputRef = useRef(null);
-  const [expandedHeat, setExpandedHeat] = useState(null);
+  const [expandedRegisteredHeat, setExpandedRegisteredHeat] = useState(null);
+  const [expandedUnregisteredHeat, setExpandedUnregisteredHeat] = useState(null);
+  const [filter, setFilter] = useState("");
+  const [newHeatInput, setNewHeatInput] = useState("");
+  const filterNorm = (filter || "").trim().toLowerCase();
 
   const mtcDocuments = useMemo(() => documents.filter((d) => d?.category === "mtc"), [documents]);
 
@@ -64,21 +79,23 @@ function SettingsMaterialCertificatesPanel({
     [mtcDocuments, materialCertificates]
   );
 
-  const { heatsNoPdf, heatsPdfNoParts, heatsPdfWithParts } = useMemo(() => {
-    const noPdf = [];
-    const pdfNoParts = [];
-    const pdfWithParts = [];
-    for (const heat of usedHeatNumbers) {
-      const cert = getCertForHeat(heat, materialCertificates);
-      const hasDoc = Boolean(cert?.documentId);
-      const linked = cert?.linkedPartIds || [];
-      const hasPartLinks = Array.isArray(linked) && linked.length > 0;
-      if (!hasDoc) noPdf.push(heat);
-      else if (!hasPartLinks) pdfNoParts.push(heat);
-      else pdfWithParts.push(heat);
-    }
-    return { heatsNoPdf: noPdf, heatsPdfNoParts: pdfNoParts, heatsPdfWithParts: pdfWithParts };
-  }, [usedHeatNumbers, materialCertificates]);
+  const registeredHeats = useMemo(() => {
+    const rows = Array.isArray(materialCertificates) ? materialCertificates : [];
+    return uniqueSorted(rows.map((row) => (row?.heatNumber || "").trim()));
+  }, [materialCertificates]);
+  const registeredSet = useMemo(() => new Set(registeredHeats), [registeredHeats]);
+  const heatsInUseNotRegistered = useMemo(
+    () => usedHeatNumbers.filter((heat) => !registeredSet.has(heat)),
+    [usedHeatNumbers, registeredSet]
+  );
+  const filteredRegisteredHeats = useMemo(
+    () => filterHeatRows(registeredHeats, filterNorm, materialCertificates, documents),
+    [registeredHeats, filterNorm, materialCertificates, documents]
+  );
+  const filteredInUseNotRegistered = useMemo(
+    () => filterHeatRows(heatsInUseNotRegistered, filterNorm, materialCertificates, documents),
+    [heatsInUseNotRegistered, filterNorm, materialCertificates, documents]
+  );
 
   const pushCertificates = useCallback(
     (next) => {
@@ -86,6 +103,17 @@ function SettingsMaterialCertificatesPanel({
     },
     [onUpdateCertificates]
   );
+
+  function ensureHeatRegistered(heatNumber) {
+    const heat = (heatNumber || "").trim();
+    if (!heat) return;
+    const exists = (materialCertificates || []).some((item) => (item?.heatNumber || "").trim() === heat);
+    if (exists) return;
+    pushCertificates([
+      ...(Array.isArray(materialCertificates) ? materialCertificates : []),
+      { id: generateId("mtc"), heatNumber: heat, documentId: null, linkedPartIds: [] },
+    ]);
+  }
 
   function updateMtcHeatDocument(heatNumber, documentId) {
     const heat = (heatNumber || "").trim();
@@ -128,6 +156,7 @@ function SettingsMaterialCertificatesPanel({
   function linkOrphanDocToHeat(docId, heatInput) {
     const heat = (heatInput || "").trim();
     if (!heat || !docId) return;
+    ensureHeatRegistered(heat);
     updateMtcHeatDocument(heat, docId);
   }
 
@@ -163,10 +192,21 @@ function SettingsMaterialCertificatesPanel({
     );
   }
 
-  function renderHeatRow(heat, { showPdfSelect, showLoad }) {
+  function renderHeatRow(heat, { rowType = "registered" }) {
     const linkedEntry = getCertForHeat(heat, materialCertificates);
     const linkedDocId = linkedEntry?.documentId || "";
-    const isOpen = expandedHeat === heat;
+    const isOpen = rowType === "registered" ? expandedRegisteredHeat === heat : expandedUnregisteredHeat === heat;
+    const hasLinkedDoc = Boolean(linkedDocId);
+    const toggleOpen = () => {
+      if (rowType === "registered") setExpandedRegisteredHeat(isOpen ? null : heat);
+      else setExpandedUnregisteredHeat(isOpen ? null : heat);
+    };
+    const usagePartCount = getPartsForHeat(heat, parts).length;
+    const usageWeldCount = (weldPoints || []).filter(
+      (weld) =>
+        (weld?.heatNumber1 || "").trim() === heat ||
+        (weld?.heatNumber2 || "").trim() === heat
+    ).length;
 
     return (
       <li
@@ -177,15 +217,26 @@ function SettingsMaterialCertificatesPanel({
           <button
             type="button"
             className="flex-1 min-w-0 text-left"
-            onClick={() => setExpandedHeat(isOpen ? null : heat)}
+            onClick={toggleOpen}
             title={heat}
           >
             <span className="font-medium text-sm text-primary font-mono truncate">{heat}</span>
           </button>
+          <span className="badge badge-ghost badge-xs shrink-0">{usagePartCount} part(s)</span>
+          <span className="badge badge-ghost badge-xs shrink-0">{usageWeldCount} weld(s)</span>
+          {rowType === "unregistered" && (
+            <button
+              type="button"
+              className="btn btn-primary btn-xs shrink-0"
+              onClick={() => ensureHeatRegistered(heat)}
+            >
+              Register
+            </button>
+          )}
           <button
             type="button"
             className="btn btn-ghost btn-xs btn-square shrink-0"
-            onClick={() => setExpandedHeat(isOpen ? null : heat)}
+            onClick={toggleOpen}
             aria-expanded={isOpen}
             aria-label={isOpen ? "Collapse" : "Expand"}
           >
@@ -203,21 +254,22 @@ function SettingsMaterialCertificatesPanel({
         {isOpen && (
           <div className="border-t border-base-300 px-2 py-2 space-y-2">
             <div className="flex flex-wrap items-center gap-2">
-              {showPdfSelect && (
-                <select
-                  className="select select-bordered select-xs flex-1 min-w-[8rem] max-w-md"
-                  value={linkedDocId}
-                  onChange={(e) => updateMtcHeatDocument(heat, e.target.value)}
-                >
-                  <option value="">No MTC linked</option>
-                  {mtcDocuments.map((doc) => (
-                    <option key={doc.id} value={doc.id}>
-                      {doc.title || doc.fileName}
-                    </option>
-                  ))}
-                </select>
-              )}
-              {showLoad && !linkedDocId && (
+              <select
+                className="select select-bordered select-xs flex-1 min-w-[8rem] max-w-md"
+                value={linkedDocId}
+                onChange={(e) => {
+                  ensureHeatRegistered(heat);
+                  updateMtcHeatDocument(heat, e.target.value);
+                }}
+              >
+                <option value="">{hasLinkedDoc ? "No MTC linked" : "No MTC linked"}</option>
+                {mtcDocuments.map((doc) => (
+                  <option key={doc.id} value={doc.id}>
+                    {doc.title || doc.fileName}
+                  </option>
+                ))}
+              </select>
+              {!linkedDocId && (
                 <button
                   type="button"
                   className="btn btn-ghost btn-xs shrink-0"
@@ -240,86 +292,121 @@ function SettingsMaterialCertificatesPanel({
     );
   }
 
-  const th = TRACEABILITY.heat;
-
   return (
     <div className="space-y-4 min-w-0">
       <p className="text-xs text-base-content/70">
-        Heat / MTC traceability uses the same three groups as WPS, WQR, and electrodes: PDF on file vs project use,
-        then full part linkage.
+        Maintain heat numbers here with the same registry flow as WPS: register rows, link MTC PDFs, and review heat
+        values in use but not yet registered.
       </p>
 
-      <SettingsTraceabilitySection number={1} title={th.g1.title} description={th.g1.description}>
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="space-y-2">
+        <h3 className="text-sm font-semibold text-base-content">Registered heat numbers</h3>
+        <p className="text-[11px] text-base-content/60">
+          Rows in this table are your managed heat register. Link a PDF and map parts for traceability completeness.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+        <div className="form-control min-w-0">
+          <label className="label py-0" htmlFor="heat-registry-filter">
+            <span className="label-text text-xs">Search</span>
+          </label>
           <input
-            ref={orphanMtcUploadInputRef}
-            type="file"
-            accept=".pdf,application/pdf"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              e.target.value = "";
-              if (!file) return;
-              onUploadOrphanMtcPdf?.(file);
-            }}
+            id="heat-registry-filter"
+            type="search"
+            className="input input-bordered input-xs w-full"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Heat number or linked document..."
+            autoComplete="off"
+          />
+        </div>
+        <div className="flex items-end gap-1 min-w-0">
+          <input
+            type="text"
+            className="input input-bordered input-xs w-32 font-mono"
+            value={newHeatInput}
+            onChange={(e) => setNewHeatInput(e.target.value)}
+            placeholder="Heat #"
           />
           <button
             type="button"
-            className="btn btn-outline btn-xs"
-            onClick={() => orphanMtcUploadInputRef.current?.click()}
+            className="btn btn-ghost btn-sm"
+            onClick={() => {
+              ensureHeatRegistered(newHeatInput);
+              setNewHeatInput("");
+            }}
           >
-            Upload MTC PDF (no heat yet)
+            + Add heat
           </button>
-          <span className="text-[10px] text-base-content/45">
-            Adds to this list; assign to a heat when ready.
-          </span>
         </div>
+      </div>
 
-        {orphanMtcDocuments.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-[11px] font-medium text-base-content/80">Unassigned MTC files (not tied to a heat)</p>
-            <ul className="space-y-2">
-              {orphanMtcDocuments.map((doc) => (
-                <OrphanMtcRow
-                  key={doc.id}
-                  doc={doc}
-                  onAssignHeat={(heat) => linkOrphanDocToHeat(doc.id, heat)}
-                />
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {heatsPdfNoParts.length === 0 && orphanMtcDocuments.length === 0 && (
-          <p className="text-sm text-base-content/50">None in this group.</p>
-        )}
-
-        {heatsPdfNoParts.length > 0 && (
+      {orphanMtcDocuments.length > 0 && (
+        <div className="rounded-lg border border-warning/30 bg-warning/5 p-2 space-y-1">
+          <p className="text-[11px] font-medium text-base-content/80">
+            MTC PDFs in the project file are not linked to any heat row yet. Assign them below.
+          </p>
           <ul className="space-y-2">
-            {heatsPdfNoParts.map((heat) => renderHeatRow(heat, { showPdfSelect: true, showLoad: true }))}
+            {orphanMtcDocuments.map((doc) => (
+              <OrphanMtcRow
+                key={doc.id}
+                doc={doc}
+                onAssignHeat={(heat) => linkOrphanDocToHeat(doc.id, heat)}
+              />
+            ))}
           </ul>
-        )}
-      </SettingsTraceabilitySection>
+        </div>
+      )}
 
-      <SettingsTraceabilitySection number={2} title={th.g2.title} description={th.g2.description}>
-        {heatsNoPdf.length === 0 ? (
-          <p className="text-sm text-base-content/50">None in this group.</p>
-        ) : (
-          <ul className="space-y-2">
-            {heatsNoPdf.map((heat) => renderHeatRow(heat, { showPdfSelect: true, showLoad: true }))}
-          </ul>
-        )}
-      </SettingsTraceabilitySection>
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          ref={orphanMtcUploadInputRef}
+          type="file"
+          accept=".pdf,application/pdf"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = "";
+            if (!file) return;
+            onUploadOrphanMtcPdf?.(file);
+          }}
+        />
+        <button
+          type="button"
+          className="btn btn-outline btn-xs"
+          onClick={() => orphanMtcUploadInputRef.current?.click()}
+        >
+          Upload MTC PDF (no heat yet)
+        </button>
+      </div>
 
-      <SettingsTraceabilitySection number={3} title={th.g3.title} description={th.g3.description}>
-        {heatsPdfWithParts.length === 0 ? (
-          <p className="text-sm text-base-content/50">None in this group yet.</p>
-        ) : (
-          <ul className="space-y-2">
-            {heatsPdfWithParts.map((heat) => renderHeatRow(heat, { showPdfSelect: true, showLoad: true }))}
-          </ul>
-        )}
-      </SettingsTraceabilitySection>
+      {filteredRegisteredHeats.length === 0 ? (
+        <div className="text-center text-base-content/50 py-4 text-[11px] rounded-lg border border-base-300 bg-base-100/50">
+          {filterNorm ? "No matching registered heat rows." : "No registered heat rows yet."}
+        </div>
+      ) : (
+        <ul className="space-y-2">
+          {filteredRegisteredHeats.map((heat) => renderHeatRow(heat, { rowType: "registered" }))}
+        </ul>
+      )}
+
+      <div className="space-y-2 pt-2 border-t border-base-300">
+        <h3 className="text-sm font-semibold text-base-content">Heat numbers in use but not registered</h3>
+        <p className="text-[11px] text-base-content/60">
+          These values are used on parts or welds but do not yet exist as registered heat rows.
+        </p>
+      </div>
+
+      {filteredInUseNotRegistered.length === 0 ? (
+        <div className="text-center text-base-content/50 py-4 text-[11px] rounded-lg border border-base-300 bg-base-100/50">
+          None — all in-use heat numbers are registered, or no heat numbers are used yet.
+        </div>
+      ) : (
+        <ul className="space-y-2">
+          {filteredInUseNotRegistered.map((heat) => renderHeatRow(heat, { rowType: "unregistered" }))}
+        </ul>
+      )}
 
       <input
         ref={mtcUploadInputRef}

@@ -613,6 +613,20 @@ function SidePanelWeldForm({
     setLinkedWpsEntryId("");
   }, [libraryWpsEntries, linkedWpsEntryId]);
 
+  useEffect(() => {
+    if (!visualInspection) return;
+    setNdtResultOutcome((prev) =>
+      prev?.VT ? prev : { ...(prev || {}), VT: NDT_RESULT_OUTCOMES.ACCEPTED }
+    );
+    setNdtResults((prev) => (prev?.VT ? prev : { ...(prev || {}), VT: "ok" }));
+    setNdtResultManualOverride((prev) => {
+      if (!prev?.VT) return prev;
+      const next = { ...prev };
+      delete next.VT;
+      return next;
+    });
+  }, [visualInspection]);
+
   const autoSaveTimeoutRef = useRef(null);
   useEffect(() => {
     if (!weld) return;

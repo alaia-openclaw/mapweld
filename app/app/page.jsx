@@ -1559,9 +1559,10 @@ export default function WeldTrackerApp() {
       personnel,
       drawingSettings,
       ndtContext,
+      ndtReports,
       drawings,
     });
-  }, [weldPoints, pdfFilename, spools, parts, personnel, drawingSettings, projectMeta, ndtContext, drawings]);
+  }, [weldPoints, pdfFilename, spools, parts, personnel, drawingSettings, projectMeta, ndtContext, ndtReports, drawings]);
 
   const weldStatusByWeldId = useMemo(() => {
     const map = new Map();
@@ -1575,19 +1576,28 @@ export default function WeldTrackerApp() {
   const handlePrint = useCallback(
     async (options) => {
       const { runPrint } = await import("@/lib/print-utils");
-      const includeMarkers =
-        options.pdfDrawing &&
-        options.markers &&
-        (options.markers.welds || options.markers.spools || options.markers.parts || options.markers.lines);
+      const includePdfDrawing = !!options.pdfDrawing;
       const prevLayers = { ...markerLayers };
-      if (includeMarkers) {
+      const expectsOverlayMarkers =
+        includePdfDrawing &&
+        !!options?.markers &&
+        (options.markers.welds || options.markers.spools || options.markers.parts || options.markers.lines);
+
+      async function waitForOverlayMarkers(maxFrames = 36) {
+        for (let i = 0; i < maxFrames; i++) {
+          const target = document.querySelector("[data-print-target='pdf-with-overlays']");
+          if (target?.querySelector("[data-print-marker]")) return;
+          await new Promise((resolve) => requestAnimationFrame(resolve));
+        }
+      }
+      if (includePdfDrawing) {
         setMarkerLayers({
-          welds: !!options.markers.welds,
-          spools: !!options.markers.spools,
-          parts: !!options.markers.parts,
-          lines: !!options.markers.lines,
+          welds: !!options?.markers?.welds,
+          spools: !!options?.markers?.spools,
+          parts: !!options?.markers?.parts,
+          lines: !!options?.markers?.lines,
         });
-        await new Promise((r) => setTimeout(r, 200));
+        if (expectsOverlayMarkers) await waitForOverlayMarkers();
       }
       try {
         await runPrint({
@@ -1609,7 +1619,7 @@ export default function WeldTrackerApp() {
           drawings,
         });
       } finally {
-        if (includeMarkers) setMarkerLayers(prevLayers);
+        if (includePdfDrawing) setMarkerLayers(prevLayers);
       }
     },
     [
@@ -2090,7 +2100,10 @@ export default function WeldTrackerApp() {
             getWeldName={getWeldName}
             drawings={drawings}
             lines={lines}
+            systems={systems}
             spools={spools}
+            parts={parts}
+            personnel={personnel}
             onClose={() => setShowNdtPanel(false)}
           />
         </div>

@@ -131,7 +131,7 @@ function LineMarker({
   const pathHasLength = ix !== wx || iy !== wy;
 
   return (
-    <div className={`absolute inset-0 pointer-events-none ${showHandles ? "z-30" : ""}`} aria-hidden>
+    <div className={`absolute inset-0 pointer-events-none ${showHandles ? "z-30" : ""}`} data-print-marker="line" aria-hidden>
       {pathHasLength && (
         <svg className="absolute inset-0 w-full h-full pointer-events-none text-info" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
           <path d={`M ${ix} ${iy} L ${wx} ${wy}`} fill="none" stroke="currentColor" strokeWidth="0.1" />

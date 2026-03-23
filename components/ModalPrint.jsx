@@ -56,9 +56,9 @@ function ModalPrint({
   return (
     <dialog className="modal modal-open" open={isOpen}>
       <div className="modal-box max-w-md">
-        <h3 className="font-bold text-lg">Print</h3>
+        <h3 className="font-bold text-lg">Print / Export</h3>
         <p className="text-sm text-base-content/70 mt-1">
-          Select what to include. Printer, format, and layout are chosen in the print dialog.
+          PDF drawing is exported as a file (with overlays). Other sections open a print dialog.
         </p>
 
         <div className="mt-4 space-y-4">
@@ -158,7 +158,7 @@ function ModalPrint({
             onClick={handlePrint}
             disabled={!hasAny}
           >
-            Print…
+            Continue
           </button>
         </div>
       </div>

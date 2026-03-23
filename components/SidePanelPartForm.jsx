@@ -306,12 +306,12 @@ function SidePanelPartForm({
 
   function renderPartEditorBody() {
     return (
-      <div className="border-t border-base-300/60 px-2 py-2 space-y-3 w-full min-w-0">
+      <div className="border-t border-base-300/60 px-2 py-1.5 space-y-2 w-full min-w-0 text-sm [&_.form-control]:gap-0.5 [&_.label]:py-0.5 [&_.label]:min-h-0 [&_.label-text]:text-xs [&_.input]:h-10 [&_.select]:h-10">
         <div className="form-control">
           <label className="label">
             <span className="label-text">Catalog</span>
           </label>
-          <div className="flex flex-wrap items-center gap-1.5 w-full min-w-0">
+          <div className="flex flex-wrap items-center gap-1 w-full min-w-0">
             <CatalogTreeCascade
               catalogCategories={categories}
               valueLeafId={catalogLeafId}
@@ -480,14 +480,14 @@ function SidePanelPartForm({
             {!linkedMtc?.documentId && normalizedHeat && (
               <button
                 type="button"
-                className="btn btn-ghost btn-sm"
+                className="btn btn-ghost btn-xs"
                 onClick={() => mtcUploadInputRef.current?.click()}
               >
                 Load
               </button>
             )}
           </div>
-          <p className="text-xs text-base-content/60 mt-1">
+          <p className="text-[11px] leading-snug text-base-content/60 mt-0.5">
             Link certificate by heat number for databook traceability.
           </p>
         </div>

@@ -123,7 +123,7 @@ function SettingsPersonnelRegistry({
     const isOpen = expandedWqrId === wqr.id;
     const doc = wqr.documentId ? wqrDocuments.find((d) => d.id === wqr.documentId) : null;
 
-    const missingPdfOnUse = welds.length > 0 && !wqr.documentId;
+    const missingPdf = !wqr.documentId;
     const unassignedWelder = !welder;
     const pdfNotUsed = Boolean(wqr.documentId) && welds.length === 0;
 
@@ -139,11 +139,11 @@ function SettingsPersonnelRegistry({
             title={headerLabel}
           >
             <div className="flex items-center justify-center shrink-0">
-              {(missingPdfOnUse || unassignedWelder) && (
+              {(missingPdf || unassignedWelder) && (
                 <RowWarningIcon
                   title={
                     [
-                      missingPdfOnUse && "Qualification PDF missing (used on weld record)",
+                      missingPdf && "Qualification PDF missing",
                       unassignedWelder && "Assign to a welder",
                     ]
                       .filter(Boolean)
@@ -151,7 +151,7 @@ function SettingsPersonnelRegistry({
                   }
                 />
               )}
-              {!missingPdfOnUse && !unassignedWelder && pdfNotUsed && (
+              {!missingPdf && !unassignedWelder && pdfNotUsed && (
                 <span
                   className="inline-flex text-base-content/35 shrink-0"
                   title="PDF on file — not referenced on any weld yet"
@@ -587,7 +587,7 @@ function SettingsPersonnelRegistry({
         </div>
 
         <p className="text-[10px] text-base-content/45">
-          Warning: missing PDF on a used WQR, or not assigned to a welder. Info: PDF loaded but not on any weld yet.
+          Warning: missing PDF or not assigned to a welder. Info: PDF loaded but not on any weld yet.
         </p>
 
         {!wqrs.length ? (
