@@ -1617,6 +1617,11 @@ export default function WeldTrackerApp() {
           getWeldName,
           ndtContext,
           drawings,
+          currentPage: pdfPage,
+          markerLayers,
+          spoolMarkers,
+          lineMarkers,
+          partMarkers,
         });
       } finally {
         if (includePdfDrawing) setMarkerLayers(prevLayers);
@@ -1634,6 +1639,11 @@ export default function WeldTrackerApp() {
       weldStatusByWeldId,
       ndtContext,
       drawings,
+      pdfPage,
+      markerLayers,
+      spoolMarkers,
+      lineMarkers,
+      partMarkers,
     ]
   );
 
