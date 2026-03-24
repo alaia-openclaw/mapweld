@@ -14,7 +14,6 @@ import AddDefaultsBar from "@/components/AddDefaultsBar";
 import DashboardAnalytics from "@/components/DashboardAnalytics";
 import ModalSettings from "@/components/ModalParameters";
 import ModalProjects from "@/components/ModalProjects";
-import ModalDatabookBuilder from "@/components/ModalDatabookBuilder";
 import NdtKanbanPage from "@/components/NdtKanbanPage";
 import StatusPage from "@/components/StatusPage";
 import ProjectHealthPage from "@/components/ProjectHealthPage";
@@ -35,10 +34,16 @@ import {
 } from "@/lib/offline-storage";
 import { createDefaultWeld, createDefaultSpool, createDefaultPart, createDefaultDrawing } from "@/lib/defaults";
 import { normalizeJointDimensions } from "@/lib/joint-dimensions";
-import { partCatalog, findCatalogEntry } from "@/lib/part-catalog";
+import { findCatalogEntry } from "@/lib/part-catalog";
+import { getMergedCatalogEntries, leafIdToCatalogCategory } from "@/lib/catalog-leaf-resolve";
 import { findEntryByHierarchy } from "@/lib/catalog-hierarchy";
 import { assignPartDisplayNumbersForAllDrawings } from "@/lib/part-display-number";
-import { getWeldName, getWeldOverallStatus, computeNdtSelection } from "@/lib/weld-utils";
+import {
+  getWeldName,
+  getWeldOverallStatus,
+  computeNdtSelection,
+  assignWeldNumbersPerDrawing,
+} from "@/lib/weld-utils";
 import { formatNdtRequirements, NDT_REPORT_STATUS } from "@/lib/constants";
 import { exportWeldsToExcel } from "@/lib/excel-export";
 import { applyReportToWelds } from "@/lib/ndt-utils";
@@ -47,6 +52,7 @@ import ProjectSetupHub from "@/components/ProjectSetupHub";
 import ProjectSetupWizard from "@/components/ProjectSetupWizard";
 import { createDefaultDatabookConfig, normalizeDatabookConfig } from "@/lib/databook-sections";
 import { getNextUniqueLineName } from "@/lib/line-utils";
+import { syncWpsLibraryOnWeldSave } from "@/lib/wps-resolution";
 import { NdtScopeProvider } from "@/contexts/NdtScopeContext";
 
 const PDFViewerDynamic = dynamic(() => import("@/components/PDFViewer"), {
@@ -110,6 +116,7 @@ export default function WeldTrackerApp() {
   const [drawingSettings, setDrawingSettings] = useState({
     ndtRequirements: [],
     weldingSpec: "",
+    defaultWps: "",
   });
   const [appMode, setAppMode] = useState("edition");
   const [markupTool, setMarkupTool] = useState("select");
@@ -124,7 +131,6 @@ export default function WeldTrackerApp() {
     sessionDraft: null,
   });
   const [showParameters, setShowParameters] = useState(false);
-  const [showDatabookBuilder, setShowDatabookBuilder] = useState(false);
   const [showProjects, setShowProjects] = useState(false);
   const [showNdtPanel, setShowNdtPanel] = useState(false);
   const [showStatusPage, setShowStatusPage] = useState(false);
@@ -162,6 +168,7 @@ export default function WeldTrackerApp() {
     lineId: "__new__",
     lineSystemId: null,
     catalogCategory: "",
+    catalogLeafId: "",
     hierarchyState: {},
     partType: "",
     nps: "",
@@ -334,7 +341,11 @@ export default function WeldTrackerApp() {
       let newWeld;
       const loc = addDefaults?.weldLocation || "shop";
       setWeldPoints((prev) => {
-        const maxNum = prev.reduce((m, w) => Math.max(m, w.weldNumber ?? 0), 0);
+        const did = activeDrawingId ?? null;
+        const maxNum = prev.reduce((m, w) => {
+          if ((w.drawingId ?? null) !== did) return m;
+          return Math.max(m, w.weldNumber ?? 0);
+        }, 0);
         newWeld = {
           ...createDefaultWeld(),
           id: generateId(),
@@ -447,9 +458,11 @@ export default function WeldTrackerApp() {
 
   const handleAddPartMarker = useCallback(
     ({ xPercent, yPercent, pageNumber }) => {
-      const cat = addDefaults?.catalogCategory;
+      const leafId = addDefaults?.catalogLeafId ?? "";
+      const cat =
+        addDefaults?.catalogCategory || (leafId ? leafIdToCatalogCategory(leafId) : "") || "";
       const hierarchyState = addDefaults?.hierarchyState ?? {};
-      const entriesForCat = cat ? partCatalog.entries.filter((e) => e.catalogCategory === cat) : [];
+      const entriesForCat = cat ? getMergedCatalogEntries(cat, leafId) : [];
       const catalogEntryByHierarchy =
         cat && Object.keys(hierarchyState).length > 0
           ? findEntryByHierarchy(entriesForCat, hierarchyState, cat)
@@ -470,7 +483,12 @@ export default function WeldTrackerApp() {
         thickness,
         materialGrade: addDefaults?.materialGrade ?? "",
         catalogCategory: cat ?? "",
+        catalogLeafId: leafId || "",
         catalogPartId: catalogEntry?.catalogPartId ?? null,
+        catalogHierarchyState:
+          hierarchyState && typeof hierarchyState === "object"
+            ? { ...hierarchyState }
+            : undefined,
         weightKg: catalogEntry?.weightKg ?? null,
       });
       const newMarkerId = `pm-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -783,10 +801,12 @@ export default function WeldTrackerApp() {
   }, []);
 
   const handleSaveWeld = useCallback((updatedWeld) => {
-    setWeldPoints((prev) =>
-      prev.map((w) => (w.id === updatedWeld.id ? updatedWeld : w))
-    );
-    setFormWeld(updatedWeld);
+    setWpsLibrary((prevLib) => {
+      const { mergedWeld, nextWpsLibrary } = syncWpsLibraryOnWeldSave(updatedWeld, prevLib);
+      setWeldPoints((prev) => prev.map((w) => (w.id === mergedWeld.id ? mergedWeld : w)));
+      setFormWeld(mergedWeld);
+      return nextWpsLibrary;
+    });
   }, []);
 
   const handleClosePanel = useCallback(() => {
@@ -854,6 +874,19 @@ export default function WeldTrackerApp() {
     setSelectedWeldId(null);
     setSelectedLineMarkerId(null);
     setActiveSidePanel((p) => (p === "welds" ? null : p));
+  }, []);
+
+  /** Settings → Structure → Welds: update weld without touching canvas selection state. */
+  const handleSaveWeldFromSettings = useCallback((updatedWeld) => {
+    setWpsLibrary((prevLib) => {
+      const { mergedWeld, nextWpsLibrary } = syncWpsLibraryOnWeldSave(updatedWeld, prevLib);
+      setWeldPoints((prev) => prev.map((w) => (w.id === mergedWeld.id ? mergedWeld : w)));
+      return nextWpsLibrary;
+    });
+  }, []);
+
+  const handleDeleteWeldFromSettings = useCallback((weld) => {
+    setWeldPoints((prev) => prev.filter((w) => w.id !== weld.id));
   }, []);
 
   const draftSaveTimeoutRef = useRef(null);
@@ -954,6 +987,8 @@ export default function WeldTrackerApp() {
           .filter((doc) => !!doc.base64)
       : [];
 
+    assignWeldNumbersPerDrawing(normalizedWelds);
+
     return {
       ...data,
       weldPoints: normalizedWelds,
@@ -963,7 +998,8 @@ export default function WeldTrackerApp() {
       parts: normalizedParts,
       partMarkers: normalizedPartMarkers,
       personnel: data.personnel || { fitters: [], welders: [], wqrs: [] },
-      drawingSettings: migrateDrawingSettings(data.drawingSettings) || { ndtRequirements: [], weldingSpec: "" },
+      drawingSettings:
+        migrateDrawingSettings(data.drawingSettings) || { ndtRequirements: [], weldingSpec: "", defaultWps: "" },
       ndtRequests: Array.isArray(data.ndtRequests) ? data.ndtRequests : [],
       ndtReports: Array.isArray(data.ndtReports) ? data.ndtReports : [],
       addDefaults:
@@ -975,6 +1011,7 @@ export default function WeldTrackerApp() {
               lineId: "__new__",
               lineSystemId: null,
               catalogCategory: "",
+              catalogLeafId: "",
               hierarchyState: {},
               partType: "",
               nps: "",
@@ -989,6 +1026,7 @@ export default function WeldTrackerApp() {
               lineId: "__new__",
               lineSystemId: null,
               catalogCategory: "",
+              catalogLeafId: "",
               hierarchyState: {},
               partType: "",
               nps: "",
@@ -1132,6 +1170,37 @@ export default function WeldTrackerApp() {
       setSelectedLineMarkerId(null);
     setFormWeld(null);
   }, [drawings]);
+
+  const handleFocusWeldFromSettings = useCallback(
+    (weldId) => {
+      const w = weldPoints.find((x) => x.id === weldId);
+      if (!w) return;
+      const dwgId = w.drawingId;
+      if (dwgId) {
+        const dwg = drawings.find((d) => d.id === dwgId);
+        if (dwg) {
+          setActiveDrawingId(dwgId);
+          if (dwg.blobUrl) setPdfBlob(dwg.blobUrl);
+          setPdfFilename(dwg.filename || "drawing.pdf");
+          setNumPdfPages(null);
+        }
+      }
+      const page1 = Math.max(1, (w.pageNumber ?? 0) + 1);
+      setPdfPage(page1);
+      setSelectedWeldId(w.id);
+      setSelectedSpoolMarkerId(null);
+      setSelectedPartMarkerId(null);
+      setSelectedLineMarkerId(null);
+      setFormWeld(w);
+      setActiveSidePanel("welds");
+      setShowParameters(false);
+      if (typeof window !== "undefined" && window.innerWidth < 768) {
+        setMobileSheetTab("welds");
+        setMobileSheetOpen(true);
+      }
+    },
+    [weldPoints, drawings]
+  );
 
   const handleDeleteDrawing = useCallback((dwgId) => {
     const removedSpoolIds = new Set(
@@ -1477,8 +1546,8 @@ export default function WeldTrackerApp() {
   }, []);
 
   const ndtContext = useMemo(
-    () => ({ systems, lines, spools, parts }),
-    [systems, lines, spools, parts]
+    () => ({ systems, lines, spools, parts, drawingSettings }),
+    [systems, lines, spools, parts, drawingSettings]
   );
 
   const handleExportExcel = useCallback(() => {
@@ -1490,9 +1559,10 @@ export default function WeldTrackerApp() {
       personnel,
       drawingSettings,
       ndtContext,
+      ndtReports,
       drawings,
     });
-  }, [weldPoints, pdfFilename, spools, parts, personnel, drawingSettings, projectMeta, ndtContext, drawings]);
+  }, [weldPoints, pdfFilename, spools, parts, personnel, drawingSettings, projectMeta, ndtContext, ndtReports, drawings]);
 
   const weldStatusByWeldId = useMemo(() => {
     const map = new Map();
@@ -1506,19 +1576,28 @@ export default function WeldTrackerApp() {
   const handlePrint = useCallback(
     async (options) => {
       const { runPrint } = await import("@/lib/print-utils");
-      const includeMarkers =
-        options.pdfDrawing &&
-        options.markers &&
-        (options.markers.welds || options.markers.spools || options.markers.parts || options.markers.lines);
+      const includePdfDrawing = !!options.pdfDrawing;
       const prevLayers = { ...markerLayers };
-      if (includeMarkers) {
+      const expectsOverlayMarkers =
+        includePdfDrawing &&
+        !!options?.markers &&
+        (options.markers.welds || options.markers.spools || options.markers.parts || options.markers.lines);
+
+      async function waitForOverlayMarkers(maxFrames = 36) {
+        for (let i = 0; i < maxFrames; i++) {
+          const target = document.querySelector("[data-print-target='pdf-with-overlays']");
+          if (target?.querySelector("[data-print-marker]")) return;
+          await new Promise((resolve) => requestAnimationFrame(resolve));
+        }
+      }
+      if (includePdfDrawing) {
         setMarkerLayers({
-          welds: !!options.markers.welds,
-          spools: !!options.markers.spools,
-          parts: !!options.markers.parts,
-          lines: !!options.markers.lines,
+          welds: !!options?.markers?.welds,
+          spools: !!options?.markers?.spools,
+          parts: !!options?.markers?.parts,
+          lines: !!options?.markers?.lines,
         });
-        await new Promise((r) => setTimeout(r, 200));
+        if (expectsOverlayMarkers) await waitForOverlayMarkers();
       }
       try {
         await runPrint({
@@ -1538,9 +1617,14 @@ export default function WeldTrackerApp() {
           getWeldName,
           ndtContext,
           drawings,
+          currentPage: pdfPage,
+          markerLayers,
+          spoolMarkers,
+          lineMarkers,
+          partMarkers,
         });
       } finally {
-        if (includeMarkers) setMarkerLayers(prevLayers);
+        if (includePdfDrawing) setMarkerLayers(prevLayers);
       }
     },
     [
@@ -1555,6 +1639,11 @@ export default function WeldTrackerApp() {
       weldStatusByWeldId,
       ndtContext,
       drawings,
+      pdfPage,
+      markerLayers,
+      spoolMarkers,
+      lineMarkers,
+      partMarkers,
     ]
   );
 
@@ -1768,109 +1857,6 @@ export default function WeldTrackerApp() {
     setDrawings((prev) => prev.map((drawing) => (drawing.id === dwgId ? { ...drawing, ...updates } : drawing)));
   }, []);
 
-  const ensureLineLinkedToCurrentDrawing = useCallback((lineId) => {
-    if (!activeDrawingId || !lineId) return;
-    setDrawings((prev) =>
-      prev.map((drawing) => {
-        if (drawing.id !== activeDrawingId) return drawing;
-        const nextLineIds = Array.isArray(drawing.lineIds) ? drawing.lineIds : [];
-        if (nextLineIds.includes(lineId)) return drawing;
-        return { ...drawing, lineIds: [...nextLineIds, lineId] };
-      })
-    );
-    setLines((prev) =>
-      prev.map((line) =>
-        line.id === lineId
-          ? {
-              ...line,
-              drawingIds: Array.isArray(line.drawingIds)
-                ? line.drawingIds.includes(activeDrawingId)
-                  ? line.drawingIds
-                  : [...line.drawingIds, activeDrawingId]
-                : [activeDrawingId],
-            }
-          : line
-      )
-    );
-  }, [activeDrawingId]);
-
-  const addOrMoveLineMarkerOnCurrentPage = useCallback((lineId, coords = null) => {
-    if (!lineId) return null;
-    const xPercent = coords?.xPercent ?? 50;
-    const yPercent = coords?.yPercent ?? 50;
-    const pageNumber = currentPage0;
-    let markerId = null;
-    setLineMarkers((prev) => {
-      const existing = prev.find(
-        (marker) =>
-          marker.lineId === lineId &&
-          marker.drawingId === (activeDrawingId ?? null) &&
-          (marker.pageNumber ?? 0) === pageNumber
-      );
-      if (existing) {
-        markerId = existing.id;
-        return prev.map((marker) =>
-          marker.id === existing.id
-            ? {
-                ...marker,
-                xPercent,
-                yPercent,
-              }
-            : marker
-        );
-      }
-      markerId = `lpm-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-      return [
-        ...prev,
-        {
-          id: markerId,
-          lineId,
-          drawingId: activeDrawingId ?? null,
-          xPercent,
-          yPercent,
-          indicatorXPercent: Math.min(100, Math.max(0, xPercent + 4)),
-          indicatorYPercent: Math.min(100, Math.max(0, yPercent - 4)),
-          pageNumber,
-        },
-      ];
-    });
-    if (markerId) setPendingLabelId({ type: "line", id: markerId });
-    return markerId;
-  }, [activeDrawingId, currentPage0, setPendingLabelId]);
-
-  const handleLinkLineToCurrentDrawing = useCallback((lineId) => {
-    if (!lineId) return;
-    ensureLineLinkedToCurrentDrawing(lineId);
-    addOrMoveLineMarkerOnCurrentPage(lineId, null);
-  }, [ensureLineLinkedToCurrentDrawing, addOrMoveLineMarkerOnCurrentPage]);
-
-  const handleCreateLineOnCurrentDrawing = useCallback((systemId = null) => {
-    if (!activeDrawingId) return null;
-    const id = `line-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-    setLines((prev) => {
-      const name = getNextUniqueLineName(prev);
-      return [
-        ...prev,
-        {
-          id,
-          systemId: systemId || null,
-          name,
-          wps: "",
-          fluidType: "",
-          pressure: "",
-          diameterRange: "",
-          thickness: "",
-          material: "",
-          drawingIds: [activeDrawingId],
-          ndtRequirements: [],
-        },
-      ];
-    });
-    ensureLineLinkedToCurrentDrawing(id);
-    addOrMoveLineMarkerOnCurrentPage(id, null);
-    return id;
-  }, [activeDrawingId, ensureLineLinkedToCurrentDrawing, addOrMoveLineMarkerOnCurrentPage]);
-
   const selectionScrollKey = [
     selectedWeldId,
     selectedSpoolMarkerId,
@@ -1901,8 +1887,8 @@ export default function WeldTrackerApp() {
   }, [selectionScrollKey]); // eslint-disable-line react-hooks/exhaustive-deps -- scroll only when selection id changes, not when dragging markers
 
   const settingsStructureIntegration = useMemo(
-    () =>
-      pdfBlob
+    () => ({
+      ...(pdfBlob
         ? {
             drawings: {
               drawings,
@@ -1915,13 +1901,11 @@ export default function WeldTrackerApp() {
             },
             lines: {
               lines,
-              allLines: lines,
               spools,
               drawingSettings,
+              wpsLibrary,
               onSaveLines: handleSaveAllLines,
               onSaveSpools: handleSaveAllSpools,
-              onCreateLineOnCurrentPage: handleCreateLineOnCurrentDrawing,
-              onLinkLineToCurrentPage: handleLinkLineToCurrentDrawing,
               appMode,
             },
             spools: {
@@ -1938,7 +1922,25 @@ export default function WeldTrackerApp() {
               appMode,
             },
           }
-        : null,
+        : {}),
+      welds: {
+        weldPoints,
+        weldStatusByWeldId,
+        getWeldName,
+        spools,
+        parts,
+        lines,
+        personnel,
+        wpsLibrary,
+        electrodeLibrary,
+        drawingSettings,
+        appMode,
+        ndtAutoLabel: formatNdtRequirements(drawingSettings.ndtRequirements),
+        onSave: handleSaveWeldFromSettings,
+        onDelete: handleDeleteWeldFromSettings,
+        onUpdatePartHeat: handleUpdatePartHeat,
+      },
+    }),
     [
       pdfBlob,
       drawings,
@@ -1951,8 +1953,6 @@ export default function WeldTrackerApp() {
       spools,
       handleSaveAllLines,
       handleSaveAllSpools,
-      handleCreateLineOnCurrentDrawing,
-      handleLinkLineToCurrentDrawing,
       appMode,
       parts,
       spoolMarkers,
@@ -1961,11 +1961,23 @@ export default function WeldTrackerApp() {
       handleAssignWeldToSpool,
       handleAssignPartToSpool,
       drawingSettings,
+      personnel,
+      wpsLibrary,
+      electrodeLibrary,
+      handleSaveWeldFromSettings,
+      handleDeleteWeldFromSettings,
+      handleUpdatePartHeat,
     ]
   );
 
   return (
-    <NdtScopeProvider systems={systems} lines={lines} spools={spools} parts={parts}>
+    <NdtScopeProvider
+      systems={systems}
+      lines={lines}
+      spools={spools}
+      parts={parts}
+      drawingSettings={drawingSettings}
+    >
     <div className="md:container md:mx-auto p-0 md:p-4">
       <>
         <OfflineBanner />
@@ -2009,7 +2021,6 @@ export default function WeldTrackerApp() {
           onSaveProject={handleSaveProject}
           onExportExcel={handleExportExcel}
           onOpenParameters={() => setShowParameters(true)}
-          onOpenDatabook={() => setShowDatabookBuilder(true)}
           onOpenProjects={() => setShowProjects(true)}
           onOpenNdt={() => {
             setShowStatusPage(false);
@@ -2097,6 +2108,12 @@ export default function WeldTrackerApp() {
             setWeldPoints={setWeldPoints}
             drawingSettings={drawingSettings}
             getWeldName={getWeldName}
+            drawings={drawings}
+            lines={lines}
+            systems={systems}
+            spools={spools}
+            parts={parts}
+            personnel={personnel}
             onClose={() => setShowNdtPanel(false)}
           />
         </div>
@@ -2296,7 +2313,7 @@ export default function WeldTrackerApp() {
                           onAddDefaultsChange={setAddDefaults}
                           spools={spoolsOnCurrentPage}
                           lines={lines}
-                          linesForSpoolDefault={linesLinkedToActiveDrawing}
+                          linesForSpoolDefault={linesOnCurrentPage}
                           systems={systems}
                           className="shadow-lg"
                         />
@@ -2476,14 +2493,11 @@ export default function WeldTrackerApp() {
                             systems={systems}
                             lines={linesOnCurrentPage}
                             selectedLineId={selectedLineIdFromMarker}
-                            allLines={lines}
                             spools={spoolsOnCurrentPage}
-                            drawingSettings={drawingSettings}
+                            wpsLibrary={wpsLibrary}
                             isOpen
                             onToggle={() => {}}
                             onSaveLines={handleSaveVisibleLines}
-                            onCreateLineOnCurrentPage={handleCreateLineOnCurrentDrawing}
-                            onLinkLineToCurrentPage={handleLinkLineToCurrentDrawing}
                             onSaveSpools={handleSaveVisibleSpools}
                             appMode={appMode}
                             systemsManagedExternally
@@ -2686,14 +2700,11 @@ export default function WeldTrackerApp() {
                 systems={systems}
                 lines={linesOnCurrentPage}
                 selectedLineId={selectedLineIdFromMarker}
-                allLines={lines}
                 spools={spoolsOnCurrentPage}
-                drawingSettings={drawingSettings}
+                wpsLibrary={wpsLibrary}
                 isOpen={true}
                 onToggle={() => {}}
                 onSaveLines={handleSaveVisibleLines}
-                onCreateLineOnCurrentPage={handleCreateLineOnCurrentDrawing}
-                onLinkLineToCurrentPage={handleLinkLineToCurrentDrawing}
                 onSaveSpools={handleSaveVisibleSpools}
                 appMode={appMode}
                 systemsManagedExternally
@@ -2783,9 +2794,31 @@ export default function WeldTrackerApp() {
         wpsLibrary={wpsLibrary}
         electrodeLibrary={electrodeLibrary}
         documents={documents}
+        materialCertificates={materialCertificates}
+        ndtReports={ndtReports}
+        ndtRequests={ndtRequests}
+        lines={lines}
+        spools={spools}
+        parts={parts}
+        drawings={drawings}
         weldPoints={weldPoints}
         structureIntegration={settingsStructureIntegration}
-        onSave={({ drawingSettings: s, personnel: p, projectSettings: ps, projectMeta: pm, systems: sys, wpsLibrary: wps, electrodeLibrary: electrodes, documents: docs }) => {
+        onSelectWeldFromSettings={handleFocusWeldFromSettings}
+        onSave={({
+          drawingSettings: s,
+          personnel: p,
+          projectSettings: ps,
+          projectMeta: pm,
+          systems: sys,
+          wpsLibrary: wps,
+          electrodeLibrary: electrodes,
+          documents: docs,
+          materialCertificates: mc,
+          ndtReports: nr,
+          ndtRequests: nreq,
+          weldPoints: wp,
+          lines: ln,
+        }) => {
           if (s != null) setDrawingSettings(s);
           if (p != null) setPersonnel(p);
           if (ps != null) setProjectSettings(ps);
@@ -2794,6 +2827,11 @@ export default function WeldTrackerApp() {
           if (wps != null) setWpsLibrary(wps);
           if (electrodes != null) setElectrodeLibrary(electrodes);
           if (docs != null) setDocuments(docs);
+          if (mc != null) setMaterialCertificates(mc);
+          if (nr != null) setNdtReports(nr);
+          if (nreq != null) setNdtRequests(nreq);
+          if (wp != null) setWeldPoints(wp);
+          if (ln != null) setLines(ln);
         }}
       />
 
@@ -2801,30 +2839,6 @@ export default function WeldTrackerApp() {
         isOpen={showProjects}
         onClose={() => setShowProjects(false)}
         onOpenProject={handleOpenProjectFromStorage}
-      />
-
-      <ModalDatabookBuilder
-        isOpen={showDatabookBuilder}
-        onClose={() => setShowDatabookBuilder(false)}
-        documents={documents}
-        databookConfig={databookConfig}
-        projectMeta={projectMeta}
-        drawings={drawings}
-        systems={systems}
-        lines={lines}
-        weldPoints={weldPoints}
-        spools={spools}
-        parts={parts}
-        personnel={personnel}
-        drawingSettings={drawingSettings}
-        wpsLibrary={wpsLibrary}
-        electrodeLibrary={electrodeLibrary}
-        materialCertificates={materialCertificates}
-        ndtReports={ndtReports}
-        onSaveDocuments={setDocuments}
-        onSaveElectrodeLibrary={setElectrodeLibrary}
-        onSaveMaterialCertificates={setMaterialCertificates}
-        onSaveDatabookConfig={setDatabookConfig}
       />
 
       <ModalPrintDynamic

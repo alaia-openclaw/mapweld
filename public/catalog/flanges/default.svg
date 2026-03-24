@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 240" fill="none">
+  <rect width="320" height="240" fill="#fafafa"/>
+  <g stroke="#1e3a5f" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="40" y1="120" x2="280" y2="120" stroke-dasharray="5 4" opacity="0.35"/>
+    <path d="M 72 95 L 72 145 L 248 145 L 248 95 Z" fill="#e8eef5" opacity="0.9"/>
+    <rect x="120" y="88" width="80" height="64" rx="2" fill="#dce6f2"/>
+    <line x1="160" y1="88" x2="160" y2="152"/>
+    <circle cx="160" cy="120" r="18" fill="none"/>
+  </g>
+  <text x="160" y="210" text-anchor="middle" fill="#64748b" font-family="system-ui,sans-serif" font-size="11">Flange (reference)</text>
+</svg>

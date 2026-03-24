@@ -1,6 +1,8 @@
-# Weld Dashboard MVP
+# MapWeld (Weld Dashboard)
 
 A minimal weld tracking app: load a PDF drawing, add weld points by clicking on it, capture weld info (welder, date, parts), and export to Excel. **No server database** — state stays in the browser and in `.weldproject` files.
+
+**MVP roadmap:** [docs/MVP-ROADMAP.md](docs/MVP-ROADMAP.md) (scope, release criteria, and future demo/video/tutorial planning).
 
 ## Data & persistence
 

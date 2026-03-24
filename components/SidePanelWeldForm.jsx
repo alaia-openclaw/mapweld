@@ -18,7 +18,19 @@ import {
 } from "@/lib/constants";
 import { getWeldName, getWeldSectionCompletion, computeNdtSelection } from "@/lib/weld-utils";
 import { useNdtScope } from "@/contexts/NdtScopeContext";
-import { getInheritedWpsCode, getResolvedWpsCode, getWpsLibraryEntryById } from "@/lib/wps-resolution";
+import {
+  getInheritedWpsCode,
+  getInheritedWpsSource,
+  getResolvedWpsCode,
+  getWpsLibraryEntryById,
+  getWpsLibraryEntryEffectiveCode,
+  findWpsLibraryEntriesMatchingUserText,
+  isWpsLibraryEntryRegisteredForDropdown,
+} from "@/lib/wps-resolution";
+import {
+  getResolvedNdtRequirementsForWeld,
+  getPctFromResolvedRequirements,
+} from "@/lib/ndt-resolution";
 import { comparePartDisplayNumbers } from "@/lib/part-display-number";
 import {
   createDefaultJointDimensions,
@@ -52,6 +64,66 @@ function normalizeElectrodeNumbersForSave(arr) {
   return nonEmpty.length > 0 ? nonEmpty : [""];
 }
 
+/** Heat filter for fit-up part pickers (matches existing weld form logic). */
+function filterPartsForFitupHeat(parts, heatField, selectedPartId) {
+  const heat = (heatField ?? "").trim();
+  return (parts || []).filter((p) => {
+    if (!heat) return true;
+    const partHeat = (p.heatNumber ?? "").trim();
+    if (!partHeat) return true;
+    return partHeat === heat || p.id === selectedPartId;
+  });
+}
+
+/**
+ * Same spool as weld first, then others — for &lt;optgroup&gt; ordering.
+ * @returns {{ mode: "flat", list: object[] } | { mode: "grouped", sameSpool: object[], otherParts: object[] }}
+ */
+function partitionFitupPartsByWeldSpool(filteredParts, weldSpoolId) {
+  const sid = (weldSpoolId ?? "").trim() || null;
+  if (!sid) {
+    return {
+      mode: "flat",
+      list: [...filteredParts].sort(comparePartDisplayNumbers),
+    };
+  }
+  const sameSpool = [];
+  const otherParts = [];
+  for (const p of filteredParts) {
+    if (p.spoolId === sid) sameSpool.push(p);
+    else otherParts.push(p);
+  }
+  sameSpool.sort(comparePartDisplayNumbers);
+  otherParts.sort(comparePartDisplayNumbers);
+  return { mode: "grouped", sameSpool, otherParts };
+}
+
+function renderFitupPartSelectOptions(partition, sameSpoolLabel) {
+  const row = (p) => (
+    <option key={p.id} value={p.id}>
+      Part {p.displayNumber}
+      {p.heatNumber ? ` (${p.heatNumber})` : ""}
+      {p.nps ? ` · ${p.nps}` : ""}
+      {p.thickness ? ` – ${p.thickness}` : ""}
+    </option>
+  );
+  if (partition.mode === "flat") {
+    return partition.list.map(row);
+  }
+  return (
+    <>
+      {partition.sameSpool.length > 0 && (
+        <optgroup label={sameSpoolLabel}>{partition.sameSpool.map(row)}</optgroup>
+      )}
+      {partition.otherParts.length > 0 && (
+        <optgroup label={partition.sameSpool.length > 0 ? "Other parts" : "Parts"}>
+          {partition.otherParts.map(row)}
+        </optgroup>
+      )}
+    </>
+  );
+}
+
 function SidePanelWeldForm({
   weldPoints = [],
   weld,
@@ -79,8 +151,24 @@ function SidePanelWeldForm({
   const ndtContext = useNdtScope();
   const inheritedWpsCode = useMemo(() => {
     if (!weld || !ndtContext) return "";
-    return getInheritedWpsCode(weld, ndtContext.systems, ndtContext.lines, ndtContext.spools);
-  }, [weld, ndtContext]);
+    return getInheritedWpsCode(
+      weld,
+      ndtContext.systems,
+      ndtContext.lines,
+      ndtContext.spools,
+      ndtContext.drawingSettings ?? drawingSettings
+    );
+  }, [weld, ndtContext, drawingSettings]);
+  const inheritedWpsSource = useMemo(() => {
+    if (!weld || !ndtContext) return null;
+    return getInheritedWpsSource(
+      weld,
+      ndtContext.systems,
+      ndtContext.lines,
+      ndtContext.spools,
+      ndtContext.drawingSettings ?? drawingSettings
+    );
+  }, [weld, ndtContext, drawingSettings]);
   const [weldType, setWeldType] = useState("butt");
   const [weldLocation, setWeldLocation] = useState("shop");
   const [wps, setWps] = useState("");
@@ -110,6 +198,9 @@ function SidePanelWeldForm({
   const [ndtResultOverrideUnlocked, setNdtResultOverrideUnlocked] = useState(false);
   const [openSections, setOpenSections] = useState({ general: true, fitup: false, welding: false, inspection: false });
   const addWeldingRecordLastRef = useRef(0);
+  /** After "Other (manual entry)…", block auto-link while text still matches {@link manualModeWpsSnapshotRef}. */
+  const skipWpsLibraryAutoLinkRef = useRef(false);
+  const manualModeWpsSnapshotRef = useRef("");
 
   const selectedPart1 = parts.find((p) => p.id === partId1) || null;
   const selectedPart2 = parts.find((p) => p.id === partId2) || null;
@@ -132,6 +223,30 @@ function SidePanelWeldForm({
     () => getEffectiveJointSide({ jointDimensions: jointDimensionsNorm }, selectedPart2, 2),
     [jointDimensionsNorm, selectedPart2]
   );
+
+  const weldSpoolLabel = useMemo(() => {
+    if (!spoolId) return "";
+    const n = spools.find((s) => s.id === spoolId)?.name?.trim();
+    return n || "";
+  }, [spoolId, spools]);
+
+  const sameSpoolGroupLabel = useMemo(
+    () =>
+      weldSpoolLabel.length > 0
+        ? `Same spool as weld (${weldSpoolLabel})`
+        : "Same spool as weld",
+    [weldSpoolLabel]
+  );
+
+  const fitupPartOptionsSide1 = useMemo(() => {
+    const filtered = filterPartsForFitupHeat(parts, heatNumber1, partId1);
+    return partitionFitupPartsByWeldSpool(filtered, spoolId);
+  }, [parts, heatNumber1, partId1, spoolId]);
+
+  const fitupPartOptionsSide2 = useMemo(() => {
+    const filtered = filterPartsForFitupHeat(parts, heatNumber2, partId2);
+    return partitionFitupPartsByWeldSpool(filtered, spoolId);
+  }, [parts, heatNumber2, partId2, spoolId]);
 
   function setJointSideField(side, field, value) {
     const key = side === 1 ? "side1" : "side2";
@@ -178,12 +293,26 @@ function SidePanelWeldForm({
     () => (Array.isArray(wpsLibrary) ? wpsLibrary : []),
     [wpsLibrary]
   );
-  const wpsPresetCodes = useMemo(
-    () =>
-      [...new Set(libraryWpsEntries.map((entry) => (entry?.code || "").trim()).filter(Boolean))]
-        .sort((a, b) => a.localeCompare(b)),
-    [libraryWpsEntries]
-  );
+  /** Library rows that have a usable code (code or title) and are registered (not weld-only auto rows). */
+  const libraryWpsRows = useMemo(() => {
+    return libraryWpsEntries
+      .map((entry) => ({ entry, effective: getWpsLibraryEntryEffectiveCode(entry) }))
+      .filter((row) => row.effective && isWpsLibraryEntryRegisteredForDropdown(row.entry))
+      .sort((a, b) => a.effective.localeCompare(b.effective));
+  }, [libraryWpsEntries]);
+
+  /** Value for the WPS `<select>`: inherit, a library id, or manual. */
+  const wpsSelectValue = useMemo(() => {
+    const trimmed = (wps || "").trim();
+    if (!trimmed && wpsUiMode === "inherit") return "__inherit__";
+    if (linkedWpsEntryId) {
+      const linked = libraryWpsEntries.find((e) => e.id === linkedWpsEntryId);
+      if (linked && getWpsLibraryEntryEffectiveCode(linked) && isWpsLibraryEntryRegisteredForDropdown(linked)) {
+        return `library:${linkedWpsEntryId}`;
+      }
+    }
+    return "__manual__";
+  }, [wps, wpsUiMode, linkedWpsEntryId, libraryWpsEntries]);
 
   const weldListSearchNorm = (weldListSearch || "").trim().toLowerCase();
   const filteredWeldPoints = useMemo(() => {
@@ -204,7 +333,13 @@ function SidePanelWeldForm({
         Array.isArray(ndtContext.systems) &&
         Array.isArray(ndtContext.lines) &&
         Array.isArray(ndtContext.spools)
-          ? getResolvedWpsCode(w, ndtContext.systems, ndtContext.lines, ndtContext.spools)
+          ? getResolvedWpsCode(
+              w,
+              ndtContext.systems,
+              ndtContext.lines,
+              ndtContext.spools,
+              ndtContext.drawingSettings ?? drawingSettings
+            )
           : (w.wps || "").trim();
       const spool = spools.find((s) => s.id === w.spoolId);
       const hay = [name, resolved, spool?.name || "", w.id || ""].join(" ").toLowerCase();
@@ -224,16 +359,66 @@ function SidePanelWeldForm({
     if (!linkedWpsEntryId) return;
     const entry = getWpsLibraryEntryById(libraryWpsEntries, linkedWpsEntryId);
     const nextTrim = (nextCode || "").trim();
-    if (!entry || (entry.code || "").trim() !== nextTrim) setLinkedWpsEntryId("");
+    if (!entry || getWpsLibraryEntryEffectiveCode(entry) !== nextTrim) setLinkedWpsEntryId("");
   }
 
-  function applyPresetWpsCode(code) {
-    const v = (code || "").trim();
+  function applyLibraryWpsEntry(entryId) {
+    const entry = libraryWpsEntries.find((e) => e.id === entryId);
+    if (!entry) return;
+    const v = getWpsLibraryEntryEffectiveCode(entry);
+    if (!v) return;
     setWps(v);
     setWpsUiMode("preset");
-    const matches = libraryWpsEntries.filter((e) => (e.code || "").trim() === v);
-    if (matches.length === 1) setLinkedWpsEntryId(matches[0].id);
-    else setLinkedWpsEntryId("");
+    setLinkedWpsEntryId(entry.id);
+  }
+
+  function handleWpsTextChange(next) {
+    const t = next.trim();
+    if (!t) {
+      setWps("");
+      setWpsUiMode("inherit");
+      setLinkedWpsEntryId("");
+      return;
+    }
+    const matches = findWpsLibraryEntriesMatchingUserText(libraryWpsEntries, t);
+    const pick =
+      matches.length > 0
+        ? [...matches].sort((a, b) => (a.id || "").localeCompare(b.id || ""))[0]
+        : null;
+    if (pick) {
+      const canonical = getWpsLibraryEntryEffectiveCode(pick);
+      setWps(canonical);
+      setWpsUiMode("preset");
+      setLinkedWpsEntryId(pick.id);
+    } else {
+      setWps(next);
+      setWpsUiMode("custom");
+      syncLinkedWpsAfterCodeChange(next);
+    }
+  }
+
+  function handleWpsSelectChange(e) {
+    const v = e.target.value;
+    if (v === "__inherit__") {
+      skipWpsLibraryAutoLinkRef.current = false;
+      manualModeWpsSnapshotRef.current = "";
+      setWps("");
+      setWpsUiMode("inherit");
+      setLinkedWpsEntryId("");
+      return;
+    }
+    if (v === "__manual__") {
+      skipWpsLibraryAutoLinkRef.current = true;
+      manualModeWpsSnapshotRef.current = (wps || "").trim();
+      setWpsUiMode("custom");
+      setLinkedWpsEntryId("");
+      return;
+    }
+    if (v.startsWith("library:")) {
+      skipWpsLibraryAutoLinkRef.current = false;
+      manualModeWpsSnapshotRef.current = "";
+      applyLibraryWpsEntry(v.slice("library:".length));
+    }
   }
   const fitterOptions = useMemo(
     () =>
@@ -324,19 +509,41 @@ function SidePanelWeldForm({
     if (!weld) {
       previousWeldIdRef.current = null;
       setWpsUiMode("inherit");
+      skipWpsLibraryAutoLinkRef.current = false;
+      manualModeWpsSnapshotRef.current = "";
       return;
     }
     const isNewWeld = previousWeldIdRef.current !== weld.id;
     previousWeldIdRef.current = weld.id;
     if (!isNewWeld) return;
+    skipWpsLibraryAutoLinkRef.current = false;
+    manualModeWpsSnapshotRef.current = "";
     setWeldType(weld.weldType || "butt");
     setWeldLocation(weld.weldLocation || "shop");
     const wpsTrim = (weld.wps || "").trim();
     setWps(weld.wps || "");
     setLinkedWpsEntryId(weld.wpsLibraryEntryId || "");
-    if (!wpsTrim) setWpsUiMode("inherit");
-    else if (wpsPresetCodes.includes(wpsTrim)) setWpsUiMode("preset");
-    else setWpsUiMode("custom");
+    if (!wpsTrim) {
+      setWpsUiMode("inherit");
+    } else if (weld.wpsLibraryEntryId && getWpsLibraryEntryById(libraryWpsEntries, weld.wpsLibraryEntryId)) {
+      const linkedEntry = getWpsLibraryEntryById(libraryWpsEntries, weld.wpsLibraryEntryId);
+      setWpsUiMode(isWpsLibraryEntryRegisteredForDropdown(linkedEntry) ? "preset" : "custom");
+    } else {
+      const matches = findWpsLibraryEntriesMatchingUserText(libraryWpsEntries, wpsTrim);
+      if (matches.length >= 1) {
+        const pick = [...matches].sort((a, b) => (a.id || "").localeCompare(b.id || ""))[0];
+        if (isWpsLibraryEntryRegisteredForDropdown(pick)) {
+          setWpsUiMode("preset");
+          setLinkedWpsEntryId(pick.id);
+          setWps(getWpsLibraryEntryEffectiveCode(pick));
+        } else {
+          setWpsUiMode("custom");
+          setLinkedWpsEntryId(pick.id);
+        }
+      } else {
+        setWpsUiMode("custom");
+      }
+    }
     setFitterName(weld.fitterName || "");
     setDateFitUp(weld.dateFitUp || "");
     setHeatNumber1(weld.heatNumber1 || "");
@@ -365,14 +572,60 @@ function SidePanelWeldForm({
     setNdtResultOutcome(weld.ndtResultOutcome || {});
     setNdtResultManualOverride(weld.ndtResultManualOverride || {});
     setNdtResultOverrideUnlocked(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- wpsUiMode uses wpsPresetCodes only when switching to this weld
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only reset local form when switching weld
   }, [weld]);
+
+  /**
+   * When the WPS library gains a registered row that matches the current weld text (e.g. user registered the code in
+   * Settings while this weld stayed selected), switch from manual entry to the library select + link.
+   */
+  useEffect(() => {
+    if (!weld?.id) return;
+    const wpsTrim = (wps || "").trim();
+    if (!wpsTrim) return;
+    const registeredMatches = findWpsLibraryEntriesMatchingUserText(libraryWpsEntries, wpsTrim).filter((e) =>
+      isWpsLibraryEntryRegisteredForDropdown(e)
+    );
+    if (registeredMatches.length === 0) return;
+    const pick = [...registeredMatches].sort((a, b) => (a.id || "").localeCompare(b.id || ""))[0];
+    const canonical = getWpsLibraryEntryEffectiveCode(pick);
+
+    if (skipWpsLibraryAutoLinkRef.current) {
+      const snap = manualModeWpsSnapshotRef.current;
+      if (wpsTrim === snap) return;
+      skipWpsLibraryAutoLinkRef.current = false;
+      manualModeWpsSnapshotRef.current = "";
+    }
+
+    if (linkedWpsEntryId === pick.id && wpsUiMode === "preset") {
+      if (canonical !== wpsTrim) setWps(canonical);
+      return;
+    }
+
+    setLinkedWpsEntryId(pick.id);
+    setWpsUiMode("preset");
+    if (canonical !== wpsTrim) setWps(canonical);
+  }, [libraryWpsEntries, weld?.id, wps, linkedWpsEntryId, wpsUiMode]);
 
   useEffect(() => {
     if (!linkedWpsEntryId) return;
     if (libraryWpsEntries.some((e) => e.id === linkedWpsEntryId)) return;
     setLinkedWpsEntryId("");
   }, [libraryWpsEntries, linkedWpsEntryId]);
+
+  useEffect(() => {
+    if (!visualInspection) return;
+    setNdtResultOutcome((prev) =>
+      prev?.VT ? prev : { ...(prev || {}), VT: NDT_RESULT_OUTCOMES.ACCEPTED }
+    );
+    setNdtResults((prev) => (prev?.VT ? prev : { ...(prev || {}), VT: "ok" }));
+    setNdtResultManualOverride((prev) => {
+      if (!prev?.VT) return prev;
+      const next = { ...prev };
+      delete next.VT;
+      return next;
+    });
+  }, [visualInspection]);
 
   const autoSaveTimeoutRef = useRef(null);
   useEffect(() => {
@@ -694,7 +947,7 @@ function SidePanelWeldForm({
                     <p className="text-xs text-base-content/55">No welds match this search.</p>
                   ) : null}
                 </div>
-              <ul className="w-full min-w-full max-w-full bg-base-100 rounded-lg p-0 gap-0 list-none">
+              <ul className="w-full min-w-full max-w-full list-none p-0 m-0 space-y-2">
                 {filteredWeldPoints.map((w) => {
                   const isExpanded = w.id === expandedWeldId;
                   const listStatus = weldStatusByWeldId?.get(w.id);
@@ -707,7 +960,10 @@ function SidePanelWeldForm({
                           ? "border-warning"
                           : "border-error";
                   return (
-                    <li key={w.id} className="w-full min-w-full border-b border-base-200 last:border-b-0">
+                    <li
+                      key={w.id}
+                      className="w-full min-w-full bg-base-100 rounded-lg overflow-hidden border border-primary/40"
+                    >
                       <button
                         type="button"
                         onClick={() =>
@@ -716,11 +972,11 @@ function SidePanelWeldForm({
                             : onSelectWeld?.(w)
                         }
                         className={`flex items-center justify-between gap-2 w-full text-left py-2 px-3 border-l-4 ${statusBorder} ${
-                          w.id === selectedWeldId ? "bg-primary/15 font-medium" : ""
+                          w.id === selectedWeldId ? "bg-primary/10 font-medium" : ""
                         }`}
                       >
                         <span className="flex flex-col items-start gap-0.5 min-w-0">
-                          <span className="font-mono text-sm flex items-center gap-1.5">
+                          <span className="font-mono text-sm text-primary flex items-center gap-1.5">
                             {getWeldName(w, weldPoints)}
                             {w.spoolId && (() => {
                               const spool = spools.find((s) => s.id === w.spoolId);
@@ -795,7 +1051,7 @@ function SidePanelWeldForm({
                                 <button
                                   type="button"
                                   onClick={() => toggleSection(sectionKey)}
-                                  className={`w-full flex justify-start items-center gap-2 px-2 py-2 text-left font-medium capitalize border-l-4 ${
+                                  className={`w-full flex justify-start items-center gap-2 px-2 py-1.5 text-left font-medium capitalize border-l-4 text-sm ${
                                     sectionComplete[sectionKey]
                                       ? "bg-success/15 border-success hover:bg-success/25"
                                       : "bg-warning/15 border-warning hover:bg-warning/25"
@@ -813,86 +1069,68 @@ function SidePanelWeldForm({
                                   </svg>
                                 </button>
                                 {openSections[sectionKey] && (
-                                  <div className="w-full px-2 py-2 border-t border-base-300 space-y-3">
+                                  <div className="w-full px-2 py-1.5 border-t border-base-300 space-y-2">
                                     {sectionKey === "general" && (
                                       <>
                                         <div className="form-control">
-                                          <label className="label" htmlFor="side-wps">
+                                          <label className="label pb-0.5" htmlFor="side-wps-select">
                                             <span className="label-text">WPS</span>
                                           </label>
-                                          <p className="text-xs text-base-content/60 -mt-1 mb-1">
-                                            {inheritedWpsCode
-                                              ? `Leave blank to inherit: ${inheritedWpsCode} (line → system)`
-                                              : "Set WPS on the weld, or define default WPS on the line/system in Settings / Lines."}
-                                          </p>
-                                          <div className="space-y-1.5">
-                                            {wpsPresetCodes.length > 0 && (
-                                              <select
-                                                className="select select-bordered select-sm"
-                                                value={
-                                                  wpsUiMode === "inherit"
-                                                    ? "__inherit__"
-                                                    : wpsUiMode === "custom"
-                                                      ? "__custom__"
-                                                      : (wps || "").trim()
-                                                }
-                                                onChange={(e) => {
-                                                  const v = e.target.value;
-                                                  if (v === "__inherit__") {
-                                                    setWpsUiMode("inherit");
-                                                    setWps("");
-                                                    setLinkedWpsEntryId("");
-                                                    return;
-                                                  }
-                                                  if (v === "__custom__") {
-                                                    setWpsUiMode("custom");
-                                                    setWps("");
-                                                    setLinkedWpsEntryId("");
-                                                    return;
-                                                  }
-                                                  applyPresetWpsCode(v);
-                                                }}
-                                              >
-                                                <option value="__inherit__">
-                                                  {inheritedWpsCode
-                                                    ? `Inherit (${inheritedWpsCode})`
-                                                    : "Inherit from line/system (none set)"}
-                                                </option>
-                                                <option value="__custom__">Custom / override (type below)</option>
-                                                {wpsPresetCodes.map((code) => (
-                                                  <option key={code} value={code}>{code}</option>
-                                                ))}
-                                              </select>
+                                          <div className="flex flex-col gap-2">
+                                            <select
+                                              id="side-wps-select"
+                                              className="select select-bordered select-xs w-full min-w-0"
+                                              value={wpsSelectValue}
+                                              onChange={handleWpsSelectChange}
+                                              aria-describedby={
+                                                wpsSelectValue === "__manual__" ? "side-wps-manual-hint" : undefined
+                                              }
+                                            >
+                                              <option value="__inherit__">
+                                                {inheritedWpsCode
+                                                  ? `Inherit (${
+                                                      inheritedWpsSource === "line"
+                                                        ? "line"
+                                                        : inheritedWpsSource === "system"
+                                                          ? "system"
+                                                          : inheritedWpsSource === "project"
+                                                            ? "project"
+                                                            : "default"
+                                                    }) — ${inheritedWpsCode}`
+                                                  : "Inherit line/system/project default (none set)"}
+                                              </option>
+                                              {libraryWpsRows.length > 0 && (
+                                                <optgroup label="Registered WPS">
+                                                  {libraryWpsRows.map(({ entry, effective }) => (
+                                                    <option key={entry.id} value={`library:${entry.id}`}>
+                                                      {effective}
+                                                      {(entry.description || "").trim()
+                                                        ? ` — ${(entry.description || "").trim().slice(0, 48)}${(entry.description || "").trim().length > 48 ? "…" : ""}`
+                                                        : ""}
+                                                    </option>
+                                                  ))}
+                                                </optgroup>
+                                              )}
+                                              <option value="__manual__">Other (manual entry)…</option>
+                                            </select>
+                                            {wpsSelectValue === "__manual__" && (
+                                              <>
+                                                <input
+                                                  id="side-wps-manual"
+                                                  type="text"
+                                                  className="input input-bordered input-xs w-full min-w-0"
+                                                  value={wps}
+                                                  onChange={(e) => handleWpsTextChange(e.target.value)}
+                                                  placeholder="Type a WPS name or code"
+                                                  autoComplete="off"
+                                                />
+                                                <p id="side-wps-manual-hint" className="text-xs text-base-content/50">
+                                                  Not in the project list above — stored as typed. Choose a registered
+                                                  row when you want a linked certificate in Settings.
+                                                </p>
+                                              </>
                                             )}
-                                            {wpsPresetCodes.length === 0 ||
-                                            wpsUiMode === "inherit" ||
-                                            wpsUiMode === "custom" ||
-                                            !wpsPresetCodes.includes((wps || "").trim()) ? (
-                                              <input
-                                                id="side-wps"
-                                                type="text"
-                                                className="input input-bordered input-sm"
-                                                value={wps}
-                                                onChange={(e) => {
-                                                  const next = e.target.value;
-                                                  setWps(next);
-                                                  const t = next.trim();
-                                                  if (!t) setWpsUiMode("inherit");
-                                                  else if (wpsPresetCodes.includes(t)) setWpsUiMode("preset");
-                                                  else setWpsUiMode("custom");
-                                                  syncLinkedWpsAfterCodeChange(next);
-                                                }}
-                                                placeholder={
-                                                  inheritedWpsCode
-                                                    ? `Override (blank = ${inheritedWpsCode})`
-                                                    : "Type WPS code"
-                                                }
-                                              />
-                                            ) : null}
                                           </div>
-                                          <p className="text-xs text-base-content/50 mt-1">
-                                            Attach WPS PDFs and library rows in Settings → Project info & libraries.
-                                          </p>
                                         </div>
                                         <div className="grid grid-cols-2 gap-4">
                                           <div className="form-control">
@@ -901,7 +1139,7 @@ function SidePanelWeldForm({
                                             </label>
                                             <select
                                               id="side-weldType"
-                                              className="select select-bordered select-sm"
+                                              className="select select-bordered select-xs"
                                               value={weldType}
                                               onChange={(e) => setWeldType(e.target.value)}
                                             >
@@ -916,7 +1154,7 @@ function SidePanelWeldForm({
                                             </label>
                                             <select
                                               id="side-weldLocation"
-                                              className="select select-bordered select-sm"
+                                              className="select select-bordered select-xs"
                                               value={weldLocation}
                                               onChange={(e) => setWeldLocation(e.target.value)}
                                             >
@@ -933,7 +1171,7 @@ function SidePanelWeldForm({
                                             </label>
                                             <select
                                               id="side-spoolId"
-                                              className="select select-bordered select-sm"
+                                              className="select select-bordered select-xs"
                                               value={spoolId}
                                               onChange={(e) => setSpoolId(e.target.value)}
                                             >
@@ -947,7 +1185,7 @@ function SidePanelWeldForm({
                                       </>
                                     )}
                                     {sectionKey === "fitup" && (
-                              <div className="space-y-3">
+                              <div className="space-y-2">
                                 <div className="form-control">
                                   <label className="label" htmlFor="side-fitterName">
                                     <span className="label-text">Fitter</span>
@@ -955,7 +1193,7 @@ function SidePanelWeldForm({
                                   <div className="space-y-1.5">
                                     {fitterOptions.length > 0 && (
                                       <select
-                                        className="select select-bordered select-sm"
+                                        className="select select-bordered select-xs"
                                         value={fitterOptions.includes((fitterName || "").trim()) ? (fitterName || "").trim() : "__custom__"}
                                         onChange={(e) => {
                                           if (e.target.value === "__custom__") {
@@ -975,7 +1213,7 @@ function SidePanelWeldForm({
                                       <input
                                         id="side-fitterName"
                                         type="text"
-                                        className="input input-bordered input-sm"
+                                        className="input input-bordered input-xs"
                                         value={fitterName}
                                         onChange={(e) => setFitterName(e.target.value)}
                                         placeholder="Type custom fitter"
@@ -990,13 +1228,13 @@ function SidePanelWeldForm({
                                   <input
                                     id="side-dateFitUp"
                                     type="date"
-                                    className="input input-bordered input-sm"
+                                    className="input input-bordered input-xs"
                                     value={dateFitUp}
                                     onChange={(e) => setDateFitUp(e.target.value)}
                                   />
                                 </div>
 
-                                <div className="rounded-lg border border-base-300/70 bg-base-200/25 p-3 space-y-3">
+                                <div className="rounded-lg border border-base-300/70 bg-base-200/25 p-2 space-y-2">
                                   <p className="text-xs font-semibold text-base-content/75 uppercase tracking-wide">Side 1</p>
                                   {parts.length > 0 && (
                                     <div className="form-control">
@@ -1005,29 +1243,12 @@ function SidePanelWeldForm({
                                       </label>
                                       <select
                                         id="side-partId1"
-                                        className="select select-bordered select-sm w-full"
+                                        className="select select-bordered select-xs w-full"
                                         value={partId1}
                                         onChange={(e) => handlePart1Select(e.target.value)}
                                       >
                                         <option value="">— No part (custom joint)</option>
-                                        {parts
-                                          .slice()
-                                          .filter((p) => {
-                                            const heat = (heatNumber1 ?? "").trim();
-                                            if (!heat) return true;
-                                            const partHeat = (p.heatNumber ?? "").trim();
-                                            if (!partHeat) return true;
-                                            return partHeat === heat || p.id === partId1;
-                                          })
-                                          .sort(comparePartDisplayNumbers)
-                                          .map((p) => (
-                                            <option key={p.id} value={p.id}>
-                                              Part {p.displayNumber}
-                                              {p.heatNumber ? ` (${p.heatNumber})` : ""}
-                                              {p.nps ? ` · ${p.nps}` : ""}
-                                              {p.thickness ? ` – ${p.thickness}` : ""}
-                                            </option>
-                                          ))}
+                                        {renderFitupPartSelectOptions(fitupPartOptionsSide1, sameSpoolGroupLabel)}
                                       </select>
                                       {showSync1 && onUpdatePartHeat && selectedPart1 && (
                                         <button
@@ -1049,7 +1270,7 @@ function SidePanelWeldForm({
                                     <input
                                       id="side-heatNumber1"
                                       type="text"
-                                      className="input input-bordered input-sm"
+                                      className="input input-bordered input-xs"
                                       value={heatNumber1}
                                       onChange={(e) => setHeatNumber1(e.target.value)}
                                       placeholder="e.g. H12345"
@@ -1069,7 +1290,7 @@ function SidePanelWeldForm({
                                         id="fit-nps-1"
                                         type="text"
                                         readOnly={!!selectedPart1}
-                                        className={`input input-bordered input-sm w-full ${selectedPart1 ? "bg-base-200/90 text-base-content/75 cursor-default" : ""}`}
+                                        className={`input input-bordered input-xs w-full ${selectedPart1 ? "bg-base-200/90 text-base-content/75 cursor-default" : ""}`}
                                         value={selectedPart1 ? effectiveJoint1.nps : jointDimensionsNorm.side1.nps}
                                         onChange={
                                           selectedPart1
@@ -1087,7 +1308,7 @@ function SidePanelWeldForm({
                                         id="fit-sch-1"
                                         type="text"
                                         readOnly={!!selectedPart1}
-                                        className={`input input-bordered input-sm w-full ${selectedPart1 ? "bg-base-200/90 text-base-content/75 cursor-default" : ""}`}
+                                        className={`input input-bordered input-xs w-full ${selectedPart1 ? "bg-base-200/90 text-base-content/75 cursor-default" : ""}`}
                                         value={selectedPart1 ? effectiveJoint1.schedule : jointDimensionsNorm.side1.schedule}
                                         onChange={
                                           selectedPart1
@@ -1105,7 +1326,7 @@ function SidePanelWeldForm({
                                   ) : null}
                                 </div>
 
-                                <div className="rounded-lg border border-base-300/70 bg-base-200/25 p-3 space-y-3">
+                                <div className="rounded-lg border border-base-300/70 bg-base-200/25 p-2 space-y-2">
                                   <p className="text-xs font-semibold text-base-content/75 uppercase tracking-wide">Side 2</p>
                                   {parts.length > 0 && (
                                     <div className="form-control">
@@ -1114,29 +1335,12 @@ function SidePanelWeldForm({
                                       </label>
                                       <select
                                         id="side-partId2"
-                                        className="select select-bordered select-sm w-full"
+                                        className="select select-bordered select-xs w-full"
                                         value={partId2}
                                         onChange={(e) => handlePart2Select(e.target.value)}
                                       >
                                         <option value="">— No part (custom joint)</option>
-                                        {parts
-                                          .slice()
-                                          .filter((p) => {
-                                            const heat = (heatNumber2 ?? "").trim();
-                                            if (!heat) return true;
-                                            const partHeat = (p.heatNumber ?? "").trim();
-                                            if (!partHeat) return true;
-                                            return partHeat === heat || p.id === partId2;
-                                          })
-                                          .sort(comparePartDisplayNumbers)
-                                          .map((p) => (
-                                            <option key={p.id} value={p.id}>
-                                              Part {p.displayNumber}
-                                              {p.heatNumber ? ` (${p.heatNumber})` : ""}
-                                              {p.nps ? ` · ${p.nps}` : ""}
-                                              {p.thickness ? ` – ${p.thickness}` : ""}
-                                            </option>
-                                          ))}
+                                        {renderFitupPartSelectOptions(fitupPartOptionsSide2, sameSpoolGroupLabel)}
                                       </select>
                                       {showSync2 && onUpdatePartHeat && selectedPart2 && (
                                         <button
@@ -1158,7 +1362,7 @@ function SidePanelWeldForm({
                                     <input
                                       id="side-heatNumber2"
                                       type="text"
-                                      className="input input-bordered input-sm"
+                                      className="input input-bordered input-xs"
                                       value={heatNumber2}
                                       onChange={(e) => setHeatNumber2(e.target.value)}
                                       placeholder="e.g. H12346"
@@ -1178,7 +1382,7 @@ function SidePanelWeldForm({
                                         id="fit-nps-2"
                                         type="text"
                                         readOnly={!!selectedPart2}
-                                        className={`input input-bordered input-sm w-full ${selectedPart2 ? "bg-base-200/90 text-base-content/75 cursor-default" : ""}`}
+                                        className={`input input-bordered input-xs w-full ${selectedPart2 ? "bg-base-200/90 text-base-content/75 cursor-default" : ""}`}
                                         value={selectedPart2 ? effectiveJoint2.nps : jointDimensionsNorm.side2.nps}
                                         onChange={
                                           selectedPart2
@@ -1196,7 +1400,7 @@ function SidePanelWeldForm({
                                         id="fit-sch-2"
                                         type="text"
                                         readOnly={!!selectedPart2}
-                                        className={`input input-bordered input-sm w-full ${selectedPart2 ? "bg-base-200/90 text-base-content/75 cursor-default" : ""}`}
+                                        className={`input input-bordered input-xs w-full ${selectedPart2 ? "bg-base-200/90 text-base-content/75 cursor-default" : ""}`}
                                         value={selectedPart2 ? effectiveJoint2.schedule : jointDimensionsNorm.side2.schedule}
                                         onChange={
                                           selectedPart2
@@ -1225,7 +1429,7 @@ function SidePanelWeldForm({
                             )}
 
                             {sectionKey === "welding" && (
-                              <div className="space-y-3">
+                              <div className="space-y-2">
                                 <div className="flex justify-between items-center">
                                   <span className="label-text font-medium">Welding records</span>
                                   <div
@@ -1253,7 +1457,7 @@ function SidePanelWeldForm({
                                     <p className="text-sm text-base-content/60">Click + Add to add a welding record.</p>
                                   </div>
                                 ) : (
-                                  <div className="space-y-3">
+                                  <div className="space-y-2">
                                     {weldingRecords.map((rec, idx) => (
                                       <div key={rec.id} className="p-2 bg-base-200 rounded-lg space-y-2">
                                         <div className="flex justify-between items-center">
@@ -1403,7 +1607,7 @@ function SidePanelWeldForm({
                             )}
 
                             {sectionKey === "inspection" && (
-                              <div className="space-y-3">
+                              <div className="space-y-2">
                                 <div className="form-control flex flex-row items-center gap-2 py-2">
                                   <span className="label-text">Override NDT result</span>
                                   <button
@@ -1438,16 +1642,39 @@ function SidePanelWeldForm({
                                     <tbody>
                                       {inspectionMethods.map((m) => {
                                         const virtualW = {
-                                          id: weld?.id,
-                                          weldLocation: weld?.weldLocation,
+                                          ...weld,
                                           ndtRequired,
                                           visualInspection,
                                           ndtOverrides,
+                                          ndtResults,
+                                          ndtResultOutcome,
                                         };
                                         const sel = computeNdtSelection(virtualW, drawingSettings, weldPoints, ndtContext);
                                         const isRequired = !!sel[m];
                                         const overrideVal = ndtOverrides[m] ?? NDT_OVERRIDE_OPTIONS.AUTO;
                                         const outcome = ndtResultOutcome[m];
+                                        const ndtLoc =
+                                          (virtualW.weldLocation || "shop") === "field" ? "field" : "shop";
+                                        const hasNdtScope =
+                                          ndtContext != null &&
+                                          Array.isArray(ndtContext.systems) &&
+                                          ndtContext.systems.length > 0 &&
+                                          Array.isArray(ndtContext.lines) &&
+                                          ndtContext.lines.length > 0;
+                                        const resolvedNdtReqs = hasNdtScope
+                                          ? getResolvedNdtRequirementsForWeld(
+                                              virtualW,
+                                              drawingSettings,
+                                              ndtContext.systems,
+                                              ndtContext.lines,
+                                              ndtContext.spools || []
+                                            )
+                                          : drawingSettings.ndtRequirements || [];
+                                        const policyPct = getPctFromResolvedRequirements(
+                                          resolvedNdtReqs,
+                                          m,
+                                          ndtLoc
+                                        );
                                         return (
                                           <tr key={m}>
                                             <td className="font-medium">{NDT_METHOD_LABELS[m] || m}</td>
@@ -1470,7 +1697,27 @@ function SidePanelWeldForm({
                                                 <option value={NDT_OVERRIDE_OPTIONS.EXEMPT}>Exclude</option>
                                               </select>
                                             </td>
-                                            <td className="text-sm">{isRequired ? "Yes" : "No"}</td>
+                                            <td
+                                              className="text-sm"
+                                              title={
+                                                policyPct < 100
+                                                  ? `Merged NDT for this weld (project → system → line): ${policyPct}% ${ndtLoc}. ${
+                                                      isRequired
+                                                        ? "This weld is in the sample for this method."
+                                                        : "This weld is not in the sample for this method."
+                                                    }`
+                                                  : isRequired
+                                                    ? "Required for this weld (100% policy or Include override)."
+                                                    : "Not required (exempt, not in scope, or policy)."
+                                              }
+                                            >
+                                              <span>{isRequired ? "Yes" : "No"}</span>
+                                              {policyPct < 100 ? (
+                                                <span className="inline-block ml-1 text-[10px] text-base-content/60 tabular-nums">
+                                                  ({policyPct}% {ndtLoc})
+                                                </span>
+                                              ) : null}
+                                            </td>
                                             <td className="text-sm">
                                               {!isRequired ? (
                                                 <span className="text-base-content/50">N/A</span>

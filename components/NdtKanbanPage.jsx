@@ -21,16 +21,31 @@ import {
   isWeldRepairNeeded,
   isWeldAlreadyAcceptedForMethod,
   computeNdtSelection,
+  getWeldDisambiguatedLabel,
+  getWeldDisambiguatedLabelParts,
 } from "@/lib/weld-utils";
 import { useNdtScope } from "@/contexts/NdtScopeContext";
 import FormNdtRequest from "@/components/FormNdtRequest";
 import FormNdtReport from "@/components/FormNdtReport";
+import { buildNdtRequestPdfBlob } from "@/lib/ndt-request-pdf";
 
 function generateRequestId() {
   return `ndt-req-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 function generateReportId() {
   return `ndt-rpt-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+/** Weld number on first line; drawing · page · line · spool on a smaller second line. */
+function WeldKanbanWeldCaption({ weld, context }) {
+  if (!weld) return null;
+  const { primary, secondary } = getWeldDisambiguatedLabelParts(weld, context);
+  return (
+    <div className="min-w-0 flex-1">
+      <div className="font-mono font-semibold text-sm text-base-content leading-tight">{primary}</div>
+      <div className="text-[10px] text-base-content/60 leading-snug mt-0.5 break-words">{secondary}</div>
+    </div>
+  );
 }
 
 function getResultLabel(result) {
@@ -61,6 +76,12 @@ function NdtKanbanPage({
   setWeldPoints,
   drawingSettings = {},
   getWeldName,
+  drawings = [],
+  lines = [],
+  spools = [],
+  systems = [],
+  parts = [],
+  personnel = {},
   onClose,
 }) {
   const ndtContext = useNdtScope();
@@ -99,6 +120,11 @@ function NdtKanbanPage({
   }, [activeTab, methodOptions]);
 
   const method = activeTab;
+
+  const weldLabelContext = useMemo(
+    () => ({ drawings, lines, spools, weldPoints }),
+    [drawings, lines, spools, weldPoints]
+  );
 
   const groupedWelds = useMemo(() => {
     const ready = [];
@@ -205,7 +231,7 @@ function NdtKanbanPage({
     [setNdtRequests]
   );
 
-  function getRequestFile(request) {
+  function getRequestTextSummary(request) {
     const welds = (request.weldIds || [])
       .map((id) => weldPoints.find((w) => w.id === id))
       .filter(Boolean);
@@ -215,40 +241,77 @@ function NdtKanbanPage({
       `Date: ${new Date().toISOString().slice(0, 10)}`,
       "",
       "Welds:",
-      ...welds.map((w) => `- ${getWeldName(w, weldPoints)}`),
+      ...welds.map((w) => `- ${getWeldDisambiguatedLabel(w, weldLabelContext)}`),
     ];
-    const text = lines.join("\n");
-    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
-    const filename = `NDT-Request-${request.method || "NDT"}-${request.id?.slice(-6) || "1"}.txt`;
-    return { blob, filename, text };
+    return lines.join("\n");
+  }
+
+  function getRequestPdfFileName(request) {
+    const requestNo = (request?.title || request?.id || "NDT").replace(/\s+/g, "-");
+    return `NDT-Request-${request?.method || "NDT"}-${requestNo}.pdf`;
+  }
+
+  function buildRequestPdf(request) {
+    // #region agent log
+    fetch("http://127.0.0.1:7422/ingest/05cf4936-8dd3-4ab1-89bc-af4409f2819b",{method:"POST",headers:{"Content-Type":"application/json","X-Debug-Session-Id":"85b471"},body:JSON.stringify({sessionId:"85b471",runId:"run-ndt-request-pdf",hypothesisId:"H1",location:"components/NdtKanbanPage.jsx:buildRequestPdf:start",message:"Building NDT request PDF",data:{requestId:request?.id||null,method:request?.method||null,weldIdsCount:(request?.weldIds||[]).length,hasSystems:Array.isArray(systems),hasParts:Array.isArray(parts),hasPersonnel:!!personnel},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+    const blob = buildNdtRequestPdfBlob(request, {
+      weldPoints,
+      parts,
+      drawings,
+      lines,
+      systems,
+      spools,
+      personnel,
+      drawingSettings,
+    });
+    // #region agent log
+    fetch("http://127.0.0.1:7422/ingest/05cf4936-8dd3-4ab1-89bc-af4409f2819b",{method:"POST",headers:{"Content-Type":"application/json","X-Debug-Session-Id":"85b471"},body:JSON.stringify({sessionId:"85b471",runId:"run-ndt-request-pdf",hypothesisId:"H2",location:"components/NdtKanbanPage.jsx:buildRequestPdf:success",message:"NDT request PDF blob created",data:{requestId:request?.id||null,blobType:blob?.type||null,blobSize:blob?.size??null},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+    return { blob, filename: getRequestPdfFileName(request) };
   }
 
   function handleDownloadRequest(request) {
-    const { blob, filename } = getRequestFile(request);
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const { blob, filename } = buildRequestPdf(request);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      // #region agent log
+      fetch("http://127.0.0.1:7422/ingest/05cf4936-8dd3-4ab1-89bc-af4409f2819b",{method:"POST",headers:{"Content-Type":"application/json","X-Debug-Session-Id":"85b471"},body:JSON.stringify({sessionId:"85b471",runId:"run-ndt-request-pdf",hypothesisId:"H3",location:"components/NdtKanbanPage.jsx:handleDownloadRequest:catch",message:"Runtime error while downloading NDT request PDF",data:{requestId:request?.id||null,errorName:error?.name||"Error",errorMessage:error?.message||String(error)},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      throw error;
+    }
   }
 
   async function handleShareRequest(request) {
-    const { blob, filename, text } = getRequestFile(request);
-    const file = new File([blob], filename, { type: "text/plain" });
-    if (typeof navigator !== "undefined" && navigator.share && navigator.canShare?.({ files: [file] })) {
-      try {
-        await navigator.share({
-          title: request.title || `NDT Request ${request.method}`,
-          text: text.slice(0, 200) + (text.length > 200 ? "…" : ""),
-          files: [file],
-        });
-      } catch (err) {
-        if (err.name !== "AbortError") fallbackShareRequest(request, text);
+    try {
+      const { blob, filename } = buildRequestPdf(request);
+      const text = getRequestTextSummary(request);
+      const file = new File([blob], filename, { type: "application/pdf" });
+      if (typeof navigator !== "undefined" && navigator.share && navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({
+            title: request.title || `NDT Request ${request.method}`,
+            text: text.slice(0, 200) + (text.length > 200 ? "…" : ""),
+            files: [file],
+          });
+        } catch (err) {
+          if (err.name !== "AbortError") fallbackShareRequest(request, text);
+        }
+        return;
       }
-      return;
+      fallbackShareRequest(request, text);
+    } catch (error) {
+      // #region agent log
+      fetch("http://127.0.0.1:7422/ingest/05cf4936-8dd3-4ab1-89bc-af4409f2819b",{method:"POST",headers:{"Content-Type":"application/json","X-Debug-Session-Id":"85b471"},body:JSON.stringify({sessionId:"85b471",runId:"run-ndt-request-pdf",hypothesisId:"H4",location:"components/NdtKanbanPage.jsx:handleShareRequest:catch",message:"Runtime error while sharing NDT request PDF",data:{requestId:request?.id||null,errorName:error?.name||"Error",errorMessage:error?.message||String(error)},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      throw error;
     }
-    fallbackShareRequest(request, text);
   }
 
   function fallbackShareRequest(request, text) {
@@ -479,9 +542,9 @@ function NdtKanbanPage({
                             draggable
                             onDragStart={(e) => handleDragStart(e, "weld", { weldId: w.id })}
                             onDragEnd={handleDragEnd}
-                            className="px-2 py-1 rounded bg-base-100 border border-base-300 cursor-grab active:cursor-grabbing text-sm truncate"
+                            className="px-2 py-1.5 rounded bg-base-100 border border-base-300 cursor-grab active:cursor-grabbing text-xs"
                           >
-                            {getWeldName(w, weldPoints)}
+                            <WeldKanbanWeldCaption weld={w} context={weldLabelContext} />
                           </li>
                         ))}
                       </ul>
@@ -528,9 +591,13 @@ function NdtKanbanPage({
                           draggable
                           onDragStart={(e) => handleDragStart(e, "weld", { weldId })}
                           onDragEnd={handleDragEnd}
-                          className="flex items-center justify-between gap-1 px-2 py-0.5 rounded bg-base-200 text-xs"
+                          className="flex items-start justify-between gap-1 px-2 py-1 rounded bg-base-200 text-xs"
                         >
-                          <span className="truncate">{w ? getWeldName(w, weldPoints) : weldId}</span>
+                          {w ? (
+                            <WeldKanbanWeldCaption weld={w} context={weldLabelContext} />
+                          ) : (
+                            <span className="min-w-0 break-words leading-snug font-mono text-sm">{weldId}</span>
+                          )}
                           <button
                             type="button"
                             className="btn btn-ghost btn-xs px-1 min-h-0 h-5"
@@ -579,7 +646,7 @@ function NdtKanbanPage({
                       type="button"
                       className="btn btn-ghost btn-xs btn-square p-1"
                       onClick={() => handleDownloadRequest(req)}
-                      title="Download request file"
+                      title="Download request PDF"
                       aria-label="Download"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -641,14 +708,17 @@ function NdtKanbanPage({
                   <ul className="mt-1 space-y-0.5">
                     {(report.weldResults || []).slice(0, 5).map((wr) => {
                       const w = weldPoints.find((p) => p.id === wr.weldId);
-                      const name = w ? getWeldName(w, weldPoints) : wr.weldId;
                       const statusLabel = getResultLabel(wr.result);
                       const statusClass = getResultClass(wr.result);
                       return (
-                        <li key={wr.weldId} className="flex items-center justify-between gap-1 px-2 py-0.5 rounded bg-base-200 text-xs">
-                          <span className="truncate flex items-center gap-1 min-w-0">
-                            <span className="truncate">{name}</span>
-                            {statusLabel && <span className={`flex-shrink-0 font-medium ${statusClass}`}>· {statusLabel}</span>}
+                        <li key={wr.weldId} className="flex items-start justify-between gap-1 px-2 py-1 rounded bg-base-200 text-xs">
+                          <span className="min-w-0 flex items-start gap-1.5 flex-1">
+                            {w ? (
+                              <WeldKanbanWeldCaption weld={w} context={weldLabelContext} />
+                            ) : (
+                              <span className="font-mono text-sm">{wr.weldId}</span>
+                            )}
+                            {statusLabel && <span className={`flex-shrink-0 font-medium pt-0.5 ${statusClass}`}>{statusLabel}</span>}
                           </span>
                           <button
                             type="button"
@@ -702,13 +772,16 @@ function NdtKanbanPage({
                   <ul className="mt-1 space-y-0.5">
                     {(report.weldResults || []).slice(0, 5).map((wr) => {
                       const w = weldPoints.find((p) => p.id === wr.weldId);
-                      const name = w ? getWeldName(w, weldPoints) : wr.weldId;
                       const statusLabel = getResultLabel(wr.result);
                       const statusClass = getResultClass(wr.result);
                       return (
-                        <li key={wr.weldId} className="px-2 py-0.5 rounded bg-base-200 text-xs flex items-center gap-1">
-                          <span className="truncate">{name}</span>
-                          {statusLabel && <span className={`flex-shrink-0 font-medium ${statusClass}`}>· {statusLabel}</span>}
+                        <li key={wr.weldId} className="px-2 py-1 rounded bg-base-200 text-xs flex items-start gap-1.5">
+                          {w ? (
+                            <WeldKanbanWeldCaption weld={w} context={weldLabelContext} />
+                          ) : (
+                            <span className="font-mono text-sm">{wr.weldId}</span>
+                          )}
+                          {statusLabel && <span className={`flex-shrink-0 font-medium pt-0.5 ${statusClass}`}>{statusLabel}</span>}
                         </li>
                       );
                     })}
@@ -805,8 +878,12 @@ function NdtKanbanPage({
                       {(req.weldIds || []).map((weldId) => {
                         const w = weldPoints.find((p) => p.id === weldId);
                         return (
-                          <li key={weldId} className="text-xs">
-                            {w ? getWeldName(w, weldPoints) : weldId}
+                          <li key={weldId} className="text-xs py-0.5 border-b border-base-300/40 last:border-0">
+                            {w ? (
+                              <WeldKanbanWeldCaption weld={w} context={weldLabelContext} />
+                            ) : (
+                              <span className="font-mono text-sm">{weldId}</span>
+                            )}
                           </li>
                         );
                       })}

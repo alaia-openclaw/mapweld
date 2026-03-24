@@ -2,6 +2,8 @@
 
 > Living document. Updated as features are designed and implemented.
 
+**Ship plan and v1 scope:** [MVP-ROADMAP.md](./MVP-ROADMAP.md). This file describes **technical** structure and long-term vision; the roadmap defines what “sellable v1” includes (markup + traceability, client-only).
+
 ---
 
 ## 1. Vision

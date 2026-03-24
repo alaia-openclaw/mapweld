@@ -267,7 +267,7 @@ function PanelNdtManagement({
             <section className="mb-4">
               <h3 className="font-medium mb-2">Recap by status</h3>
               <select
-                className="select select-bordered select-sm w-full max-w-xs"
+                className="select select-bordered select-xs w-full max-w-xs"
                 value={recapFilter}
                 onChange={(e) => setRecapFilter(e.target.value)}
                 aria-label="View welds by NDT status"

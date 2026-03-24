@@ -1,18 +1,17 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { getNextUniqueLineName } from "@/lib/line-utils";
-import { formatNdtRequirements } from "@/lib/constants";
-import NdtRequirementsOverrideTable from "@/components/NdtRequirementsOverrideTable";
+import {
+  getWpsLibraryEntryEffectiveCode,
+  findWpsLibraryEntriesMatchingUserText,
+  isWpsLibraryEntryRegisteredForDropdown,
+} from "@/lib/wps-resolution";
 
 function SidePanelLines({
   systems = [],
   lines = [],
   selectedLineId = null,
-  allLines = [],
   onSaveLines,
-  onCreateLineOnCurrentPage,
-  onLinkLineToCurrentPage,
   spools = [],
   onSaveSpools,
   appMode = "edition",
@@ -21,12 +20,10 @@ function SidePanelLines({
   onToggle,
   isStacked = false,
   hideHeader = false,
-  drawingSettings = { ndtRequirements: [] },
+  wpsLibrary = [],
 }) {
   const [expandedLineId, setExpandedLineId] = useState(null);
   const [spoolMenuLineId, setSpoolMenuLineId] = useState(null);
-  const [lineMenuGroupId, setLineMenuGroupId] = useState(null);
-  const [quickSystemId, setQuickSystemId] = useState("");
 
   const [editLineName, setEditLineName] = useState("");
   const [editFluidType, setEditFluidType] = useState("");
@@ -37,6 +34,52 @@ function SidePanelLines({
   const [editWps, setEditWps] = useState("");
 
   const prevExpandedLineRef = useRef(null);
+
+  const libraryWpsEntries = useMemo(
+    () => (Array.isArray(wpsLibrary) ? wpsLibrary : []),
+    [wpsLibrary]
+  );
+  const libraryWpsRows = useMemo(() => {
+    return libraryWpsEntries
+      .map((entry) => ({ entry, effective: getWpsLibraryEntryEffectiveCode(entry) }))
+      .filter((row) => row.effective && isWpsLibraryEntryRegisteredForDropdown(row.entry))
+      .sort((a, b) => a.effective.localeCompare(b.effective));
+  }, [libraryWpsEntries]);
+
+  const lineWpsSelectValue = useMemo(() => {
+    const trimmed = (editWps || "").trim();
+    if (!trimmed) return "__none__";
+    const matches = findWpsLibraryEntriesMatchingUserText(libraryWpsEntries, trimmed).filter((e) =>
+      isWpsLibraryEntryRegisteredForDropdown(e)
+    );
+    if (matches.length >= 1) {
+      const pick = [...matches].sort((a, b) => (a.id || "").localeCompare(b.id || ""))[0];
+      return `library:${pick.id}`;
+    }
+    return "__manual__";
+  }, [editWps, libraryWpsEntries]);
+
+  function persistLineWps(lineId, nextWps) {
+    const t = (nextWps ?? "").trim();
+    setEditWps(t);
+    onSaveLines?.(lines.map((l) => (l.id === lineId ? { ...l, wps: t } : l)));
+  }
+
+  function handleLineWpsSelectChange(lineId, e) {
+    const v = e.target.value;
+    if (v === "__none__") {
+      persistLineWps(lineId, "");
+      return;
+    }
+    if (v.startsWith("library:")) {
+      const entryId = v.slice("library:".length);
+      const entry = libraryWpsEntries.find((x) => x.id === entryId);
+      if (!entry) return;
+      persistLineWps(lineId, getWpsLibraryEntryEffectiveCode(entry));
+      return;
+    }
+    if (v === "__manual__") return;
+  }
 
   useEffect(() => {
     if (!expandedLineId) { prevExpandedLineRef.current = null; return; }
@@ -60,33 +103,6 @@ function SidePanelLines({
       setExpandedLineId(selectedLineId);
     }
   }, [selectedLineId, lines]);
-
-  function handleAddLine(systemId) {
-    if (typeof onCreateLineOnCurrentPage === "function") {
-      const createdId = onCreateLineOnCurrentPage(systemId || null);
-      if (createdId) setExpandedLineId(createdId);
-      return;
-    }
-    const id = `line-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-    const name = getNextUniqueLineName(allLines || lines);
-    onSaveLines?.([
-      ...lines,
-      {
-        id,
-        systemId,
-        name,
-        wps: "",
-        fluidType: "",
-        pressure: "",
-        diameterRange: "",
-        thickness: "",
-        material: "",
-        drawingIds: [],
-        ndtRequirements: [],
-      },
-    ]);
-    setExpandedLineId(id);
-  }
 
   function handleUpdateLine(id) {
     onSaveLines?.(
@@ -142,7 +158,6 @@ function SidePanelLines({
       lines: [],
     }));
     const byId = new Map(groups.map((group) => [group.id, group]));
-    const sysIdSet = new Set((systems || []).map((s) => s.id));
     const orphan = { id: "__none__", label: "No system", description: "", lines: [] };
 
     (lines || []).forEach((line) => {
@@ -155,29 +170,10 @@ function SidePanelLines({
     );
     orphan.lines.sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
 
-    const visibleIds = new Set((lines || []).map((l) => l.id));
-    const hasOrphanLinkable = (allLines || []).some(
-      (line) =>
-        !visibleIds.has(line.id) &&
-        (!line.systemId || !sysIdSet.has(line.systemId))
-    );
-
     const all = [...groups];
-    if (orphan.lines.length > 0 || hasOrphanLinkable) all.push(orphan);
+    if (orphan.lines.length > 0) all.push(orphan);
     return all;
-  }, [systems, lines, allLines]);
-
-  const visibleLineIds = useMemo(() => new Set((lines || []).map((line) => line.id)), [lines]);
-
-  const systemIdSet = useMemo(() => new Set((systems || []).map((s) => s.id)), [systems]);
-
-  function getLinkableLinesForGroup(group) {
-    return (allLines || []).filter((line) => {
-      if (visibleLineIds.has(line.id)) return false;
-      if (group.id === "__none__") return !line.systemId || !systemIdSet.has(line.systemId);
-      return line.systemId === group.id;
-    });
-  }
+  }, [systems, lines]);
 
   return (
     <div
@@ -214,90 +210,21 @@ function SidePanelLines({
       {isOpen && (
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden w-full min-w-0 h-0 basis-0">
           <div className={`flex-1 min-h-0 overflow-y-scroll overflow-x-auto p-2 min-w-0 pb-12 overscroll-contain [scrollbar-gutter:stable] ${hideHeader ? "mobile-no-scrollbar" : ""}`}>
-            {appMode === "edition" && (
-              <div className="bg-base-100 border border-base-300 rounded-lg p-2 space-y-2 mb-2">
-                <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] gap-2 items-end">
-                  <div className="form-control">
-                    <label className="label py-0 min-h-0">
-                      <span className="label-text text-xs">System for new line</span>
-                    </label>
-                    <select
-                      className="select select-bordered select-xs w-full"
-                      value={quickSystemId}
-                      onChange={(e) => setQuickSystemId(e.target.value)}
-                    >
-                      <option value="">No system</option>
-                      {systems.map((system) => (
-                        <option key={system.id} value={system.id}>
-                          {system.name || "Unnamed system"}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-xs"
-                    onClick={() => handleAddLine(quickSystemId || null)}
-                  >
-                    + Add new line
-                  </button>
-                </div>
-              </div>
-            )}
             {lines.length === 0 && (
               <p className="text-xs text-base-content/60 mb-2">
-                No lines on this page yet. Use <strong>+ Link line</strong> under a system to place an existing line, or create a new one above.
+                No lines on this page yet. Use the <strong>line marker</strong> tool on the drawing to create a line.
               </p>
             )}
             <ul className="space-y-3">
-                {groupedLines.map((group) => {
-                  const linkable = getLinkableLinesForGroup(group);
-                  return (
+                {groupedLines.map((group) => (
                     <li key={group.id} className="space-y-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-base-content/70 truncate">
-                            {group.label}
-                          </p>
-                          {group.description ? (
-                            <p className="text-xs text-base-content/55 truncate">{group.description}</p>
-                          ) : null}
-                        </div>
-                        {appMode === "edition" && typeof onLinkLineToCurrentPage === "function" && (
-                          <div className={`dropdown dropdown-end shrink-0 ${lineMenuGroupId === group.id ? "dropdown-open" : ""}`}>
-                            <button
-                              type="button"
-                              className="btn btn-ghost btn-xs gap-0.5"
-                              onClick={() => setLineMenuGroupId((prev) => (prev === group.id ? null : group.id))}
-                            >
-                              + Link line
-                            </button>
-                            <ul className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-56 max-h-56 overflow-y-auto border border-base-300">
-                              {linkable.length === 0 ? (
-                                <li>
-                                  <span className="text-xs text-base-content/50 px-2">
-                                    No other lines in this group
-                                  </span>
-                                </li>
-                              ) : (
-                                linkable.map((line) => (
-                                  <li key={line.id}>
-                                    <button
-                                      type="button"
-                                      className="text-left text-sm"
-                                      onClick={() => {
-                                        onLinkLineToCurrentPage(line.id);
-                                        setLineMenuGroupId(null);
-                                      }}
-                                    >
-                                      {line.name || line.id}
-                                    </button>
-                                  </li>
-                                ))
-                              )}
-                            </ul>
-                          </div>
-                        )}
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-base-content/70 truncate">
+                          {group.label}
+                        </p>
+                        {group.description ? (
+                          <p className="text-xs text-base-content/55 truncate">{group.description}</p>
+                        ) : null}
                       </div>
                       {group.lines.length === 0 ? (
                         <p className="text-xs text-base-content/50">No lines in this group</p>
@@ -306,23 +233,33 @@ function SidePanelLines({
                           {group.lines.map((line) => {
                             const isExpandedLine = line.id === expandedLineId;
                             return (
-                              <li key={line.id} className="bg-base-100 border border-base-300 rounded-lg overflow-hidden">
-                                <button
-                                  type="button"
-                                  className="w-full text-left text-xs px-2 py-1.5 flex items-center justify-between"
-                                  onClick={() => setExpandedLineId((prev) => (prev === line.id ? null : line.id))}
-                                >
-                                  <span className="truncate font-medium">{line.name || "Unnamed line"}</span>
-                                  <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    className={`h-3 w-3 flex-shrink-0 transition-transform ${isExpandedLine ? "rotate-180" : ""}`}
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
+                              <li key={line.id} className="bg-base-100 border border-primary/40 rounded-lg overflow-hidden">
+                                <div className="flex items-center gap-1 px-2 py-1.5 min-w-0">
+                                  <button
+                                    type="button"
+                                    className="flex-1 min-w-0 text-left text-xs truncate font-medium text-primary"
+                                    onClick={() => setExpandedLineId((prev) => (prev === line.id ? null : line.id))}
                                   >
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                  </svg>
-                                </button>
+                                    {line.name || "Unnamed line"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn btn-ghost btn-xs btn-square shrink-0"
+                                    onClick={() => setExpandedLineId((prev) => (prev === line.id ? null : line.id))}
+                                    aria-expanded={isExpandedLine}
+                                    aria-label={isExpandedLine ? "Collapse" : "Expand"}
+                                  >
+                                    <svg
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      className={`h-3 w-3 transition-transform ${isExpandedLine ? "rotate-180" : ""}`}
+                                      fill="none"
+                                      viewBox="0 0 24 24"
+                                      stroke="currentColor"
+                                    >
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                  </button>
+                                </div>
                                 {isExpandedLine && renderLineForm(line)}
                               </li>
                             );
@@ -330,8 +267,7 @@ function SidePanelLines({
                         </ul>
                       )}
                     </li>
-                  );
-                })}
+                ))}
             </ul>
             {systemsManagedExternally && (
               <p className="text-xs text-base-content/60 mt-3">
@@ -354,37 +290,58 @@ function SidePanelLines({
           <input type="text" className="input input-xs input-bordered w-full min-w-0" value={editLineName} onChange={(e) => setEditLineName(e.target.value)} onBlur={() => handleUpdateLine(line.id)} />
         </div>
         <div className="form-control">
-          <label className="label py-0 min-h-0">
+          <label className="label py-0 min-h-0" htmlFor={`line-default-wps-select-${line.id}`}>
             <span className="label-text text-xs">Default WPS</span>
           </label>
-          <input
-            type="text"
-            className="input input-xs input-bordered w-full min-w-0"
-            value={editWps}
-            onChange={(e) => setEditWps(e.target.value)}
-            onBlur={() => handleUpdateLine(line.id)}
-            placeholder="Overrides system; welds can override again"
-          />
+          <div className="flex flex-col gap-2">
+            <select
+              id={`line-default-wps-select-${line.id}`}
+              className="select select-bordered select-xs w-full min-w-0"
+              value={lineWpsSelectValue}
+              onChange={(e) => handleLineWpsSelectChange(line.id, e)}
+              aria-describedby={
+                lineWpsSelectValue === "__manual__" ? `line-default-wps-manual-hint-${line.id}` : undefined
+              }
+            >
+              <option value="__none__">No line default (inherit from system)</option>
+              {libraryWpsRows.length > 0 && (
+                <optgroup label="Registered WPS">
+                  {libraryWpsRows.map(({ entry, effective }) => (
+                    <option key={entry.id} value={`library:${entry.id}`}>
+                      {effective}
+                      {(entry.description || "").trim()
+                        ? ` — ${(entry.description || "").trim().slice(0, 48)}${(entry.description || "").trim().length > 48 ? "…" : ""}`
+                        : ""}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              <option value="__manual__">Other (manual entry)…</option>
+            </select>
+            {lineWpsSelectValue === "__manual__" && (
+              <>
+                <input
+                  id={`line-default-wps-manual-${line.id}`}
+                  type="text"
+                  className="input input-bordered input-xs w-full min-w-0"
+                  value={editWps}
+                  onChange={(e) => setEditWps(e.target.value)}
+                  onBlur={() => handleUpdateLine(line.id)}
+                  placeholder="Type a WPS name or code"
+                  autoComplete="off"
+                />
+                <p id={`line-default-wps-manual-hint-${line.id}`} className="text-xs text-base-content/50">
+                  Overrides system; welds can override again. Add the WPS in Settings → Project info to pick it from the
+                  list.
+                </p>
+              </>
+            )}
+          </div>
         </div>
         {appMode === "edition" && (
-          <div className="border border-base-300/80 rounded-md p-2 bg-base-200/50">
-            <NdtRequirementsOverrideTable
-              variant="compact"
-              scope="override"
-              title="NDT overrides (optional)"
-              hint={
-                formatNdtRequirements(drawingSettings?.ndtRequirements || []).trim()
-                  ? `Project base: ${formatNdtRequirements(drawingSettings.ndtRequirements)}. Line overrides system; both merge per method with project.`
-                  : "Per-method % override. Line overrides system; both merge with project defaults."
-              }
-              rows={Array.isArray(line.ndtRequirements) ? line.ndtRequirements : []}
-              onChange={(nextReqs) => {
-                onSaveLines?.(
-                  lines.map((l) => (l.id === line.id ? { ...l, ndtRequirements: nextReqs } : l))
-                );
-              }}
-            />
-          </div>
+          <p className="text-[10px] text-base-content/50 leading-snug">
+            NDT sampling overrides for this line are edited in Settings → Project info → Systems.
+          </p>
         )}
         <div className="grid grid-cols-2 gap-1.5">
           <div className="form-control">

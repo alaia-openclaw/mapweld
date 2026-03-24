@@ -246,7 +246,7 @@ function FormNdtReport({
         </label>
         <input
           type="date"
-          className="input input-bordered w-full"
+          className="input input-bordered input-xs w-full"
           value={reportDate}
           onChange={(e) => setReportDate(e.target.value)}
         />
@@ -292,7 +292,7 @@ function FormNdtReport({
           type="file"
           multiple
           accept=".pdf,application/pdf,.dwg"
-          className="file-input file-input-bordered w-full"
+          className="file-input file-input-bordered file-input-xs w-full"
           onChange={handleFileSelect}
           disabled={isUploading}
         />

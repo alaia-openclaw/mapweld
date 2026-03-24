@@ -1,18 +1,21 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { PART_TYPES, PART_TYPE_LABELS } from "@/lib/constants";
-import {
-  partCatalog,
-  getCategories,
-  getCatalogEntry,
-} from "@/lib/part-catalog";
+import { getCategories, getCatalogEntry } from "@/lib/part-catalog";
 import {
   getHierarchyForCategory,
   getHierarchyStateFromEntry,
   findEntryByHierarchy,
+  expandHierarchyStateWithAutoFills,
 } from "@/lib/catalog-hierarchy";
 import CatalogHierarchyStepSelects from "@/components/CatalogHierarchyStepSelects";
+import CatalogTreeCascade from "@/components/CatalogTreeCascade";
+import {
+  leafIdToCatalogCategory,
+  getMergedCatalogEntries,
+  inferCatalogLeafIdFromPart,
+} from "@/lib/catalog-leaf-resolve";
 import { comparePartDisplayNumbers } from "@/lib/part-display-number";
 
 function fileToBase64(file) {
@@ -50,7 +53,7 @@ function SidePanelPartForm({
     ? parts.find((p) => p.id === selectedMarker.partId)
     : null;
 
-  const [catalogCategory, setCatalogCategory] = useState("");
+  const [catalogLeafId, setCatalogLeafId] = useState("");
   const [hierarchyState, setHierarchyState] = useState({});
   const [partType, setPartType] = useState("");
   const [nps, setNps] = useState("");
@@ -66,12 +69,13 @@ function SidePanelPartForm({
   const mtcUploadInputRef = useRef(null);
 
   const categories = getCategories();
+  const catalogCategory = catalogLeafId ? leafIdToCatalogCategory(catalogLeafId) : "";
   const catalogEntriesForCategory = useMemo(
     () =>
       catalogCategory
-        ? partCatalog.entries.filter((e) => e.catalogCategory === catalogCategory)
+        ? getMergedCatalogEntries(catalogCategory, catalogLeafId)
         : [],
-    [catalogCategory]
+    [catalogCategory, catalogLeafId]
   );
 
   const previousSelectedPartIdRef = useRef(null);
@@ -82,24 +86,36 @@ function SidePanelPartForm({
     }
     if (previousSelectedPartIdRef.current === selectedPart.id) return;
     previousSelectedPartIdRef.current = selectedPart.id;
+    const leaf = inferCatalogLeafIdFromPart(selectedPart);
+    setCatalogLeafId(leaf);
+    const cat = leaf ? leafIdToCatalogCategory(leaf) : (selectedPart.catalogCategory || "").trim();
+    const entriesForCat = cat ? getMergedCatalogEntries(cat, leaf) : [];
+
+    function hydrateHierarchyFromStored() {
+      const raw = selectedPart.catalogHierarchyState;
+      if (raw && typeof raw === "object" && Object.keys(raw).length > 0 && cat) {
+        const expanded = expandHierarchyStateWithAutoFills(cat, entriesForCat, { ...raw });
+        setHierarchyState(expanded);
+      } else {
+        setHierarchyState({});
+      }
+    }
+
     if (selectedPart.catalogPartId) {
       const entry = getCatalogEntry(selectedPart.catalogPartId);
       if (entry) {
-        setCatalogCategory(entry.catalogCategory);
         setHierarchyState(getHierarchyStateFromEntry(entry, entry.catalogCategory));
         setPartType(entry.partTypeLabel ?? "");
         setNps(entry.nps ?? "");
         setThickness(entry.thickness ?? "");
       } else {
-        setCatalogCategory(selectedPart.catalogCategory ?? "");
-        setHierarchyState({});
+        hydrateHierarchyFromStored();
         setPartType(selectedPart.partType ?? "");
         setNps(selectedPart.nps ?? "");
         setThickness(selectedPart.thickness ?? "");
       }
     } else {
-      setCatalogCategory(selectedPart.catalogCategory ?? "");
-      setHierarchyState({});
+      hydrateHierarchyFromStored();
       setPartType(selectedPart.partType ?? "");
       setNps(selectedPart.nps ?? "");
       setThickness(selectedPart.thickness ?? "");
@@ -137,8 +153,11 @@ function SidePanelPartForm({
         entry?.thickness ?? hierarchyState.schedule ?? thickness.trim();
       onSavePart?.({
         ...selectedPart,
+        catalogLeafId: catalogLeafId || "",
         catalogCategory: catalogCategory || "",
         catalogPartId: entry?.catalogPartId ?? null,
+        catalogHierarchyState:
+          catalogLeafId && Object.keys(hierarchyState).length > 0 ? { ...hierarchyState } : undefined,
         partType: resolvedPartType,
         nps: resolvedNps,
         thickness: resolvedThickness,
@@ -155,6 +174,7 @@ function SidePanelPartForm({
     };
   }, [
     selectedPart,
+    catalogLeafId,
     catalogCategory,
     hierarchyState,
     partType,
@@ -188,7 +208,7 @@ function SidePanelPartForm({
     </option>
   ));
 
-  const isCatalogMode = Boolean(catalogCategory);
+  const isCatalogMode = Boolean(catalogLeafId);
   const hierarchySteps = useMemo(
     () => getHierarchyForCategory(catalogCategory),
     [catalogCategory]
@@ -206,8 +226,28 @@ function SidePanelPartForm({
     [materialCertificates, normalizedHeat]
   );
 
-  function handleCatalogCategoryChange(value) {
-    setCatalogCategory(value);
+  /** One row per canvas marker — avoids duplicate React keys when `parts` accidentally contains the same id twice. */
+  const partRows = useMemo(() => {
+    return (partMarkers || [])
+      .map((marker) => {
+        const p = (parts || []).find((x) => x.id === marker.partId);
+        if (!p) return null;
+        return { marker, part: p };
+      })
+      .filter(Boolean)
+      .sort((a, b) => comparePartDisplayNumbers(a.part, b.part));
+  }, [partMarkers, parts]);
+
+  function handleCatalogLeafChange(leafId) {
+    if (!leafId) {
+      setCatalogLeafId("");
+      setHierarchyState({});
+      setPartType("");
+      setNps("");
+      setThickness("");
+      return;
+    }
+    setCatalogLeafId(leafId);
     setHierarchyState({});
     setPartType("");
     setNps("");
@@ -225,6 +265,10 @@ function SidePanelPartForm({
       return next;
     });
   }
+
+  const handleHierarchyStateReplace = useCallback((next) => {
+    setHierarchyState(next);
+  }, []);
 
   function setHeatMtcDocument(documentId) {
     if (!normalizedHeat || !onSaveMaterialCertificates) return;
@@ -249,7 +293,7 @@ function SidePanelPartForm({
     if (!file || !normalizedHeat || !onSaveDocuments || !onSaveMaterialCertificates) return;
     const uploadedDoc = {
       id: `doc-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-      title: `${normalizedHeat} MTC`,
+      title: file.name || `${normalizedHeat} MTC`,
       category: "mtc",
       fileName: file.name || `${normalizedHeat}-mtc.pdf`,
       mimeType: file.type || "application/pdf",
@@ -262,24 +306,28 @@ function SidePanelPartForm({
 
   function renderPartEditorBody() {
     return (
-      <div className="border-t border-base-300/60 px-2 py-2 space-y-3 w-full min-w-0">
+      <div className="border-t border-base-300/60 px-2 py-1.5 space-y-2 w-full min-w-0 text-sm [&_.form-control]:gap-0.5 [&_.label]:py-0.5 [&_.label]:min-h-0 [&_.label-text]:text-xs [&_.input]:h-10 [&_.select]:h-10">
         <div className="form-control">
-          <label className="label" htmlFor="part-catalog-category">
-            <span className="label-text">Category</span>
+          <label className="label">
+            <span className="label-text">Catalog</span>
           </label>
-          <select
-            id="part-catalog-category"
-            className="select select-bordered select-sm w-full"
-            value={catalogCategory}
-            onChange={(e) => handleCatalogCategoryChange(e.target.value)}
-          >
-            <option value="">Custom (free text)</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.label}
-              </option>
-            ))}
-          </select>
+          <div className="flex flex-wrap items-center gap-1 w-full min-w-0">
+            <CatalogTreeCascade
+              catalogCategories={categories}
+              valueLeafId={catalogLeafId}
+              onLeafChange={handleCatalogLeafChange}
+              variant="form"
+              idPrefix="part-catalog"
+            />
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs shrink-0"
+              onClick={() => handleCatalogLeafChange("")}
+              title="Clear catalog — use custom fields below"
+            >
+              Custom
+            </button>
+          </div>
         </div>
         {isCatalogMode ? (
           <CatalogHierarchyStepSelects
@@ -288,6 +336,7 @@ function SidePanelPartForm({
             hierarchyState={hierarchyState}
             catalogEntriesForCategory={catalogEntriesForCategory}
             onHierarchyChange={handleHierarchyChange}
+            onHierarchyStateReplace={handleHierarchyStateReplace}
             variant="form"
             idPrefix="part-hierarchy"
           />
@@ -299,7 +348,7 @@ function SidePanelPartForm({
               </label>
               <select
                 id="part-type"
-                className="select select-bordered select-sm w-full"
+                className="select select-bordered select-xs w-full"
                 value={partType}
                 onChange={(e) => setPartType(e.target.value)}
               >
@@ -314,7 +363,7 @@ function SidePanelPartForm({
               <input
                 id="part-nps"
                 type="text"
-                className="input input-bordered input-sm w-full min-w-0"
+                className="input input-bordered input-xs w-full min-w-0"
                 value={nps}
                 onChange={(e) => setNps(e.target.value)}
                 placeholder="e.g. 2, 4, 6"
@@ -327,7 +376,7 @@ function SidePanelPartForm({
               <input
                 id="part-thickness"
                 type="text"
-                className="input input-bordered input-sm w-full min-w-0"
+                className="input input-bordered input-xs w-full min-w-0"
                 value={thickness}
                 onChange={(e) => setThickness(e.target.value)}
                 placeholder="e.g. SCH 40"
@@ -342,7 +391,7 @@ function SidePanelPartForm({
           <input
             id="part-variation"
             type="text"
-            className="input input-bordered input-sm w-full min-w-0"
+            className="input input-bordered input-xs w-full min-w-0"
             value={variation}
             onChange={(e) => setVariation(e.target.value)}
             placeholder="Case-by-case note"
@@ -355,7 +404,7 @@ function SidePanelPartForm({
           <input
             id="part-material"
             type="text"
-            className="input input-bordered input-sm w-full min-w-0"
+            className="input input-bordered input-xs w-full min-w-0"
             value={materialGrade}
             onChange={(e) => setMaterialGrade(e.target.value)}
             placeholder="e.g. A106 Gr.B"
@@ -368,7 +417,7 @@ function SidePanelPartForm({
           <input
             id="part-length"
             type="text"
-            className="input input-bordered input-sm w-full min-w-0"
+            className="input input-bordered input-xs w-full min-w-0"
             value={length}
             onChange={(e) => setLength(e.target.value)}
             placeholder="e.g. 500 mm"
@@ -381,7 +430,7 @@ function SidePanelPartForm({
             </label>
             <select
               id="part-spool"
-              className="select select-bordered select-sm w-full"
+              className="select select-bordered select-xs w-full"
               value={spoolId}
               onChange={(e) => setSpoolId(e.target.value)}
             >
@@ -401,7 +450,7 @@ function SidePanelPartForm({
           <input
             id="part-heatNumber"
             type="text"
-            className="input input-bordered input-sm"
+            className="input input-bordered input-xs"
             value={heatNumber}
             onChange={(e) => setHeatNumber(e.target.value)}
             placeholder="e.g. H12345"
@@ -414,7 +463,7 @@ function SidePanelPartForm({
           <div className="flex gap-1">
             <select
               id="part-mtc"
-              className="select select-bordered select-sm flex-1"
+              className="select select-bordered select-xs flex-1"
               value={linkedMtc?.documentId || ""}
               onChange={(e) => setHeatMtcDocument(e.target.value)}
               disabled={!normalizedHeat}
@@ -431,14 +480,14 @@ function SidePanelPartForm({
             {!linkedMtc?.documentId && normalizedHeat && (
               <button
                 type="button"
-                className="btn btn-ghost btn-sm"
+                className="btn btn-ghost btn-xs"
                 onClick={() => mtcUploadInputRef.current?.click()}
               >
                 Load
               </button>
             )}
           </div>
-          <p className="text-xs text-base-content/60 mt-1">
+          <p className="text-[11px] leading-snug text-base-content/60 mt-0.5">
             Link certificate by heat number for databook traceability.
           </p>
         </div>
@@ -489,25 +538,20 @@ function SidePanelPartForm({
       {isOpen && (
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden w-full min-w-0 h-0 basis-0">
           <div className={`flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-auto p-3 space-y-3 pb-12 overscroll-contain [scrollbar-gutter:stable] break-words ${hideHeader ? "mobile-no-scrollbar" : ""}`}>
-            {parts.length === 0 ? (
+            {partRows.length === 0 ? (
               <div className="text-center py-6 text-base-content/60 text-sm break-words min-w-0">
                 <p>No parts yet</p>
                 <p className="mt-1">Add with the Add Part tool on the drawing</p>
               </div>
             ) : (
               <ul className="space-y-2 min-w-0">
-                {parts
-                  .slice()
-                  .sort(comparePartDisplayNumbers)
-                  .map((p) => {
-                    const marker = partMarkers.find((m) => m.partId === p.id);
-                    if (!marker) return null;
+                {partRows.map(({ marker, part: p }) => {
                     const spoolName = p.spoolId ? getSpoolName(p.spoolId) : null;
                     const isExpanded = expandedPartMarkerId === marker.id;
                     const isActivePart = selectedPartMarkerId === marker.id;
                     return (
                       <li
-                        key={p.id}
+                        key={marker.id}
                         className="bg-base-100 border border-base-300 rounded-lg overflow-hidden min-w-0"
                       >
                         <div className="flex items-stretch gap-0 min-w-0">
@@ -542,7 +586,10 @@ function SidePanelPartForm({
                               />
                             </svg>
                           </button>
-                          {appMode === "edition" && isExpanded && isActivePart && selectedPart ? (
+                          {appMode === "edition" &&
+                          isExpanded &&
+                          isActivePart &&
+                          selectedPart?.id === p.id ? (
                             <button
                               type="button"
                               className="btn btn-ghost btn-xs text-error shrink-0 self-center mr-1"
@@ -552,7 +599,9 @@ function SidePanelPartForm({
                             </button>
                           ) : null}
                         </div>
-                        {isExpanded && isActivePart && selectedPart ? renderPartEditorBody() : null}
+                        {isExpanded && isActivePart && selectedPart?.id === p.id
+                          ? renderPartEditorBody()
+                          : null}
                       </li>
                     );
                   })}

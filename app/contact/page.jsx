@@ -62,7 +62,7 @@ export default function ContactPage() {
                     name="name"
                     type="text"
                     required
-                    className="input input-bordered w-full"
+                    className="input input-bordered input-xs w-full"
                     placeholder="Your name"
                   />
                 </div>
@@ -76,7 +76,7 @@ export default function ContactPage() {
                     name="email"
                     type="email"
                     required
-                    className="input input-bordered w-full"
+                    className="input input-bordered input-xs w-full"
                     placeholder="you@example.com"
                   />
                 </div>
@@ -90,7 +90,7 @@ export default function ContactPage() {
                     name="message"
                     required
                     rows={5}
-                    className="textarea textarea-bordered w-full"
+                    className="textarea textarea-bordered textarea-xs w-full"
                     placeholder="How can we help?"
                   />
                 </div>

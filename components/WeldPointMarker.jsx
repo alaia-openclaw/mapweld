@@ -282,6 +282,7 @@ function WeldPointMarker({
   return (
     <div
       className={`absolute inset-0 pointer-events-none ${showHandles ? "z-30" : ""}`}
+      data-print-marker="weld"
       aria-hidden
     >
       <button

@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useCallback, useEffect } from "react";
 import { PART_TYPE_LABELS, WELD_LOCATION_LABELS } from "@/lib/constants";
-import { partCatalog, getCategories } from "@/lib/part-catalog";
+import { getCategories } from "@/lib/part-catalog";
 import { getHierarchyForCategory } from "@/lib/catalog-hierarchy";
 import CatalogHierarchyStepSelects from "@/components/CatalogHierarchyStepSelects";
+import CatalogTreeCascade from "@/components/CatalogTreeCascade";
+import { leafIdToCatalogCategory, getMergedCatalogEntries } from "@/lib/catalog-leaf-resolve";
 
 function AddDefaultsBar({
   markupTool,
@@ -12,21 +14,23 @@ function AddDefaultsBar({
   onAddDefaultsChange,
   spools = [],
   lines = [],
-  /** Lines linked to the active drawing (for new spool default line). */
+  /** Lines present on the current PDF page (line/spool markers on this page) — limits default line for new spools. */
   linesForSpoolDefault = null,
   systems = [],
   className = "",
 }) {
-  const catalogCategory = addDefaults?.catalogCategory ?? "";
+  const catalogLeafId = addDefaults?.catalogLeafId ?? "";
+  const catalogCategory =
+    addDefaults?.catalogCategory ?? (catalogLeafId ? leafIdToCatalogCategory(catalogLeafId) : "");
   const hierarchyState = addDefaults?.hierarchyState ?? {};
-  const isCatalogMode = Boolean(catalogCategory);
+  const isCatalogMode = Boolean(catalogLeafId);
   const categories = getCategories();
   const catalogEntriesForCategory = useMemo(
     () =>
       catalogCategory
-        ? partCatalog.entries.filter((e) => e.catalogCategory === catalogCategory)
+        ? getMergedCatalogEntries(catalogCategory, catalogLeafId)
         : [],
-    [catalogCategory]
+    [catalogCategory, catalogLeafId]
   );
   const hierarchySteps = useMemo(
     () => getHierarchyForCategory(catalogCategory),
@@ -42,10 +46,82 @@ function AddDefaultsBar({
   const showLine = markupTool === "addLine";
   const spoolLineChoices = Array.isArray(linesForSpoolDefault) ? linesForSpoolDefault : lines;
 
-  function handleCatalogCategoryChange(value) {
+  const selectedSpool = useMemo(
+    () => (addDefaults?.spoolId ? spools.find((s) => s.id === addDefaults.spoolId) : null),
+    [addDefaults?.spoolId, spools]
+  );
+  const lineIdLockedBySpool = selectedSpool?.lineId ?? null;
+  const lockedLineLabel = useMemo(() => {
+    if (!lineIdLockedBySpool) return "";
+    const line =
+      lines.find((l) => l.id === lineIdLockedBySpool) ||
+      spoolLineChoices.find((l) => l.id === lineIdLockedBySpool);
+    return line ? String(line.name || line.id).trim() || lineIdLockedBySpool : lineIdLockedBySpool;
+  }, [lineIdLockedBySpool, lines, spoolLineChoices]);
+
+  /** Weld mode: line default only after a default spool is chosen. Spool-marker mode has no default spool — line stays choosable. */
+  const canChooseDefaultLine = !showSpoolPickerForWelds || Boolean(addDefaults?.spoolId);
+
+  /** When a line applies (linked spool, or spool + chosen line), only spools on that line appear in the default spool picker. */
+  const effectiveLineIdForSpoolFilter = useMemo(() => {
+    if (lineIdLockedBySpool) return lineIdLockedBySpool;
+    if (!addDefaults?.spoolId) return null;
+    return addDefaults?.spoolLineId ?? null;
+  }, [lineIdLockedBySpool, addDefaults?.spoolId, addDefaults?.spoolLineId]);
+
+  const spoolsForDefaultPicker = useMemo(() => {
+    if (!effectiveLineIdForSpoolFilter) return spools;
+    return spools.filter((s) => s.lineId === effectiveLineIdForSpoolFilter);
+  }, [spools, effectiveLineIdForSpoolFilter]);
+
+  const spoolSelectValue = useMemo(() => {
+    const sid = addDefaults?.spoolId ?? "";
+    if (!sid) return "";
+    return spoolsForDefaultPicker.some((s) => s.id === sid) ? sid : "";
+  }, [addDefaults?.spoolId, spoolsForDefaultPicker]);
+
+  const showSpoolLineControl =
+    showSpoolLineDefaults && (spoolLineChoices.length > 0 || Boolean(lineIdLockedBySpool));
+
+  useEffect(() => {
+    if (!lineIdLockedBySpool || !onAddDefaultsChange) return;
+    if (addDefaults?.spoolLineId === lineIdLockedBySpool) return;
+    onAddDefaultsChange({ ...addDefaults, spoolLineId: lineIdLockedBySpool });
+  }, [lineIdLockedBySpool, addDefaults, onAddDefaultsChange]);
+
+  useEffect(() => {
+    if (!showSpoolPickerForWelds || !onAddDefaultsChange) return;
+    if (addDefaults?.spoolId) return;
+    if (addDefaults?.spoolLineId == null || addDefaults?.spoolLineId === "") return;
+    onAddDefaultsChange({ ...addDefaults, spoolLineId: null });
+  }, [showSpoolPickerForWelds, addDefaults?.spoolId, addDefaults?.spoolLineId, addDefaults, onAddDefaultsChange]);
+
+  useEffect(() => {
+    if (!onAddDefaultsChange) return;
+    const sid = addDefaults?.spoolId;
+    if (!sid) return;
+    if (spoolsForDefaultPicker.some((s) => s.id === sid)) return;
+    onAddDefaultsChange({ ...addDefaults, spoolId: null });
+  }, [spoolsForDefaultPicker, addDefaults, onAddDefaultsChange]);
+
+  function handleCatalogLeafChange(leafId) {
+    if (!leafId) {
+      onAddDefaultsChange?.({
+        ...addDefaults,
+        catalogLeafId: "",
+        catalogCategory: "",
+        hierarchyState: {},
+        partType: "",
+        nps: "",
+        thickness: "",
+      });
+      return;
+    }
+    const cat = leafIdToCatalogCategory(leafId);
     onAddDefaultsChange?.({
       ...addDefaults,
-      catalogCategory: value,
+      catalogLeafId: leafId,
+      catalogCategory: cat,
       hierarchyState: {},
       partType: "",
       nps: "",
@@ -65,6 +141,13 @@ function AddDefaultsBar({
       hierarchyState: next,
     });
   }
+
+  const handleHierarchyStateReplace = useCallback(
+    (next) => {
+      onAddDefaultsChange?.({ ...addDefaults, hierarchyState: next });
+    },
+    [addDefaults, onAddDefaultsChange]
+  );
 
   return (
     <div
@@ -98,57 +181,87 @@ function AddDefaultsBar({
           <select
             id="default-spool"
             className="select select-bordered select-xs h-7 min-h-7 py-0.5 w-20 max-w-full text-xs"
-            value={addDefaults?.spoolId ?? ""}
+            value={spoolSelectValue}
+            title={
+              effectiveLineIdForSpoolFilter
+                ? "Only spools linked to the selected line are listed."
+                : undefined
+            }
             onChange={(e) => onAddDefaultsChange?.({ ...addDefaults, spoolId: e.target.value || null })}
           >
             <option value="">—</option>
-            {spools.map((s) => (
+            {spoolsForDefaultPicker.map((s) => (
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </select>
         </div>
       )}
-      {showSpoolLineDefaults && spoolLineChoices.length > 0 && (
+      {showSpoolLineControl && (
         <div className="flex items-center gap-1">
-          <label htmlFor="default-spool-line" className="text-[11px] text-base-content/60 whitespace-nowrap">
+          <label
+            htmlFor={
+              lineIdLockedBySpool || !canChooseDefaultLine ? undefined : "default-spool-line"
+            }
+            className="text-[11px] text-base-content/60 whitespace-nowrap"
+          >
             Line
           </label>
-          <select
-            id="default-spool-line"
-            className="select select-bordered select-xs h-7 min-h-7 py-0.5 w-24 max-w-full text-xs"
-            value={addDefaults?.spoolLineId ?? ""}
-            onChange={(e) =>
-              onAddDefaultsChange?.({ ...addDefaults, spoolLineId: e.target.value || null })
-            }
-          >
-            <option value="">—</option>
-            {spoolLineChoices.map((line) => (
-              <option key={line.id} value={line.id}>
-                {line.name || line.id}
-              </option>
-            ))}
-          </select>
+          {lineIdLockedBySpool ? (
+            <div
+              className="flex items-center h-7 min-h-7 min-w-[6rem] max-w-[10rem] px-2 rounded-md border border-base-300 bg-base-300/40 text-xs text-base-content/50 cursor-not-allowed truncate"
+              title="This spool is already linked to a line — line is inherited for new welds and spool markers."
+              role="status"
+              aria-live="polite"
+            >
+              {lockedLineLabel}
+            </div>
+          ) : !canChooseDefaultLine ? (
+            <div
+              className="flex items-center h-7 min-h-7 min-w-[6rem] max-w-[10rem] px-2 rounded-md border border-base-300 bg-base-300/40 text-xs text-base-content/50 cursor-not-allowed truncate"
+              title="Choose a default spool first to set the line for new welds."
+              role="status"
+              aria-live="polite"
+            >
+              —
+            </div>
+          ) : (
+            <select
+              id="default-spool-line"
+              className="select select-bordered select-xs h-7 min-h-7 py-0.5 w-24 max-w-full text-xs"
+              value={addDefaults?.spoolLineId ?? ""}
+              onChange={(e) =>
+                onAddDefaultsChange?.({ ...addDefaults, spoolLineId: e.target.value || null })
+              }
+            >
+              <option value="">—</option>
+              {spoolLineChoices.map((line) => (
+                <option key={line.id} value={line.id}>
+                  {line.name || line.id}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       )}
       {showPart && (
         <>
-          <div className="flex items-center gap-1">
-            <label htmlFor="default-catalogCategory" className="text-[11px] text-base-content/60 whitespace-nowrap">
-              Part
-            </label>
-            <select
-              id="default-catalogCategory"
-              className="select select-bordered select-xs h-7 min-h-7 py-0.5 w-20 max-w-full text-xs"
-              value={catalogCategory}
-              onChange={(e) => handleCatalogCategoryChange(e.target.value)}
+          <div className="flex flex-wrap items-center gap-1 max-w-[min(100vw-2rem,42rem)]">
+            <label className="text-[11px] text-base-content/60 whitespace-nowrap shrink-0">Part</label>
+            <CatalogTreeCascade
+              catalogCategories={categories}
+              valueLeafId={catalogLeafId}
+              onLeafChange={handleCatalogLeafChange}
+              variant="compact"
+              idPrefix="default-catalog"
+            />
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs h-7 min-h-7 px-1.5 shrink-0"
+              onClick={() => handleCatalogLeafChange("")}
+              title="Clear catalog — use custom fields"
             >
-              <option value="">Custom</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
+              Custom
+            </button>
           </div>
           {isCatalogMode ? (
             <CatalogHierarchyStepSelects
@@ -157,6 +270,7 @@ function AddDefaultsBar({
               hierarchyState={hierarchyState}
               catalogEntriesForCategory={catalogEntriesForCategory}
               onHierarchyChange={handleHierarchyChange}
+              onHierarchyStateReplace={handleHierarchyStateReplace}
               variant="compact"
               idPrefix="default"
             />

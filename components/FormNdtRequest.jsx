@@ -335,7 +335,7 @@ function FormNdtRequest({
           <span className="label-text">Notes (optional)</span>
         </label>
         <textarea
-          className="textarea textarea-bordered w-full textarea-sm"
+          className="textarea textarea-bordered w-full textarea-xs"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={2}

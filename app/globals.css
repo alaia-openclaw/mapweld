@@ -2,6 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Denser form controls app-wide (panels, modals, status) */
+@layer components {
+  .form-control {
+    @apply gap-0;
+  }
+  .form-control .label {
+    @apply py-0.5 min-h-0;
+  }
+  .form-control .label .label-text {
+    @apply text-xs leading-snug;
+  }
+  .form-control .label .label-text-alt {
+    @apply text-[10px] leading-tight;
+  }
+}
+
 @media (max-width: 767px) {
   .mobile-no-scrollbar {
     scrollbar-width: none;

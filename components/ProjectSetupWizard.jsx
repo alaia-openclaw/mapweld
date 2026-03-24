@@ -7,10 +7,10 @@ function generateId() {
   return `wiz-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-const STEP_LABELS = ["Project", "Personnel", "NDT & spec", "Systems", "WPS library", "Done"];
+const STEP_LABELS = ["Project", "Personnel", "NDT", "WPS library", "Systems", "Done"];
 
 /**
- * Guided new-project setup: identity → personnel → NDT/spec → systems → WPS → finish.
+ * Guided new-project setup: identity → personnel → NDT → WPS library → systems → finish.
  */
 function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
   const [step, setStep] = useState(0);
@@ -30,7 +30,6 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
   const [wqrCodeInput, setWqrCodeInput] = useState("");
 
   const [ndtRequirements, setNdtRequirements] = useState([]);
-  const [weldingSpec, setWeldingSpec] = useState("");
   const [customNdtMethod, setCustomNdtMethod] = useState("");
 
   const [systems, setSystems] = useState([]);
@@ -52,7 +51,6 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
     setEditingWelderId(null);
     setWqrCodeInput("");
     setNdtRequirements([]);
-    setWeldingSpec("");
     setCustomNdtMethod("");
     setSystems([]);
     setWpsEntries([]);
@@ -139,7 +137,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
         date: metaDate,
       },
       personnel: { fitters, welders, wqrs },
-      drawingSettings: { ndtRequirements, weldingSpec: weldingSpec.trim() },
+      drawingSettings: { ndtRequirements, weldingSpec: "" },
       systems,
       wpsLibrary: wpsEntries,
     });
@@ -201,7 +199,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                   <label className="label py-1"><span className="label-text">Project name</span></label>
                   <input
                     type="text"
-                    className="input input-bordered input-sm w-full"
+                    className="input input-bordered input-xs w-full"
                     value={projectName}
                     onChange={(e) => setProjectName(e.target.value)}
                     placeholder="e.g. Platform A Piping"
@@ -211,7 +209,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                   <label className="label py-1"><span className="label-text">Client</span></label>
                   <input
                     type="text"
-                    className="input input-bordered input-sm w-full"
+                    className="input input-bordered input-xs w-full"
                     value={metaClient}
                     onChange={(e) => setMetaClient(e.target.value)}
                     placeholder="e.g. Acme Corp"
@@ -221,7 +219,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                   <label className="label py-1"><span className="label-text">Spec / standard</span></label>
                   <input
                     type="text"
-                    className="input input-bordered input-sm w-full"
+                    className="input input-bordered input-xs w-full"
                     value={metaSpec}
                     onChange={(e) => setMetaSpec(e.target.value)}
                     placeholder="e.g. ASME B31.3"
@@ -231,7 +229,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                   <label className="label py-1"><span className="label-text">Revision</span></label>
                   <input
                     type="text"
-                    className="input input-bordered input-sm w-full"
+                    className="input input-bordered input-xs w-full"
                     value={metaRevision}
                     onChange={(e) => setMetaRevision(e.target.value)}
                     placeholder="e.g. Rev A"
@@ -241,7 +239,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                   <label className="label py-1"><span className="label-text">Date</span></label>
                   <input
                     type="date"
-                    className="input input-bordered input-sm w-full"
+                    className="input input-bordered input-xs w-full"
                     value={metaDate}
                     onChange={(e) => setMetaDate(e.target.value)}
                   />
@@ -258,12 +256,18 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                 <form onSubmit={handleAddFitter} className="flex gap-2 mb-2">
                   <input
                     type="text"
-                    className="input input-bordered input-sm flex-1"
+                    className="input input-bordered input-xs flex-1"
                     value={fitterInput}
                     onChange={(e) => setFitterInput(e.target.value)}
                     placeholder="Fitter name"
+                    aria-label="Fitter name"
                   />
-                  <button type="submit" className="btn btn-primary btn-sm">
+                  <button
+                    type="submit"
+                    className="btn btn-primary btn-sm"
+                    disabled={!fitterInput.trim()}
+                    title={!fitterInput.trim() ? "Enter a name first" : undefined}
+                  >
                     Add
                   </button>
                 </form>
@@ -283,12 +287,18 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                 <form onSubmit={handleAddWelder} className="flex gap-2 mb-2">
                   <input
                     type="text"
-                    className="input input-bordered input-sm flex-1"
+                    className="input input-bordered input-xs flex-1"
                     value={welderInput}
                     onChange={(e) => setWelderInput(e.target.value)}
                     placeholder="Welder name"
+                    aria-label="Welder name"
                   />
-                  <button type="submit" className="btn btn-primary btn-sm">
+                  <button
+                    type="submit"
+                    className="btn btn-primary btn-sm"
+                    disabled={!welderInput.trim()}
+                    title={!welderInput.trim() ? "Enter a name first" : undefined}
+                  >
                     Add
                   </button>
                 </form>
@@ -316,7 +326,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                 <h4 className="font-medium text-sm mb-2">WQR codes (per welder)</h4>
                 <div className="flex flex-wrap gap-2 mb-2">
                   <select
-                    className="select select-bordered select-sm flex-1 min-w-[8rem]"
+                    className="select select-bordered select-xs flex-1 min-w-[8rem]"
                     value={editingWelderId || ""}
                     onChange={(e) => setEditingWelderId(e.target.value || null)}
                   >
@@ -330,12 +340,23 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                   <form onSubmit={handleAddWqr} className="flex gap-2 flex-1 min-w-[12rem]">
                     <input
                       type="text"
-                      className="input input-bordered input-sm flex-1"
+                      className="input input-bordered input-xs flex-1"
                       value={wqrCodeInput}
                       onChange={(e) => setWqrCodeInput(e.target.value)}
                       placeholder="WQR code"
                     />
-                    <button type="submit" className="btn btn-ghost btn-sm" disabled={!editingWelderId}>
+                    <button
+                      type="submit"
+                      className="btn btn-ghost btn-sm"
+                      disabled={!editingWelderId || !wqrCodeInput.trim()}
+                      title={
+                        !editingWelderId
+                          ? "Choose a welder first"
+                          : !wqrCodeInput.trim()
+                            ? "Enter a WQR code first"
+                            : undefined
+                      }
+                    >
                       Add WQR
                     </button>
                   </form>
@@ -374,7 +395,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
 
           {step === 2 && (
             <div className="space-y-4">
-              <p className="text-sm text-base-content/70">Default NDT requirements and welding specification for this project.</p>
+              <p className="text-sm text-base-content/70">Default NDT requirements for this project.</p>
               <div className="space-y-2">
                 {ndtRequirements.map((r) => (
                   <div key={r.method} className="flex flex-wrap items-center gap-2 p-2 bg-base-200 rounded-lg">
@@ -385,7 +406,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                         type="number"
                         min={0}
                         max={100}
-                        className="input input-bordered input-sm w-14"
+                        className="input input-bordered input-xs w-14"
                         value={r.pctShop ?? r.pct ?? 100}
                         onChange={(e) => updateNdtRow(r.method, "shop", e.target.value)}
                       />
@@ -397,7 +418,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                         type="number"
                         min={0}
                         max={100}
-                        className="input input-bordered input-sm w-14"
+                        className="input input-bordered input-xs w-14"
                         value={r.pctField ?? r.pct ?? 100}
                         onChange={(e) => updateNdtRow(r.method, "field", e.target.value)}
                       />
@@ -420,7 +441,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
               <div className="flex gap-2 flex-wrap">
                 <input
                   type="text"
-                  className="input input-bordered input-sm flex-1 min-w-[8rem]"
+                  className="input input-bordered input-xs flex-1 min-w-[8rem]"
                   value={customNdtMethod}
                   onChange={(e) => setCustomNdtMethod(e.target.value.toUpperCase())}
                   placeholder="Custom code (e.g. PWHT)"
@@ -437,22 +458,77 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                   + Add custom
                 </button>
               </div>
-              <div className="form-control">
-                <label className="label py-1"><span className="label-text">Welding spec</span></label>
-                <input
-                  type="text"
-                  className="input input-bordered input-sm w-full"
-                  value={weldingSpec}
-                  onChange={(e) => setWeldingSpec(e.target.value)}
-                  placeholder="e.g. WPS-001, ASME IX"
-                />
-              </div>
             </div>
           )}
 
           {step === 3 && (
             <div className="space-y-4">
-              <p className="text-sm text-base-content/70">Systems group lines for traceability. Optional — you can add more later.</p>
+              <p className="text-sm text-base-content/70">
+                Register WPS codes used on welds. Link PDFs later in <strong>Settings</strong> if needed. On the next
+                step you can pick a default WPS per system from this list; you can also set WPS per line later in the
+                Lines panel.
+              </p>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => {
+                  const n = wpsEntries.length + 1;
+                  setWpsEntries((prev) => [...prev, { id: generateId(), code: `WPS-${String(n).padStart(3, "0")}`, title: "", documentId: null }]);
+                }}
+              >
+                + Add WPS
+              </button>
+              <ul className="space-y-2">
+                {wpsEntries.map((entry) => (
+                  <li key={entry.id} className="p-2 bg-base-200 rounded-lg space-y-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        className="input input-bordered input-xs"
+                        value={entry.code}
+                        onChange={(e) =>
+                          setWpsEntries((prev) =>
+                            prev.map((w) => (w.id === entry.id ? { ...w, code: e.target.value.toUpperCase() } : w))
+                          )
+                        }
+                        placeholder="WPS code"
+                      />
+                      <input
+                        type="text"
+                        className="input input-bordered input-xs"
+                        value={entry.title}
+                        onChange={(e) =>
+                          setWpsEntries((prev) =>
+                            prev.map((w) => (w.id === entry.id ? { ...w, title: e.target.value } : w))
+                          )
+                        }
+                        placeholder="Title"
+                      />
+                    </div>
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-xs text-error"
+                        onClick={() => setWpsEntries((prev) => prev.filter((w) => w.id !== entry.id))}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              {wpsEntries.length === 0 && <p className="text-sm text-base-content/50">No WPS entries yet — optional.</p>}
+            </div>
+          )}
+
+          {step === 4 && (
+            <div className="space-y-4">
+              <p className="text-sm text-base-content/70">
+                Systems group lines for traceability. Optional — you can add more later.
+                {wpsEntries.length === 0
+                  ? " Add WPS codes on the previous step if you want a default WPS dropdown here."
+                  : " Choose a default WPS per system from your WPS library when applicable."}
+              </p>
               <button
                 type="button"
                 className="btn btn-ghost btn-sm"
@@ -477,7 +553,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <input
                         type="text"
-                        className="input input-bordered input-sm"
+                        className="input input-bordered input-xs"
                         value={sys.name}
                         onChange={(e) =>
                           setSystems((prev) => prev.map((s) => (s.id === sys.id ? { ...s, name: e.target.value } : s)))
@@ -486,7 +562,7 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                       />
                       <input
                         type="text"
-                        className="input input-bordered input-sm"
+                        className="input input-bordered input-xs"
                         value={sys.description || ""}
                         onChange={(e) =>
                           setSystems((prev) =>
@@ -496,17 +572,31 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                         placeholder="Description"
                       />
                     </div>
-                    <input
-                      type="text"
-                      className="input input-bordered input-sm w-full"
-                      value={sys.wps || ""}
-                      onChange={(e) =>
-                        setSystems((prev) =>
-                          prev.map((s) => (s.id === sys.id ? { ...s, wps: e.target.value } : s))
-                        )
-                      }
-                      placeholder="Default WPS for this system (optional)"
-                    />
+                    {wpsEntries.length > 0 ? (
+                      <div className="form-control">
+                        <label className="label py-0" htmlFor={`wiz-sys-wps-${sys.id}`}>
+                          <span className="label-text text-xs">Default WPS for this system</span>
+                        </label>
+                        <select
+                          id={`wiz-sys-wps-${sys.id}`}
+                          className="select select-bordered select-xs w-full"
+                          value={wpsEntries.some((w) => w.code === sys.wps) ? sys.wps : ""}
+                          onChange={(e) =>
+                            setSystems((prev) =>
+                              prev.map((s) => (s.id === sys.id ? { ...s, wps: e.target.value } : s))
+                            )
+                          }
+                        >
+                          <option value="">— None —</option>
+                          {wpsEntries.map((w) => (
+                            <option key={w.id} value={w.code}>
+                              {w.code}
+                              {w.title ? ` — ${w.title}` : ""}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : null}
                     <div className="flex justify-end">
                       <button
                         type="button"
@@ -520,64 +610,6 @@ function ProjectSetupWizard({ isOpen, onClose, onComplete, onRequestLoadPdf }) {
                 ))}
               </ul>
               {systems.length === 0 && <p className="text-sm text-base-content/50">No systems yet.</p>}
-            </div>
-          )}
-
-          {step === 4 && (
-            <div className="space-y-4">
-              <p className="text-sm text-base-content/70">
-                Register WPS codes used on welds. Link PDFs later in <strong>Settings</strong> if needed. You can also set default WPS per system (above) or per line in the Lines panel.
-              </p>
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
-                onClick={() => {
-                  const n = wpsEntries.length + 1;
-                  setWpsEntries((prev) => [...prev, { id: generateId(), code: `WPS-${String(n).padStart(3, "0")}`, title: "", documentId: null }]);
-                }}
-              >
-                + Add WPS
-              </button>
-              <ul className="space-y-2">
-                {wpsEntries.map((entry) => (
-                  <li key={entry.id} className="p-2 bg-base-200 rounded-lg space-y-2">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <input
-                        type="text"
-                        className="input input-bordered input-sm"
-                        value={entry.code}
-                        onChange={(e) =>
-                          setWpsEntries((prev) =>
-                            prev.map((w) => (w.id === entry.id ? { ...w, code: e.target.value.toUpperCase() } : w))
-                          )
-                        }
-                        placeholder="WPS code"
-                      />
-                      <input
-                        type="text"
-                        className="input input-bordered input-sm"
-                        value={entry.title}
-                        onChange={(e) =>
-                          setWpsEntries((prev) =>
-                            prev.map((w) => (w.id === entry.id ? { ...w, title: e.target.value } : w))
-                          )
-                        }
-                        placeholder="Title"
-                      />
-                    </div>
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-xs text-error"
-                        onClick={() => setWpsEntries((prev) => prev.filter((w) => w.id !== entry.id))}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-              {wpsEntries.length === 0 && <p className="text-sm text-base-content/50">No WPS entries yet — optional.</p>}
             </div>
           )}
 
