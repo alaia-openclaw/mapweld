@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { NDT_METHODS, NDT_METHOD_LABELS, NDT_REQUEST_STATUS, NDT_REQUEST_STATUS_LABELS } from "@/lib/constants";
+import { useNdtScope } from "@/contexts/NdtScopeContext";
+import { NDT_METHODS, NDT_METHOD_LABELS, NDT_REQUEST_STATUS, NDT_REQUEST_STATUS_LABELS, sortNdtMethods } from "@/lib/constants";
 import {
   getWeldName,
   isWeldReadyForNdt,
   isWeldRepairNeeded,
   isWeldAlreadyAcceptedForMethod,
+  computeNdtSelection,
 } from "@/lib/weld-utils";
 import { getNextNdtRequestDisplayName, isWeldInNdtRequestForMethod } from "@/lib/ndt-utils";
 
@@ -18,13 +20,23 @@ function FormNdtRequest({
   weldPoints = [],
   ndtRequests = [],
   request: initialRequest,
+  methodOptions = [],
+  hideMethodSelect = false,
+  drawingSettings = {},
   onSubmit,
   onCancel,
   getWeldName: getWeldNameProp,
 }) {
+  const ndtContext = useNdtScope();
   const getWeldNameLocal = getWeldNameProp || ((w) => getWeldName(w, weldPoints));
+  const availableMethods = useMemo(() => {
+    if (hideMethodSelect && Array.isArray(methodOptions) && methodOptions.length > 0) {
+      return sortNdtMethods([...(methodOptions || []), initialRequest?.method]);
+    }
+    return sortNdtMethods([...(methodOptions || []), ...NDT_METHODS, initialRequest?.method]);
+  }, [hideMethodSelect, methodOptions, initialRequest?.method]);
 
-  const [method, setMethod] = useState(initialRequest?.method ?? NDT_METHODS[0]);
+  const [method, setMethod] = useState(initialRequest?.method ?? availableMethods[0] ?? NDT_METHODS[0]);
   const [weldIds, setWeldIds] = useState(() => new Set(initialRequest?.weldIds ?? []));
   const [status, setStatus] = useState(initialRequest?.status ?? NDT_REQUEST_STATUS.DRAFT);
   const [notes, setNotes] = useState(initialRequest?.notes ?? "");
@@ -41,13 +53,15 @@ function FormNdtRequest({
     const plannedList = [];
     const repairNeededList = [];
     weldPoints.forEach((w) => {
+      const ndtSel = computeNdtSelection(w, drawingSettings, weldPoints, ndtContext);
+      if (!ndtSel[method]) return;
       if (isWeldRepairNeeded(w)) {
         repairNeededList.push(w);
       } else if (isWeldAlreadyAcceptedForMethod(w, method)) {
         alreadyAcceptedList.push(w);
       } else if (isWeldInNdtRequestForMethod(w.id, method, ndtRequests)) {
         plannedList.push(w);
-      } else if (isWeldReadyForNdt(w)) {
+      } else if (isWeldReadyForNdt(w, ndtContext)) {
         readyForNdtList.push(w);
       } else {
         notReadyList.push(w);
@@ -60,7 +74,7 @@ function FormNdtRequest({
       planned: plannedList,
       repairNeeded: repairNeededList,
     };
-  }, [weldPoints, method, ndtRequests]);
+  }, [weldPoints, method, ndtRequests, drawingSettings, ndtContext]);
 
   function toggleWeld(weldId) {
     setWeldIds((prev) => {
@@ -100,23 +114,34 @@ function FormNdtRequest({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="form-control">
-        <label className="label">
-          <span className="label-text">NDT type</span>
-        </label>
-        <select
-          className="select select-bordered w-full"
-          value={method}
-          onChange={(e) => setMethod(e.target.value)}
-          disabled={!!initialRequest}
-        >
-          {NDT_METHODS.map((m) => (
-            <option key={m} value={m}>
-              {NDT_METHOD_LABELS[m] || m}
-            </option>
-          ))}
-        </select>
-      </div>
+      {!hideMethodSelect && availableMethods.length > 1 ? (
+        <div className="form-control">
+          <label className="label">
+            <span className="label-text">NDT type</span>
+          </label>
+          <select
+            className="select select-bordered w-full"
+            value={method}
+            onChange={(e) => setMethod(e.target.value)}
+            disabled={!!initialRequest}
+          >
+            {availableMethods.map((m) => (
+              <option key={m} value={m}>
+                {NDT_METHOD_LABELS[m] || m}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : (
+        <div className="form-control">
+          <label className="label">
+            <span className="label-text">NDT type</span>
+          </label>
+          <p className="text-sm font-medium text-base-content/80 py-1">
+            {NDT_METHOD_LABELS[method] || method}
+          </p>
+        </div>
+      )}
 
       <div className="form-control">
         <label className="label">
@@ -310,7 +335,7 @@ function FormNdtRequest({
           <span className="label-text">Notes (optional)</span>
         </label>
         <textarea
-          className="textarea textarea-bordered w-full textarea-sm"
+          className="textarea textarea-bordered w-full textarea-xs"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={2}

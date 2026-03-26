@@ -5,16 +5,18 @@ import { useRef, useState, useCallback, useEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
 import Toolbar from "@/components/Toolbar";
 import MarkupToolbar from "@/components/MarkupToolbar";
-import PDFViewer from "@/components/PDFViewer";
 import SidePanelWeldForm from "@/components/SidePanelWeldForm";
 import SidePanelSpools from "@/components/SidePanelSpools";
 import SidePanelPartForm from "@/components/SidePanelPartForm";
+import SidePanelDrawings from "@/components/SidePanelDrawings";
+import SidePanelLines from "@/components/SidePanelLines";
 import AddDefaultsBar from "@/components/AddDefaultsBar";
 import DashboardAnalytics from "@/components/DashboardAnalytics";
-import ModalParameters from "@/components/ModalParameters";
+import ModalSettings from "@/components/ModalParameters";
 import ModalProjects from "@/components/ModalProjects";
 import NdtKanbanPage from "@/components/NdtKanbanPage";
 import StatusPage from "@/components/StatusPage";
+import ProjectHealthPage from "@/components/ProjectHealthPage";
 import PageThumbnailPanel from "@/components/PageThumbnailPanel";
 import OfflineBanner from "@/components/OfflineBanner";
 import BottomSheet from "@/components/BottomSheet";
@@ -23,20 +25,35 @@ import {
   loadProject,
   PROJECT_FILE_VERSION,
   migrateDrawingSettings,
+  normalizeSystemRecord,
+  normalizeLineRecord,
 } from "@/lib/project-file";
 import {
   saveProject as saveToIndexedDB,
-  loadProject as loadFromIndexedDB,
   generateProjectId,
 } from "@/lib/offline-storage";
-import { createDefaultWeld, createDefaultSpool, createDefaultPart } from "@/lib/defaults";
-import { partCatalog, findCatalogEntry } from "@/lib/part-catalog";
+import { createDefaultWeld, createDefaultSpool, createDefaultPart, createDefaultDrawing } from "@/lib/defaults";
+import { normalizeJointDimensions } from "@/lib/joint-dimensions";
+import { findCatalogEntry } from "@/lib/part-catalog";
+import { getMergedCatalogEntries, leafIdToCatalogCategory } from "@/lib/catalog-leaf-resolve";
 import { findEntryByHierarchy } from "@/lib/catalog-hierarchy";
-import { getWeldName, getWeldOverallStatus, computeNdtSelection } from "@/lib/weld-utils";
+import { assignPartDisplayNumbersForAllDrawings } from "@/lib/part-display-number";
+import {
+  getWeldName,
+  getWeldOverallStatus,
+  computeNdtSelection,
+  assignWeldNumbersPerDrawing,
+} from "@/lib/weld-utils";
 import { formatNdtRequirements, NDT_REPORT_STATUS } from "@/lib/constants";
 import { exportWeldsToExcel } from "@/lib/excel-export";
 import { applyReportToWelds } from "@/lib/ndt-utils";
-import { saveDraftToSession, loadDraftFromSession } from "@/lib/session-draft";
+import { saveDraftToSession, loadDraftFromSession, clearDraftFromSession } from "@/lib/session-draft";
+import ProjectSetupHub from "@/components/ProjectSetupHub";
+import ProjectSetupWizard from "@/components/ProjectSetupWizard";
+import { createDefaultDatabookConfig, normalizeDatabookConfig } from "@/lib/databook-sections";
+import { getNextUniqueLineName } from "@/lib/line-utils";
+import { syncWpsLibraryOnWeldSave } from "@/lib/wps-resolution";
+import { NdtScopeProvider } from "@/contexts/NdtScopeContext";
 
 const PDFViewerDynamic = dynamic(() => import("@/components/PDFViewer"), {
   ssr: false,
@@ -61,6 +78,35 @@ function applyCompletedReportsToWelds(weldPoints, ndtReports) {
   return points;
 }
 
+function createPdfBlobUrlFromBase64(base64) {
+  if (typeof base64 !== "string" || !base64) return null;
+  try {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const blob = new Blob([bytes], { type: "application/pdf" });
+    return URL.createObjectURL(blob);
+  } catch {
+    return null;
+  }
+}
+
+function SidePanelTabButton({ label, title, active, onClick }) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-pressed={active}
+      onClick={onClick}
+      className={`btn btn-ghost btn-sm shrink-0 min-h-0 h-auto rounded-none border-0 shadow-none py-2 px-0.5 w-full text-[10px] font-semibold uppercase leading-tight tracking-tight ${
+        active ? "bg-primary/20 text-primary" : "text-base-content/65 hover:bg-base-200"
+      }`}
+    >
+      <span className="block text-center [overflow-wrap:anywhere]">{label}</span>
+    </button>
+  );
+}
+
 export default function WeldTrackerApp() {
   const containerRef = useRef(null);
   const [pdfBlob, setPdfBlob] = useState(null);
@@ -70,32 +116,59 @@ export default function WeldTrackerApp() {
   const [drawingSettings, setDrawingSettings] = useState({
     ndtRequirements: [],
     weldingSpec: "",
+    defaultWps: "",
   });
   const [appMode, setAppMode] = useState("edition");
   const [markupTool, setMarkupTool] = useState("select");
   const [selectedWeldId, setSelectedWeldId] = useState(null);
   const [selectedSpoolMarkerId, setSelectedSpoolMarkerId] = useState(null);
   const [formWeld, setFormWeld] = useState(null);
-  const [showWeldPanel, setShowWeldPanel] = useState(false);
-  const [showSpoolPanel, setShowSpoolPanel] = useState(false);
+  const [activeSidePanel, setActiveSidePanel] = useState(
+    /** @type {null | 'drawings' | 'lines' | 'spools' | 'welds' | 'parts'} */ (null)
+  );
+  const [storageAlerts, setStorageAlerts] = useState({
+    indexeddb: null,
+    sessionDraft: null,
+  });
   const [showParameters, setShowParameters] = useState(false);
   const [showProjects, setShowProjects] = useState(false);
   const [showNdtPanel, setShowNdtPanel] = useState(false);
   const [showStatusPage, setShowStatusPage] = useState(false);
+  const [showHealthPage, setShowHealthPage] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [appReady, setAppReady] = useState(false);
+  const [showProjectHub, setShowProjectHub] = useState(false);
+  const [showSetupWizard, setShowSetupWizard] = useState(false);
   const [projectId, setProjectId] = useState(null);
   const [spoolMarkers, setSpoolMarkers] = useState([]);
+  const [lineMarkers, setLineMarkers] = useState([]);
   const [parts, setParts] = useState([]);
   const [partMarkers, setPartMarkers] = useState([]);
+  const [selectedLineMarkerId, setSelectedLineMarkerId] = useState(null);
   const [selectedPartMarkerId, setSelectedPartMarkerId] = useState(null);
-  const [showPartPanel, setShowPartPanel] = useState(false);
+  const anySidePanelOpen = activeSidePanel != null;
   const [personnel, setPersonnel] = useState({ fitters: [], welders: [], wqrs: [] });
   const [ndtRequests, setNdtRequests] = useState([]);
   const [ndtReports, setNdtReports] = useState([]);
+  const [drawings, setDrawings] = useState([]);
+  const [activeDrawingId, setActiveDrawingId] = useState(null);
+  const [systems, setSystems] = useState([]);
+  const [lines, setLines] = useState([]);
+  const [projectSettings, setProjectSettings] = useState({ steps: [] });
+  const [projectMeta, setProjectMeta] = useState({ projectName: "", client: "", spec: "", revision: "", date: "" });
+  const [documents, setDocuments] = useState([]);
+  const [databookConfig, setDatabookConfig] = useState(createDefaultDatabookConfig());
+  const [wpsLibrary, setWpsLibrary] = useState([]);
+  const [electrodeLibrary, setElectrodeLibrary] = useState([]);
+  const [materialCertificates, setMaterialCertificates] = useState([]);
   const [addDefaults, setAddDefaults] = useState({
     spoolId: null,
+    spoolLineId: null,
     weldLocation: "shop",
+    lineId: "__new__",
+    lineSystemId: null,
     catalogCategory: "",
+    catalogLeafId: "",
     hierarchyState: {},
     partType: "",
     nps: "",
@@ -108,10 +181,15 @@ export default function WeldTrackerApp() {
     pendingLabelRef.current = value;
     setPendingLabelIdState(value);
   }, []);
-  const [showOverlay, setShowOverlay] = useState(true);
+  const [markerLayers, setMarkerLayers] = useState({
+    welds: true,
+    spools: true,
+    parts: true,
+    lines: true,
+  });
   const [showPagePanel, setShowPagePanel] = useState(true);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
-  const [mobileSheetTab, setMobileSheetTab] = useState("welds");
+  const [mobileSheetTab, setMobileSheetTab] = useState("drawings");
   const [pdfScale, setPdfScale] = useState(1.2);
   const [pdfPage, setPdfPage] = useState(1);
   const [numPdfPages, setNumPdfPages] = useState(null);
@@ -119,6 +197,24 @@ export default function WeldTrackerApp() {
   const sidePanelResizeRef = useRef(null);
   const emptyStatePdfInputRef = useRef(null);
   const emptyStateProjectInputRef = useRef(null);
+  const hubProjectFileInputRef = useRef(null);
+  const [floatingToolbarPos, setFloatingToolbarPos] = useState({ x: 8, y: 8 });
+  const [isFloatingToolbarCollapsed, setIsFloatingToolbarCollapsed] = useState(false);
+  const floatingToolbarDragRef = useRef(null);
+
+  const handleManualPageSelect = useCallback((nextPageOrUpdater) => {
+    setPdfPage((prev) => {
+      const nextValue =
+        typeof nextPageOrUpdater === "function" ? nextPageOrUpdater(prev) : nextPageOrUpdater;
+      return Math.max(1, nextValue || 1);
+    });
+    // Manual page navigation should not be blocked by selection-based auto-focus.
+    setSelectedWeldId(null);
+    setSelectedSpoolMarkerId(null);
+    setSelectedPartMarkerId(null);
+    setSelectedLineMarkerId(null);
+    setFormWeld(null);
+  }, []);
 
   useEffect(() => {
     const move = (e) => {
@@ -135,6 +231,25 @@ export default function WeldTrackerApp() {
     return () => {
       window.removeEventListener("mousemove", move);
       window.removeEventListener("mouseup", up);
+    };
+  }, []);
+
+  useEffect(() => {
+    const onPointerMove = (e) => {
+      const drag = floatingToolbarDragRef.current;
+      if (!drag) return;
+      const nextX = Math.max(4, Math.min(window.innerWidth - 220, drag.startX + (e.clientX - drag.pointerStartX)));
+      const nextY = Math.max(4, Math.min(window.innerHeight - 48, drag.startY + (e.clientY - drag.pointerStartY)));
+      setFloatingToolbarPos({ x: nextX, y: nextY });
+    };
+    const onPointerUp = () => {
+      floatingToolbarDragRef.current = null;
+    };
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
     };
   }, []);
 
@@ -158,29 +273,34 @@ export default function WeldTrackerApp() {
 
   const loadPdfFile = useCallback((file) => {
     if (!file) return;
-    try {
-      if (pdfBlob && typeof pdfBlob === "string") URL.revokeObjectURL(pdfBlob);
-    } catch {
-      /* ignore revoke errors */
-    }
-    setPdfBlob(file);
+    const isFirstDrawing = drawings.length === 0 && !pdfBlob;
+    const blobUrl = URL.createObjectURL(file);
+    const dwg = createDefaultDrawing({ filename: file.name, blobUrl });
+    setDrawings((prev) => [...prev, dwg]);
+    setActiveDrawingId(dwg.id);
+    setPdfBlob(blobUrl);
     setPdfFilename(file.name);
     setPdfPage(1);
     setNumPdfPages(null);
-    setWeldPoints([]);
-    setSpools([]);
-    setSpoolMarkers([]);
-    setParts([]);
-    setPartMarkers([]);
-    setSelectedPartMarkerId(null);
-    setPersonnel({ fitters: [], welders: [], wqrs: [] });
-    setDrawingSettings({ ndtRequirements: [], weldingSpec: "" });
+    if (isFirstDrawing) {
+      // Only clear data tied to the drawing canvas. Do not reset project setup (personnel,
+      // NDT defaults, WPS library, etc.) — e.g. after the setup wizard, the first PDF load must keep that.
+      setWeldPoints([]);
+      setSpools([]);
+      setSpoolMarkers([]);
+      setLineMarkers([]);
+      setParts([]);
+      setPartMarkers([]);
+      setSelectedPartMarkerId(null);
+      setNdtRequests([]);
+      setNdtReports([]);
+    }
     setSelectedWeldId(null);
     setSelectedSpoolMarkerId(null);
-    setProjectId(generateProjectId());
-    setNdtRequests([]);
-    setNdtReports([]);
-  }, [pdfBlob]);
+    setSelectedPartMarkerId(null);
+    setSelectedLineMarkerId(null);
+    setFormWeld(null);
+  }, [pdfBlob, drawings]);
 
   /** Stable key for PDF viewer remount — avoid undefined access on Blob without name */
   const pdfViewerKey =
@@ -188,7 +308,11 @@ export default function WeldTrackerApp() {
 
   const handleModeChange = useCallback((mode) => {
     setAppMode(mode);
-    if (mode === "inspection") setFormWeld(null);
+    if (mode === "inspection") {
+      setFormWeld(null);
+      setIsFloatingToolbarCollapsed(true);
+      setMarkupTool("select");
+    }
   }, []);
 
   const handleToolChange = useCallback((tool) => {
@@ -217,11 +341,15 @@ export default function WeldTrackerApp() {
       let newWeld;
       const loc = addDefaults?.weldLocation || "shop";
       setWeldPoints((prev) => {
-        const sameType = prev.filter((w) => (w.weldLocation || "shop") === loc);
-        const maxNum = sameType.reduce((m, w) => Math.max(m, w.weldNumber ?? 0), 0);
+        const did = activeDrawingId ?? null;
+        const maxNum = prev.reduce((m, w) => {
+          if ((w.drawingId ?? null) !== did) return m;
+          return Math.max(m, w.weldNumber ?? 0);
+        }, 0);
         newWeld = {
           ...createDefaultWeld(),
           id: generateId(),
+          drawingId: activeDrawingId ?? null,
           weldLocation: loc,
           spoolId: addDefaults?.spoolId ?? null,
           xPercent,
@@ -235,12 +363,15 @@ export default function WeldTrackerApp() {
       });
       setPendingLabelId({ type: "weld", id: newWeld?.id });
     },
-    [addDefaults, setPendingLabelId]
+    [addDefaults, activeDrawingId, setPendingLabelId]
   );
 
   const handleAddSpoolMarker = useCallback(
     ({ xPercent, yPercent, pageNumber }) => {
-      let newSpool;
+      const t = Date.now();
+      const rand = () => Math.random().toString(36).slice(2, 9);
+      const newSpoolId = `spool-${t}-${rand()}`;
+      const newMarkerId = `spm-${t}-${rand()}`;
       setSpools((prev) => {
         const used = prev
           .map((s) => s.name?.match(/^SP-([A-Z]+)$/i)?.[1])
@@ -261,26 +392,29 @@ export default function WeldTrackerApp() {
                 : max + "A";
           }
         }
-        newSpool = createDefaultSpool({ name: `SP-${nextLetter}` });
+        const newSpool = createDefaultSpool({
+          id: newSpoolId,
+          name: `SP-${nextLetter}`,
+          lineId: addDefaults?.spoolLineId ?? null,
+        });
         return [...prev, newSpool];
       });
-      const newMarkerId = `spm-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-      const newMarker = {
-        id: newMarkerId,
-        spoolId: null,
-        xPercent,
-        yPercent,
-        indicatorXPercent: xPercent,
-        indicatorYPercent: yPercent,
-        pageNumber: pageNumber ?? 0,
-      };
       setSpoolMarkers((prev) => [
         ...prev,
-        { ...newMarker, spoolId: newSpool.id },
+        {
+          id: newMarkerId,
+          spoolId: newSpoolId,
+          drawingId: activeDrawingId ?? null,
+          xPercent,
+          yPercent,
+          indicatorXPercent: xPercent,
+          indicatorYPercent: yPercent,
+          pageNumber: pageNumber ?? 0,
+        },
       ]);
       setPendingLabelId({ type: "spool", id: newMarkerId });
     },
-    [setPendingLabelId]
+    [activeDrawingId, addDefaults?.spoolLineId, setPendingLabelId]
   );
 
   const handleDeleteSpoolMarker = useCallback((markerId) => {
@@ -292,9 +426,12 @@ export default function WeldTrackerApp() {
     setSelectedSpoolMarkerId(marker.id);
     setSelectedWeldId(null);
     setSelectedPartMarkerId(null);
+    setSelectedLineMarkerId(null);
     if (window.innerWidth < 768) {
       setMobileSheetTab("spools");
       setMobileSheetOpen(true);
+    } else {
+      setActiveSidePanel("spools");
     }
   }, []);
 
@@ -321,11 +458,11 @@ export default function WeldTrackerApp() {
 
   const handleAddPartMarker = useCallback(
     ({ xPercent, yPercent, pageNumber }) => {
-      const labelOffset = 4;
-      const nextNum = parts.length === 0 ? 1 : Math.max(...parts.map((p) => p.displayNumber ?? 0), 0) + 1;
-      const cat = addDefaults?.catalogCategory;
+      const leafId = addDefaults?.catalogLeafId ?? "";
+      const cat =
+        addDefaults?.catalogCategory || (leafId ? leafIdToCatalogCategory(leafId) : "") || "";
       const hierarchyState = addDefaults?.hierarchyState ?? {};
-      const entriesForCat = cat ? partCatalog.entries.filter((e) => e.catalogCategory === cat) : [];
+      const entriesForCat = cat ? getMergedCatalogEntries(cat, leafId) : [];
       const catalogEntryByHierarchy =
         cat && Object.keys(hierarchyState).length > 0
           ? findEntryByHierarchy(entriesForCat, hierarchyState, cat)
@@ -340,41 +477,148 @@ export default function WeldTrackerApp() {
       const nps = catalogEntry?.nps ?? n;
       const thickness = catalogEntry?.thickness ?? th;
       const newPart = createDefaultPart({
-        displayNumber: nextNum,
         spoolId: addDefaults?.spoolId ?? null,
         partType,
         nps,
         thickness,
         materialGrade: addDefaults?.materialGrade ?? "",
+        catalogCategory: cat ?? "",
+        catalogLeafId: leafId || "",
         catalogPartId: catalogEntry?.catalogPartId ?? null,
+        catalogHierarchyState:
+          hierarchyState && typeof hierarchyState === "object"
+            ? { ...hierarchyState }
+            : undefined,
         weightKg: catalogEntry?.weightKg ?? null,
       });
       const newMarkerId = `pm-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
       const newMarker = {
         id: newMarkerId,
         partId: newPart.id,
+        drawingId: activeDrawingId ?? null,
         xPercent,
         yPercent,
         indicatorXPercent: xPercent,
         indicatorYPercent: yPercent,
         pageNumber: pageNumber ?? 0,
       };
-      setParts((prev) => [...prev, newPart]);
-      setPartMarkers((prev) => [...prev, newMarker]);
+      setPartMarkers((prevMarkers) => {
+        const nextMarkers = [...prevMarkers, newMarker];
+        setParts((prevParts) => {
+          const nextParts = [...prevParts, newPart];
+          return assignPartDisplayNumbersForAllDrawings(nextParts, nextMarkers);
+        });
+        return nextMarkers;
+      });
       setPendingLabelId({ type: "part", id: newMarkerId });
     },
-    [parts, addDefaults, setPendingLabelId]
+    [addDefaults, activeDrawingId, setPendingLabelId]
+  );
+
+  const handleAddLineMarker = useCallback(
+    ({ xPercent, yPercent, pageNumber }) => {
+      const chosenLineId = addDefaults?.lineId;
+      const selectedSystemId = addDefaults?.lineSystemId ?? null;
+      let targetLineId = chosenLineId;
+      if (!targetLineId || targetLineId === "__new__") {
+        const id = `line-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+        targetLineId = id;
+        setLines((prev) => {
+          const name = getNextUniqueLineName(prev);
+          return [
+            ...prev,
+            {
+              id,
+              systemId: selectedSystemId || null,
+              name,
+              fluidType: "",
+              pressure: "",
+              diameterRange: "",
+              thickness: "",
+              material: "",
+              drawingIds: activeDrawingId ? [activeDrawingId] : [],
+            },
+          ];
+        });
+      } else if (activeDrawingId) {
+        setLines((prev) =>
+          prev.map((line) =>
+            line.id === targetLineId
+              ? {
+                  ...line,
+                  drawingIds: Array.isArray(line.drawingIds)
+                    ? line.drawingIds.includes(activeDrawingId)
+                      ? line.drawingIds
+                      : [...line.drawingIds, activeDrawingId]
+                    : [activeDrawingId],
+                }
+              : line
+          )
+        );
+      }
+
+      if (!targetLineId) return;
+
+      if (activeDrawingId) {
+        setDrawings((prev) =>
+          prev.map((drawing) => {
+            if (drawing.id !== activeDrawingId) return drawing;
+            const currentLineIds = Array.isArray(drawing.lineIds) ? drawing.lineIds : [];
+            if (currentLineIds.includes(targetLineId)) return drawing;
+            return { ...drawing, lineIds: [...currentLineIds, targetLineId] };
+          })
+        );
+      }
+
+      const page = pageNumber ?? 0;
+      let markerId = null;
+      setLineMarkers((prev) => {
+        const existing = prev.find(
+          (marker) =>
+            marker.lineId === targetLineId &&
+            marker.drawingId === (activeDrawingId ?? null) &&
+            (marker.pageNumber ?? 0) === page
+        );
+        if (existing) {
+          markerId = existing.id;
+          return prev.map((marker) =>
+            marker.id === existing.id
+              ? {
+                  ...marker,
+                  xPercent,
+                  yPercent,
+                }
+              : marker
+          );
+        }
+        markerId = `lpm-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+        const newMarker = {
+          id: markerId,
+          lineId: targetLineId,
+          drawingId: activeDrawingId ?? null,
+          xPercent,
+          yPercent,
+          indicatorXPercent: Math.min(100, Math.max(0, xPercent + 4)),
+          indicatorYPercent: Math.min(100, Math.max(0, yPercent - 4)),
+          pageNumber: page,
+        };
+        return [...prev, newMarker];
+      });
+      if (markerId) setPendingLabelId({ type: "line", id: markerId });
+    },
+    [addDefaults, activeDrawingId, setPendingLabelId]
   );
 
   const handlePartMarkerClick = useCallback((marker) => {
     setSelectedPartMarkerId(marker.id);
     setSelectedWeldId(null);
     setSelectedSpoolMarkerId(null);
+    setSelectedLineMarkerId(null);
     if (window.innerWidth < 768) {
       setMobileSheetTab("parts");
       setMobileSheetOpen(true);
     } else {
-      setShowPartPanel(true);
+      setActiveSidePanel("parts");
     }
   }, []);
 
@@ -397,10 +641,41 @@ export default function WeldTrackerApp() {
     []
   );
 
-  const handleSavePart = useCallback((updatedPart) => {
-    setParts((prev) =>
-      prev.map((p) => (p.id === updatedPart.id ? updatedPart : p))
+  const handleLineMarkerClick = useCallback((marker) => {
+    setSelectedLineMarkerId(marker.id);
+    setSelectedWeldId(null);
+    setSelectedSpoolMarkerId(null);
+    setSelectedPartMarkerId(null);
+    if (window.innerWidth < 768) {
+      setMobileSheetTab("lines");
+      setMobileSheetOpen(true);
+    } else {
+      setActiveSidePanel("lines");
+    }
+  }, []);
+
+  const handleMoveLineMarker = useCallback((markerId, { xPercent, yPercent }) => {
+    setLineMarkers((prev) =>
+      prev.map((marker) => (marker.id === markerId ? { ...marker, xPercent, yPercent } : marker))
     );
+  }, []);
+
+  const handleMoveLineIndicator = useCallback((markerId, { indicatorXPercent, indicatorYPercent }) => {
+    setLineMarkers((prev) =>
+      prev.map((marker) =>
+        marker.id === markerId ? { ...marker, indicatorXPercent, indicatorYPercent } : marker
+      )
+    );
+  }, []);
+
+  const handleSavePart = useCallback((updatedPart) => {
+    setPartMarkers((currentMarkers) => {
+      setParts((prevParts) => {
+        const nextParts = prevParts.map((p) => (p.id === updatedPart.id ? updatedPart : p));
+        return assignPartDisplayNumbersForAllDrawings(nextParts, currentMarkers);
+      });
+      return currentMarkers;
+    });
   }, []);
 
   const handleUpdatePartHeat = useCallback((partId, newHeatNumber) => {
@@ -418,8 +693,21 @@ export default function WeldTrackerApp() {
   }, []);
 
   const handleDeletePart = useCallback((partId) => {
-    setParts((prev) => prev.filter((p) => p.id !== partId));
-    setPartMarkers((prev) => prev.filter((m) => m.partId !== partId));
+    setPartMarkers((prevMarkers) => {
+      const nextMarkers = prevMarkers.filter((m) => m.partId !== partId);
+      setParts((prevParts) => {
+        const nextParts = prevParts.filter((p) => p.id !== partId);
+        return assignPartDisplayNumbersForAllDrawings(nextParts, nextMarkers);
+      });
+      return nextMarkers;
+    });
+    setWeldPoints((prev) =>
+      prev.map((w) => ({
+        ...w,
+        partId1: w.partId1 === partId ? null : w.partId1,
+        partId2: w.partId2 === partId ? null : w.partId2,
+      }))
+    );
     setSelectedPartMarkerId(null);
   }, []);
 
@@ -451,6 +739,12 @@ export default function WeldTrackerApp() {
             m.id === id ? { ...m, indicatorXPercent: xPercent, indicatorYPercent: yPercent } : m
           )
         );
+      } else if (type === "line") {
+        setLineMarkers((prev) =>
+          prev.map((m) =>
+            m.id === id ? { ...m, indicatorXPercent: xPercent, indicatorYPercent: yPercent } : m
+          )
+        );
       }
     },
     []
@@ -467,22 +761,26 @@ export default function WeldTrackerApp() {
         handleAddSpoolMarker({ xPercent, yPercent, pageNumber });
       } else if (appMode === "edition" && markupTool === "addPart") {
         handleAddPartMarker({ xPercent, yPercent, pageNumber });
+      } else if (appMode === "edition" && markupTool === "addLine") {
+        handleAddLineMarker({ xPercent, yPercent, pageNumber });
       } else if (appMode === "edition" && markupTool === "add") {
         handleAddWeld({ xPercent, yPercent, pageNumber });
       } else if (markupTool === "select") {
         setSelectedWeldId(null);
         setSelectedSpoolMarkerId(null);
         setSelectedPartMarkerId(null);
+        setSelectedLineMarkerId(null);
         setFormWeld(null);
       }
     },
-    [handleAddSpoolMarker, handleAddPartMarker, handleAddWeld, handlePendingLabelMove, appMode, markupTool, setPendingLabelId]
+    [handleAddSpoolMarker, handleAddPartMarker, handleAddLineMarker, handleAddWeld, handlePendingLabelMove, appMode, markupTool, setPendingLabelId]
   );
 
   const handleWeldClick = useCallback((weld) => {
     setSelectedWeldId(weld.id);
     setSelectedSpoolMarkerId(null);
     setSelectedPartMarkerId(null);
+    setSelectedLineMarkerId(null);
     if (window.innerWidth < 768) {
       setFormWeld(weld);
       setMobileSheetTab("welds");
@@ -493,30 +791,35 @@ export default function WeldTrackerApp() {
   const handleWeldDoubleClick = useCallback((weld) => {
     setFormWeld(weld);
     setSelectedWeldId(weld.id);
+    setSelectedLineMarkerId(null);
     if (window.innerWidth < 768) {
       setMobileSheetTab("welds");
       setMobileSheetOpen(true);
     } else {
-      setShowWeldPanel(true);
+      setActiveSidePanel("welds");
     }
   }, []);
 
   const handleSaveWeld = useCallback((updatedWeld) => {
-    setWeldPoints((prev) =>
-      prev.map((w) => (w.id === updatedWeld.id ? updatedWeld : w))
-    );
-    setFormWeld(updatedWeld);
+    setWpsLibrary((prevLib) => {
+      const { mergedWeld, nextWpsLibrary } = syncWpsLibraryOnWeldSave(updatedWeld, prevLib);
+      setWeldPoints((prev) => prev.map((w) => (w.id === mergedWeld.id ? mergedWeld : w)));
+      setFormWeld(mergedWeld);
+      return nextWpsLibrary;
+    });
   }, []);
 
   const handleClosePanel = useCallback(() => {
     setFormWeld(null);
     setSelectedWeldId(null);
-    setShowWeldPanel(false);
+    setSelectedLineMarkerId(null);
+    setActiveSidePanel((p) => (p === "welds" ? null : p));
   }, []);
 
   const handleBackToList = useCallback(() => {
     setFormWeld(null);
     setSelectedWeldId(null);
+    setSelectedLineMarkerId(null);
   }, []);
 
   const handleAssignWeldToSpool = useCallback((weldId, spoolId) => {
@@ -569,56 +872,439 @@ export default function WeldTrackerApp() {
     setWeldPoints((prev) => prev.filter((w) => w.id !== weld.id));
     setFormWeld(null);
     setSelectedWeldId(null);
-    setShowWeldPanel(false);
+    setSelectedLineMarkerId(null);
+    setActiveSidePanel((p) => (p === "welds" ? null : p));
+  }, []);
+
+  /** Settings → Structure → Welds: update weld without touching canvas selection state. */
+  const handleSaveWeldFromSettings = useCallback((updatedWeld) => {
+    setWpsLibrary((prevLib) => {
+      const { mergedWeld, nextWpsLibrary } = syncWpsLibraryOnWeldSave(updatedWeld, prevLib);
+      setWeldPoints((prev) => prev.map((w) => (w.id === mergedWeld.id ? mergedWeld : w)));
+      return nextWpsLibrary;
+    });
+  }, []);
+
+  const handleDeleteWeldFromSettings = useCallback((weld) => {
+    setWeldPoints((prev) => prev.filter((w) => w.id !== weld.id));
   }, []);
 
   const draftSaveTimeoutRef = useRef(null);
-  const handleOpenProjectFromStorage = useCallback((data) => {
-    const pdfBase64 = data.pdfBase64;
-    if (!pdfBase64) return;
-    const binary = atob(pdfBase64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    const blob = new Blob([bytes], { type: "application/pdf" });
-    const url = URL.createObjectURL(blob);
-    if (pdfBlob && typeof pdfBlob === "string") URL.revokeObjectURL(pdfBlob);
-    setPdfBlob(url);
-    setPdfFilename(data.pdfFilename || "drawing.pdf");
-    const loadedReports = Array.isArray(data.ndtReports) ? data.ndtReports : [];
-    setWeldPoints(applyCompletedReportsToWelds(data.weldPoints || [], loadedReports));
-    setSpools(data.spools || []);
-    setSpoolMarkers(data.spoolMarkers || []);
-    setParts(data.parts || []);
-    setPartMarkers(data.partMarkers || []);
-    setPersonnel(data.personnel || { fitters: [], welders: [], wqrs: [] });
-    setDrawingSettings(
-      migrateDrawingSettings(data.drawingSettings) || {
-        ndtRequirements: [],
-        weldingSpec: "",
-      }
+  const persistSessionDraftRef = useRef(async () => ({ ok: true, skipped: true }));
+
+  const normalizeLoadedData = useCallback((rawData, { fallbackDrawingId = null, drawingIds = [] } = {}) => {
+    const data = rawData && typeof rawData === "object" ? rawData : {};
+    const knownDrawingIds = drawingIds.length > 0
+      ? drawingIds.filter(Boolean)
+      : (Array.isArray(data.drawings) ? data.drawings.map((d) => d?.id).filter(Boolean) : []);
+    const drawingIdSet = new Set(knownDrawingIds);
+    const firstDrawingId = fallbackDrawingId || knownDrawingIds[0] || null;
+    const normalizeDrawingId = (drawingId) => {
+      if (drawingId && drawingIdSet.has(drawingId)) return drawingId;
+      return firstDrawingId;
+    };
+
+    const normalizedSpools = Array.isArray(data.spools)
+      ? data.spools
+          .filter((sp) => sp && typeof sp === "object")
+          .map((sp) => ({
+            ...createDefaultSpool(),
+            ...sp,
+            lineId: sp.lineId ?? null,
+          }))
+      : [];
+    const spoolIdSet = new Set(normalizedSpools.map((s) => s.id).filter(Boolean));
+
+    const normalizedParts = Array.isArray(data.parts)
+      ? data.parts
+          .filter((part) => part && typeof part === "object")
+          .map((part) => ({
+            ...part,
+            spoolId: spoolIdSet.has(part.spoolId) ? part.spoolId : null,
+          }))
+      : [];
+    const partIdSet = new Set(normalizedParts.map((p) => p.id).filter(Boolean));
+
+    const normalizedWelds = Array.isArray(data.weldPoints)
+      ? data.weldPoints
+          .filter((w) => w && typeof w === "object")
+          .map((w) => ({
+            ...createDefaultWeld(),
+            ...w,
+            drawingId: normalizeDrawingId(w.drawingId),
+            spoolId: spoolIdSet.has(w.spoolId) ? w.spoolId : null,
+            partId1: partIdSet.has(w.partId1) ? w.partId1 : null,
+            partId2: partIdSet.has(w.partId2) ? w.partId2 : null,
+            jointDimensions: normalizeJointDimensions(w.jointDimensions),
+          }))
+      : [];
+
+    const normalizedSpoolMarkers = Array.isArray(data.spoolMarkers)
+      ? data.spoolMarkers
+          .filter((m) => m && typeof m === "object" && (!m.spoolId || spoolIdSet.has(m.spoolId)))
+          .map((m) => ({
+            ...m,
+            drawingId: normalizeDrawingId(m.drawingId),
+          }))
+      : [];
+
+    const lineIdSet = new Set(
+      (Array.isArray(data.lines) ? data.lines : [])
+        .filter((line) => line && typeof line === "object")
+        .map((line) => line.id)
+        .filter(Boolean)
     );
-    setNdtRequests(Array.isArray(data.ndtRequests) ? data.ndtRequests : []);
-    setNdtReports(loadedReports);
-    setAddDefaults(data.addDefaults && typeof data.addDefaults === "object"
-      ? { spoolId: null, weldLocation: "shop", catalogCategory: "", hierarchyState: {}, partType: "", nps: "", thickness: "", materialGrade: "", ...data.addDefaults }
-      : { spoolId: null, weldLocation: "shop", catalogCategory: "", hierarchyState: {}, partType: "", nps: "", thickness: "", materialGrade: "" });
+    const normalizedLineMarkers = Array.isArray(data.lineMarkers)
+      ? data.lineMarkers
+          .filter((marker) => marker && typeof marker === "object" && (!marker.lineId || lineIdSet.has(marker.lineId)))
+          .map((marker) => ({
+            ...marker,
+            drawingId: normalizeDrawingId(marker.drawingId),
+          }))
+      : [];
+
+    const normalizedPartMarkers = Array.isArray(data.partMarkers)
+      ? data.partMarkers
+          .filter((m) => m && typeof m === "object" && (!m.partId || partIdSet.has(m.partId)))
+          .map((m) => ({
+            ...m,
+            drawingId: normalizeDrawingId(m.drawingId),
+          }))
+      : [];
+
+    const normalizedDocuments = Array.isArray(data.documents)
+      ? data.documents
+          .filter((doc) => doc && typeof doc === "object")
+          .map((doc) => ({
+            id: doc.id || `doc-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+            title: doc.title || doc.fileName || "",
+            category: doc.category || "other",
+            fileName: doc.fileName || doc.title || "document.pdf",
+            mimeType: doc.mimeType || "application/pdf",
+            base64: doc.base64 || "",
+            createdAt: doc.createdAt || new Date().toISOString(),
+          }))
+          .filter((doc) => !!doc.base64)
+      : [];
+
+    assignWeldNumbersPerDrawing(normalizedWelds);
+
+    return {
+      ...data,
+      weldPoints: normalizedWelds,
+      spools: normalizedSpools,
+      spoolMarkers: normalizedSpoolMarkers,
+      lineMarkers: normalizedLineMarkers,
+      parts: normalizedParts,
+      partMarkers: normalizedPartMarkers,
+      personnel: data.personnel || { fitters: [], welders: [], wqrs: [] },
+      drawingSettings:
+        migrateDrawingSettings(data.drawingSettings) || { ndtRequirements: [], weldingSpec: "", defaultWps: "" },
+      ndtRequests: Array.isArray(data.ndtRequests) ? data.ndtRequests : [],
+      ndtReports: Array.isArray(data.ndtReports) ? data.ndtReports : [],
+      addDefaults:
+        data.addDefaults && typeof data.addDefaults === "object"
+          ? {
+              spoolId: null,
+              spoolLineId: null,
+              weldLocation: "shop",
+              lineId: "__new__",
+              lineSystemId: null,
+              catalogCategory: "",
+              catalogLeafId: "",
+              hierarchyState: {},
+              partType: "",
+              nps: "",
+              thickness: "",
+              materialGrade: "",
+              ...data.addDefaults,
+            }
+          : {
+              spoolId: null,
+              spoolLineId: null,
+              weldLocation: "shop",
+              lineId: "__new__",
+              lineSystemId: null,
+              catalogCategory: "",
+              catalogLeafId: "",
+              hierarchyState: {},
+              partType: "",
+              nps: "",
+              thickness: "",
+              materialGrade: "",
+            },
+      systems: Array.isArray(data.systems)
+        ? data.systems.filter((s) => s && typeof s === "object").map(normalizeSystemRecord)
+        : [],
+      lines: Array.isArray(data.lines)
+        ? data.lines.filter((ln) => ln && typeof ln === "object").map(normalizeLineRecord)
+        : [],
+      projectSettings:
+        data.projectSettings && typeof data.projectSettings === "object"
+          ? data.projectSettings
+          : { steps: [] },
+      projectMeta:
+        data.projectMeta && typeof data.projectMeta === "object"
+          ? data.projectMeta
+          : { projectName: "", client: "", spec: "", revision: "", date: "" },
+      documents: normalizedDocuments,
+      databookConfig: normalizeDatabookConfig(data.databookConfig),
+      wpsLibrary: Array.isArray(data.wpsLibrary) ? data.wpsLibrary : [],
+      electrodeLibrary: Array.isArray(data.electrodeLibrary) ? data.electrodeLibrary : [],
+      materialCertificates: Array.isArray(data.materialCertificates) ? data.materialCertificates : [],
+    };
+  }, []);
+
+  const restoreDrawingsFromData = useCallback((data) => {
+    const dwgs = Array.isArray(data?.drawings) ? data.drawings : [];
+    const runtimeDrawings = dwgs
+      .map((d) => {
+        const blobUrl = createPdfBlobUrlFromBase64(d?.pdfBase64 || "");
+        if (!blobUrl) return null;
+        return { ...d, blobUrl };
+      })
+      .filter(Boolean);
+
+    if (runtimeDrawings.length > 0) {
+      setDrawings((prev) => {
+        prev.forEach((d) => {
+          if (typeof d?.blobUrl === "string") URL.revokeObjectURL(d.blobUrl);
+        });
+        return runtimeDrawings;
+      });
+      const first = runtimeDrawings[0];
+      setActiveDrawingId(first.id);
+      setPdfBlob(first.blobUrl);
+      setPdfFilename(first.filename || "drawing.pdf");
+      setPdfPage(1);
+      setNumPdfPages(null);
+      return runtimeDrawings;
+    }
+
+    if (data?.pdfBase64) {
+      const url = createPdfBlobUrlFromBase64(data.pdfBase64);
+      if (url) {
+        const dwg = createDefaultDrawing({ filename: data.pdfFilename || "drawing.pdf", blobUrl: url });
+        setDrawings((prev) => {
+          prev.forEach((d) => {
+            if (typeof d?.blobUrl === "string") URL.revokeObjectURL(d.blobUrl);
+          });
+          return [dwg];
+        });
+        setActiveDrawingId(dwg.id);
+        setPdfBlob(url);
+        setPdfFilename(data.pdfFilename || "drawing.pdf");
+        setPdfPage(1);
+        setNumPdfPages(null);
+        return [dwg];
+      }
+    }
+
+    setDrawings((prev) => {
+      prev.forEach((d) => {
+        if (typeof d?.blobUrl === "string") URL.revokeObjectURL(d.blobUrl);
+      });
+      return [];
+    });
+    setActiveDrawingId(null);
+    setPdfBlob(null);
+    setPdfFilename("");
+    setPdfPage(1);
+    setNumPdfPages(null);
+    return [];
+  }, []);
+
+  const applyLoadedProjectData = useCallback(
+    (rawData, { forcedProjectId = undefined } = {}) => {
+      const runtimeDrawings = restoreDrawingsFromData(rawData);
+      const normalized = normalizeLoadedData(rawData, {
+        fallbackDrawingId: runtimeDrawings[0]?.id ?? null,
+        drawingIds: runtimeDrawings.map((d) => d.id),
+      });
+      const loadedReports = normalized.ndtReports;
+      setWeldPoints(applyCompletedReportsToWelds(normalized.weldPoints, loadedReports));
+      setSpools(normalized.spools);
+      setSpoolMarkers(normalized.spoolMarkers);
+      setLineMarkers(normalized.lineMarkers);
+      setParts(normalized.parts);
+      setPartMarkers(normalized.partMarkers);
+      setPersonnel(normalized.personnel);
+      setDrawingSettings(normalized.drawingSettings);
+      setNdtRequests(normalized.ndtRequests);
+      setNdtReports(loadedReports);
+      setAddDefaults(normalized.addDefaults);
+      setSystems(normalized.systems);
+      setLines(normalized.lines);
+      setProjectSettings(normalized.projectSettings);
+      setProjectMeta(normalized.projectMeta);
+      setDocuments(normalized.documents);
+      setDatabookConfig(normalized.databookConfig);
+      setWpsLibrary(normalized.wpsLibrary);
+      setElectrodeLibrary(normalized.electrodeLibrary);
+      setMaterialCertificates(normalized.materialCertificates);
+      setFormWeld(null);
+      setSelectedWeldId(null);
+      setSelectedSpoolMarkerId(null);
+      setSelectedPartMarkerId(null);
+      setProjectId(forcedProjectId !== undefined ? forcedProjectId : normalized.id || generateProjectId());
+    },
+    [normalizeLoadedData, restoreDrawingsFromData]
+  );
+
+  const handleOpenProjectFromStorage = useCallback((data) => {
+    applyLoadedProjectData(data, { forcedProjectId: data?.id || generateProjectId() });
+    setShowProjectHub(false);
+  }, [applyLoadedProjectData]);
+
+  const handleSwitchDrawing = useCallback((dwgId) => {
+    const dwg = drawings.find((d) => d.id === dwgId);
+    if (!dwg) return;
+    setActiveDrawingId(dwgId);
+    if (dwg.blobUrl) setPdfBlob(dwg.blobUrl);
+    setPdfFilename(dwg.filename || "drawing.pdf");
+    setPdfPage(1);
+    setNumPdfPages(null);
+    setSelectedWeldId(null);
+    setSelectedSpoolMarkerId(null);
+    setSelectedPartMarkerId(null);
+      setSelectedLineMarkerId(null);
+    setFormWeld(null);
+  }, [drawings]);
+
+  const handleFocusWeldFromSettings = useCallback(
+    (weldId) => {
+      const w = weldPoints.find((x) => x.id === weldId);
+      if (!w) return;
+      const dwgId = w.drawingId;
+      if (dwgId) {
+        const dwg = drawings.find((d) => d.id === dwgId);
+        if (dwg) {
+          setActiveDrawingId(dwgId);
+          if (dwg.blobUrl) setPdfBlob(dwg.blobUrl);
+          setPdfFilename(dwg.filename || "drawing.pdf");
+          setNumPdfPages(null);
+        }
+      }
+      const page1 = Math.max(1, (w.pageNumber ?? 0) + 1);
+      setPdfPage(page1);
+      setSelectedWeldId(w.id);
+      setSelectedSpoolMarkerId(null);
+      setSelectedPartMarkerId(null);
+      setSelectedLineMarkerId(null);
+      setFormWeld(w);
+      setActiveSidePanel("welds");
+      setShowParameters(false);
+      if (typeof window !== "undefined" && window.innerWidth < 768) {
+        setMobileSheetTab("welds");
+        setMobileSheetOpen(true);
+      }
+    },
+    [weldPoints, drawings]
+  );
+
+  const handleDeleteDrawing = useCallback((dwgId) => {
+    const removedSpoolIds = new Set(
+      spoolMarkers
+        .filter((m) => m.drawingId === dwgId)
+        .map((m) => m.spoolId)
+        .filter(Boolean)
+    );
+    const survivingSpoolIds = new Set(
+      spoolMarkers
+        .filter((m) => m.drawingId !== dwgId)
+        .map((m) => m.spoolId)
+        .filter(Boolean)
+    );
+    const spoolIdsToRemove = new Set(
+      [...removedSpoolIds].filter((spoolId) => !survivingSpoolIds.has(spoolId))
+    );
+
+    const removedPartIds = new Set(
+      partMarkers
+        .filter((m) => m.drawingId === dwgId)
+        .map((m) => m.partId)
+        .filter(Boolean)
+    );
+    const survivingPartIds = new Set(
+      partMarkers
+        .filter((m) => m.drawingId !== dwgId)
+        .map((m) => m.partId)
+        .filter(Boolean)
+    );
+    const partIdsToRemove = new Set(
+      [...removedPartIds].filter((partId) => !survivingPartIds.has(partId))
+    );
+
+    setSpoolMarkers((prev) => prev.filter((m) => m.drawingId !== dwgId));
+    setLineMarkers((prev) => prev.filter((m) => m.drawingId !== dwgId));
+    setPartMarkers((prev) => prev.filter((m) => m.drawingId !== dwgId));
+    setSpools((prev) => prev.filter((s) => !spoolIdsToRemove.has(s.id)));
+    setParts((prev) =>
+      prev
+        .filter((p) => !partIdsToRemove.has(p.id))
+        .map((p) =>
+          spoolIdsToRemove.has(p.spoolId) ? { ...p, spoolId: null } : p
+        )
+    );
+    setWeldPoints((prev) =>
+      prev
+        .filter((w) => w.drawingId !== dwgId)
+        .map((w) => ({
+          ...w,
+          spoolId: spoolIdsToRemove.has(w.spoolId) ? null : w.spoolId,
+          partId1: partIdsToRemove.has(w.partId1) ? null : w.partId1,
+          partId2: partIdsToRemove.has(w.partId2) ? null : w.partId2,
+        }))
+    );
     setFormWeld(null);
     setSelectedWeldId(null);
     setSelectedSpoolMarkerId(null);
     setSelectedPartMarkerId(null);
-    setProjectId(data.id);
-  }, [pdfBlob]);
+    setSelectedLineMarkerId(null);
+
+    setDrawings((prev) => {
+      const toDelete = prev.find((d) => d.id === dwgId);
+      if (typeof toDelete?.blobUrl === "string") URL.revokeObjectURL(toDelete.blobUrl);
+
+      const next = prev.filter((d) => d.id !== dwgId);
+      if (dwgId === activeDrawingId && next.length > 0) {
+        const fallback = next[0];
+        setActiveDrawingId(fallback.id);
+        setPdfBlob(fallback.blobUrl || null);
+        setPdfFilename(fallback.filename || "drawing.pdf");
+        setPdfPage(1);
+        setNumPdfPages(null);
+      } else if (next.length === 0) {
+        setActiveDrawingId(null);
+        setPdfBlob(null);
+        setPdfFilename("");
+        setPdfPage(1);
+        setNumPdfPages(null);
+      }
+      return next;
+    });
+  }, [activeDrawingId, partMarkers, spoolMarkers]);
 
   const handleSaveProject = useCallback(async () => {
     if (!pdfBlob) return;
-    const pdfBase64 = await pdfToBase64(pdfBlob);
+    const serializedDrawings = await Promise.all(
+      drawings.map(async (d) => {
+        const source = d.blobUrl || (d.id === activeDrawingId ? pdfBlob : null);
+        const b64 = source ? await pdfToBase64(source) : d.pdfBase64 || "";
+        return { id: d.id, filename: d.filename, pdfBase64: b64, revision: d.revision || "", lineIds: d.lineIds || [] };
+      })
+    );
+    if (serializedDrawings.length === 0) {
+      const b64 = await pdfToBase64(pdfBlob);
+      serializedDrawings.push({ id: activeDrawingId || createDefaultDrawing().id, filename: pdfFilename, pdfBase64: b64, revision: "", lineIds: [] });
+    }
     const payload = {
       version: PROJECT_FILE_VERSION,
-      pdfFilename,
-      pdfBase64,
+      drawings: serializedDrawings,
       weldPoints,
       spools,
       spoolMarkers,
+      lineMarkers,
       parts,
       partMarkers,
       personnel,
@@ -626,12 +1312,26 @@ export default function WeldTrackerApp() {
       addDefaults,
       ndtRequests,
       ndtReports,
+      systems,
+      lines,
+      projectSettings,
+      projectMeta,
+      documents,
+      databookConfig,
+      wpsLibrary,
+      electrodeLibrary,
+      materialCertificates,
     };
     if (projectId) {
       try {
         await saveToIndexedDB(projectId, payload);
+        setStorageAlerts((s) => (s.indexeddb ? { ...s, indexeddb: null } : s));
       } catch {
-        // Ignore (e.g. private window)
+        setStorageAlerts((s) => ({
+          ...s,
+          indexeddb:
+            "Could not save to browser storage (private window, blocked storage, or quota). Your .weldproject file still downloaded — keep that copy safe.",
+        }));
       }
     }
     saveProject(payload);
@@ -639,9 +1339,12 @@ export default function WeldTrackerApp() {
     pdfBlob,
     projectId,
     pdfFilename,
+    drawings,
+    activeDrawingId,
     weldPoints,
     spools,
     spoolMarkers,
+    lineMarkers,
     parts,
     partMarkers,
     personnel,
@@ -649,54 +1352,47 @@ export default function WeldTrackerApp() {
     ndtRequests,
     ndtReports,
     addDefaults,
+    systems,
+    lines,
+    projectSettings,
+    projectMeta,
+    documents,
+    databookConfig,
+    wpsLibrary,
+    electrodeLibrary,
+    materialCertificates,
     pdfToBase64,
   ]);
 
-  useEffect(() => {
-    const draft = loadDraftFromSession();
-    if (!draft?.pdfBase64) return;
-    const binary = atob(draft.pdfBase64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    const blob = new Blob([bytes], { type: "application/pdf" });
-    const url = URL.createObjectURL(blob);
-    setPdfBlob(url);
-    setPdfFilename(draft.pdfFilename || "drawing.pdf");
-    const loadedReports = Array.isArray(draft.ndtReports) ? draft.ndtReports : [];
-    setWeldPoints(applyCompletedReportsToWelds(draft.weldPoints || [], loadedReports));
-    setSpools(draft.spools || []);
-    setSpoolMarkers(draft.spoolMarkers || []);
-    setParts(draft.parts || []);
-    setPartMarkers(draft.partMarkers || []);
-    setPersonnel(draft.personnel || { fitters: [], welders: [], wqrs: [] });
-    setDrawingSettings(
-      migrateDrawingSettings(draft.drawingSettings) || {
-        ndtRequirements: [],
-        weldingSpec: "",
-      }
-    );
-    setNdtRequests(Array.isArray(draft.ndtRequests) ? draft.ndtRequests : []);
-    setNdtReports(loadedReports);
-    setAddDefaults(draft.addDefaults && typeof draft.addDefaults === "object"
-      ? { spoolId: null, weldLocation: "shop", catalogCategory: "", hierarchyState: {}, partType: "", nps: "", thickness: "", materialGrade: "", ...draft.addDefaults }
-      : { spoolId: null, weldLocation: "shop", catalogCategory: "", hierarchyState: {}, partType: "", nps: "", thickness: "", materialGrade: "" });
-    setProjectId(draft.id || generateProjectId());
-  }, []);
-
-  useEffect(() => {
-    if (!pdfBlob) return;
-    if (draftSaveTimeoutRef.current) clearTimeout(draftSaveTimeoutRef.current);
-    draftSaveTimeoutRef.current = setTimeout(() => {
-      draftSaveTimeoutRef.current = null;
-      pdfToBase64(pdfBlob).then((pdfBase64) => {
-        saveDraftToSession({
+  const persistSessionDraftToStorage = useCallback(
+    async ({ updateAlerts = true } = {}) => {
+      if (!pdfBlob) return { ok: true, skipped: true };
+      try {
+        const serializedDrawings = await Promise.all(
+          drawings.map(async (d) => {
+            const source = d.blobUrl || (d.id === activeDrawingId ? pdfBlob : null);
+            const b64 = source ? await pdfToBase64(source) : d.pdfBase64 || "";
+            return { id: d.id, filename: d.filename, pdfBase64: b64, revision: d.revision || "", lineIds: d.lineIds || [] };
+          })
+        );
+        if (serializedDrawings.length === 0) {
+          const b64 = await pdfToBase64(pdfBlob);
+          serializedDrawings.push({
+            id: activeDrawingId || "dwg-draft",
+            filename: pdfFilename,
+            pdfBase64: b64,
+            revision: "",
+            lineIds: [],
+          });
+        }
+        const draftResult = saveDraftToSession({
           version: PROJECT_FILE_VERSION,
           id: projectId || generateProjectId(),
-          pdfFilename,
-          pdfBase64,
+          drawings: serializedDrawings,
           weldPoints,
           spools,
           spoolMarkers,
+          lineMarkers,
           parts,
           partMarkers,
           personnel,
@@ -704,99 +1400,204 @@ export default function WeldTrackerApp() {
           addDefaults,
           ndtRequests,
           ndtReports,
+          systems,
+          lines,
+          projectSettings,
+          projectMeta,
+          documents,
+          databookConfig,
+          wpsLibrary,
+          electrodeLibrary,
+          materialCertificates,
         });
-      });
+        if (updateAlerts) {
+          if (draftResult.ok && !draftResult.skipped) {
+            setStorageAlerts((s) => (s.sessionDraft ? { ...s, sessionDraft: null } : s));
+          }
+          if (!draftResult.ok) {
+            const msg =
+              draftResult.reason === "quota"
+                ? "Could not auto-save your session: browser storage is full. Save a .weldproject file regularly so you don't lose work."
+                : draftResult.reason === "blocked"
+                  ? "Could not write to session storage. Save a .weldproject file to keep your work."
+                  : `Session auto-save failed: ${draftResult.message || "unknown error"}`;
+            setStorageAlerts((s) => ({ ...s, sessionDraft: msg }));
+          }
+        }
+        return draftResult;
+      } catch (err) {
+        if (updateAlerts) {
+          setStorageAlerts((s) => ({
+            ...s,
+            sessionDraft: `Session auto-save failed: ${err?.message || "unknown error"}`,
+          }));
+        }
+        return { ok: false };
+      }
+    },
+    [
+      pdfBlob,
+      projectId,
+      pdfFilename,
+      drawings,
+      activeDrawingId,
+      weldPoints,
+      spools,
+      spoolMarkers,
+      lineMarkers,
+      parts,
+      partMarkers,
+      personnel,
+      drawingSettings,
+      addDefaults,
+      ndtRequests,
+      ndtReports,
+      systems,
+      lines,
+      projectSettings,
+      projectMeta,
+      documents,
+      databookConfig,
+      wpsLibrary,
+      electrodeLibrary,
+      materialCertificates,
+      pdfToBase64,
+    ]
+  );
+
+  persistSessionDraftRef.current = persistSessionDraftToStorage;
+
+  useEffect(() => {
+    const draft = loadDraftFromSession();
+    const canRestoreSession =
+      (Array.isArray(draft?.drawings) && draft.drawings.length > 0) || !!draft?.pdfBase64;
+    if (canRestoreSession && draft) {
+      applyLoadedProjectData(draft, { forcedProjectId: draft.id || generateProjectId() });
+      setShowProjectHub(false);
+    } else {
+      setShowProjectHub(true);
+    }
+    setAppReady(true);
+  }, [applyLoadedProjectData]);
+
+  useEffect(() => {
+    if (!pdfBlob) return;
+    if (draftSaveTimeoutRef.current) clearTimeout(draftSaveTimeoutRef.current);
+    draftSaveTimeoutRef.current = setTimeout(() => {
+      draftSaveTimeoutRef.current = null;
+      void persistSessionDraftToStorage({ updateAlerts: true });
     }, 500);
     return () => {
       if (draftSaveTimeoutRef.current) clearTimeout(draftSaveTimeoutRef.current);
     };
-  }, [
-    pdfBlob,
-    projectId,
-    pdfFilename,
-    weldPoints,
-    spools,
-    spoolMarkers,
-    parts,
-    partMarkers,
-    personnel,
-    drawingSettings,
-    addDefaults,
-    ndtRequests,
-    ndtReports,
-    pdfToBase64,
-  ]);
+  }, [pdfBlob, persistSessionDraftToStorage]);
+
+  useEffect(() => {
+    const flush = () => {
+      void persistSessionDraftRef.current({ updateAlerts: false });
+    };
+    window.addEventListener("pagehide", flush);
+    return () => window.removeEventListener("pagehide", flush);
+  }, []);
 
   const handleLoadProject = useCallback(async (file) => {
     try {
       const data = await loadProject(file);
-      const pdfBase64 = data.pdfBase64;
-      if (!pdfBase64) throw new Error("No PDF in project file");
-
-      const binary = atob(pdfBase64);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      const blob = new Blob([bytes], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob);
-
-      if (pdfBlob && typeof pdfBlob === "string") URL.revokeObjectURL(pdfBlob);
-      setPdfBlob(url);
-      setPdfFilename(data.pdfFilename || "drawing.pdf");
-      const loadedReports = Array.isArray(data.ndtReports) ? data.ndtReports : [];
-      setWeldPoints(applyCompletedReportsToWelds(data.weldPoints || [], loadedReports));
-      setSpools(data.spools || []);
-      setSpoolMarkers(data.spoolMarkers || []);
-      setParts(data.parts || []);
-      setPartMarkers(data.partMarkers || []);
-      setPersonnel(data.personnel || { fitters: [], welders: [], wqrs: [] });
-      setDrawingSettings(
-        migrateDrawingSettings(data.drawingSettings) || {
-          ndtRequirements: [],
-          weldingSpec: "",
-        }
-      );
-      setNdtRequests(Array.isArray(data.ndtRequests) ? data.ndtRequests : []);
-      setNdtReports(loadedReports);
-      setAddDefaults(data.addDefaults && typeof data.addDefaults === "object"
-        ? { spoolId: null, weldLocation: "shop", catalogCategory: "", hierarchyState: {}, partType: "", nps: "", thickness: "", materialGrade: "", ...data.addDefaults }
-        : { spoolId: null, weldLocation: "shop", catalogCategory: "", hierarchyState: {}, partType: "", nps: "", thickness: "", materialGrade: "" });
-      setFormWeld(null);
-      setSelectedWeldId(null);
-      setSelectedSpoolMarkerId(null);
-      setSelectedPartMarkerId(null);
-      setProjectId(generateProjectId());
+      const hasDrawings = Array.isArray(data.drawings) && data.drawings.length > 0;
+      if (!hasDrawings && !data.pdfBase64) throw new Error("No PDF in project file");
+      applyLoadedProjectData(data, { forcedProjectId: generateProjectId() });
+      setShowProjectHub(false);
     } catch (err) {
       alert(err.message || "Failed to load project");
     }
-  }, [pdfBlob]);
+  }, [applyLoadedProjectData]);
+
+  const handleBeginNewProject = useCallback(() => {
+    if (pdfBlob || weldPoints.length > 0) {
+      if (
+        !confirm(
+          "Discard the current project in this tab and start fresh? Unsaved work in this session may be lost."
+        )
+      )
+        return;
+    }
+    clearDraftFromSession();
+    applyLoadedProjectData({}, { forcedProjectId: generateProjectId() });
+    setShowProjectHub(false);
+    setShowSetupWizard(true);
+  }, [applyLoadedProjectData, pdfBlob, weldPoints.length]);
+
+  const handleWizardComplete = useCallback((payload) => {
+    if (payload?.projectMeta != null) setProjectMeta(payload.projectMeta);
+    if (payload?.personnel != null) setPersonnel(payload.personnel);
+    if (payload?.drawingSettings != null) setDrawingSettings(migrateDrawingSettings(payload.drawingSettings));
+    if (payload?.systems != null) setSystems(payload.systems);
+    if (payload?.wpsLibrary != null) setWpsLibrary(payload.wpsLibrary);
+    setShowSetupWizard(false);
+  }, []);
+
+  const handleWizardClose = useCallback(() => {
+    setShowSetupWizard(false);
+    setShowProjectHub(true);
+  }, []);
+
+  const handleRequestWizardLoadPdf = useCallback(() => {
+    requestAnimationFrame(() => emptyStatePdfInputRef.current?.click());
+  }, []);
+
+  const ndtContext = useMemo(
+    () => ({ systems, lines, spools, parts, drawingSettings }),
+    [systems, lines, spools, parts, drawingSettings]
+  );
 
   const handleExportExcel = useCallback(() => {
     exportWeldsToExcel(weldPoints, {
       pdfFilename,
+      projectMeta,
       spools,
       parts,
       personnel,
       drawingSettings,
+      ndtContext,
+      ndtReports,
+      drawings,
     });
-  }, [weldPoints, pdfFilename, spools, parts, personnel, drawingSettings]);
+  }, [weldPoints, pdfFilename, spools, parts, personnel, drawingSettings, projectMeta, ndtContext, ndtReports, drawings]);
 
   const weldStatusByWeldId = useMemo(() => {
     const map = new Map();
     weldPoints.forEach((w) => {
-      const ndtSel = computeNdtSelection(w, drawingSettings, weldPoints);
-      map.set(w.id, getWeldOverallStatus(w, ndtSel));
+      const ndtSel = computeNdtSelection(w, drawingSettings, weldPoints, ndtContext);
+      map.set(w.id, getWeldOverallStatus(w, ndtSel, ndtContext));
     });
     return map;
-  }, [weldPoints, drawingSettings]);
+  }, [weldPoints, drawingSettings, ndtContext]);
 
   const handlePrint = useCallback(
     async (options) => {
       const { runPrint } = await import("@/lib/print-utils");
-      const prevOverlay = showOverlay;
-      const includeMarkers = options.pdfDrawing && options.markers && (options.markers.welds || options.markers.spools || options.markers.parts);
-      if (includeMarkers !== prevOverlay) {
-        setShowOverlay(!!includeMarkers);
-        await new Promise((r) => setTimeout(r, 200));
+      const includePdfDrawing = !!options.pdfDrawing;
+      const prevLayers = { ...markerLayers };
+      const expectsOverlayMarkers =
+        includePdfDrawing &&
+        !!options?.markers &&
+        (options.markers.welds || options.markers.spools || options.markers.parts || options.markers.lines);
+
+      async function waitForOverlayMarkers(maxFrames = 36) {
+        for (let i = 0; i < maxFrames; i++) {
+          const target = document.querySelector("[data-print-target='pdf-with-overlays']");
+          if (target?.querySelector("[data-print-marker]")) return;
+          await new Promise((resolve) => requestAnimationFrame(resolve));
+        }
+      }
+      if (includePdfDrawing) {
+        setMarkerLayers({
+          welds: !!options?.markers?.welds,
+          spools: !!options?.markers?.spools,
+          parts: !!options?.markers?.parts,
+          lines: !!options?.markers?.lines,
+        });
+        if (expectsOverlayMarkers) await waitForOverlayMarkers();
       }
       try {
         await runPrint({
@@ -814,13 +1615,20 @@ export default function WeldTrackerApp() {
           drawingSettings,
           weldStatusByWeldId,
           getWeldName,
+          ndtContext,
+          drawings,
+          currentPage: pdfPage,
+          markerLayers,
+          spoolMarkers,
+          lineMarkers,
+          partMarkers,
         });
       } finally {
-        if (includeMarkers !== prevOverlay) setShowOverlay(prevOverlay);
+        if (includePdfDrawing) setMarkerLayers(prevLayers);
       }
     },
     [
-      showOverlay,
+      markerLayers,
       pdfBlob,
       pdfFilename,
       weldPoints,
@@ -829,24 +1637,87 @@ export default function WeldTrackerApp() {
       personnel,
       drawingSettings,
       weldStatusByWeldId,
+      ndtContext,
+      drawings,
+      pdfPage,
+      markerLayers,
+      spoolMarkers,
+      lineMarkers,
+      partMarkers,
     ]
   );
 
   const currentPage0 = pdfPage - 1;
 
+  const hasMultipleDrawings = drawings.length > 1;
+  const isOnActiveDrawing = useCallback(
+    (entityDrawingId) => {
+      if (!activeDrawingId) return true;
+      if (!entityDrawingId) return !hasMultipleDrawings;
+      return entityDrawingId === activeDrawingId;
+    },
+    [activeDrawingId, hasMultipleDrawings]
+  );
+
+  const weldPointsOnActiveDrawing = useMemo(
+    () => weldPoints.filter((w) => isOnActiveDrawing(w.drawingId)),
+    [weldPoints, isOnActiveDrawing]
+  );
+
+  const spoolMarkersOnActiveDrawing = useMemo(
+    () => spoolMarkers.filter((m) => isOnActiveDrawing(m.drawingId)),
+    [spoolMarkers, isOnActiveDrawing]
+  );
+
+  const partMarkersOnActiveDrawing = useMemo(
+    () => partMarkers.filter((m) => isOnActiveDrawing(m.drawingId)),
+    [partMarkers, isOnActiveDrawing]
+  );
+
+  const lineMarkersOnActiveDrawing = useMemo(
+    () => lineMarkers.filter((marker) => isOnActiveDrawing(marker.drawingId)),
+    [lineMarkers, isOnActiveDrawing]
+  );
+
+  const linesLinkedToActiveDrawing = useMemo(() => {
+    if (!activeDrawingId) return [];
+    const activeDwg = drawings.find((d) => d.id === activeDrawingId);
+    const idsFromDrawing = new Set(
+      Array.isArray(activeDwg?.lineIds) ? activeDwg.lineIds.filter(Boolean) : []
+    );
+    const matched = lines.filter((ln) => {
+      const viaLine =
+        Array.isArray(ln.drawingIds) && ln.drawingIds.includes(activeDrawingId);
+      const viaDrawing = idsFromDrawing.has(ln.id);
+      return viaLine || viaDrawing;
+    });
+    return matched
+      .slice()
+      .sort((a, b) =>
+        (a.name || a.id || "").localeCompare(b.name || b.id || "", undefined, {
+          sensitivity: "base",
+        })
+      );
+  }, [lines, activeDrawingId, drawings]);
+
   const weldsOnCurrentPage = useMemo(
-    () => weldPoints.filter((w) => (w.pageNumber ?? 0) === currentPage0),
-    [weldPoints, currentPage0]
+    () => weldPointsOnActiveDrawing.filter((w) => (w.pageNumber ?? 0) === currentPage0),
+    [weldPointsOnActiveDrawing, currentPage0]
   );
 
   const spoolMarkersOnCurrentPage = useMemo(
-    () => spoolMarkers.filter((m) => (m.pageNumber ?? 0) === currentPage0),
-    [spoolMarkers, currentPage0]
+    () => spoolMarkersOnActiveDrawing.filter((m) => (m.pageNumber ?? 0) === currentPage0),
+    [spoolMarkersOnActiveDrawing, currentPage0]
   );
 
   const partMarkersOnCurrentPage = useMemo(
-    () => partMarkers.filter((m) => (m.pageNumber ?? 0) === currentPage0),
-    [partMarkers, currentPage0]
+    () => partMarkersOnActiveDrawing.filter((m) => (m.pageNumber ?? 0) === currentPage0),
+    [partMarkersOnActiveDrawing, currentPage0]
+  );
+
+  const lineMarkersOnCurrentPage = useMemo(
+    () => lineMarkersOnActiveDrawing.filter((marker) => (marker.pageNumber ?? 0) === currentPage0),
+    [lineMarkersOnActiveDrawing, currentPage0]
   );
 
   const spoolIdsOnCurrentPage = useMemo(
@@ -864,10 +1735,136 @@ export default function WeldTrackerApp() {
     [spools, spoolIdsOnCurrentPage]
   );
 
+  const lineIdsOnCurrentPage = useMemo(
+    () =>
+      [...new Set([
+        ...lineMarkersOnCurrentPage.map((marker) => marker.lineId),
+        ...spoolsOnCurrentPage.map((spool) => spool.lineId),
+      ].filter(Boolean))],
+    [lineMarkersOnCurrentPage, spoolsOnCurrentPage]
+  );
+
+  const linesOnCurrentPage = useMemo(
+    () => lines.filter((line) => lineIdsOnCurrentPage.includes(line.id)),
+    [lines, lineIdsOnCurrentPage]
+  );
+
   const partsOnCurrentPage = useMemo(
     () => parts.filter((p) => partIdsOnCurrentPage.includes(p.id)),
     [parts, partIdsOnCurrentPage]
   );
+
+  const selectedLineIdFromMarker = useMemo(() => {
+    if (!selectedLineMarkerId) return null;
+    return lineMarkers.find((marker) => marker.id === selectedLineMarkerId)?.lineId || null;
+  }, [selectedLineMarkerId, lineMarkers]);
+
+  const handleSaveVisibleSpools = useCallback((newSpools) => {
+    const existingVisibleIds = new Set(spoolsOnCurrentPage.map((s) => s.id));
+    const nextVisibleIds = new Set((newSpools || []).map((s) => s.id));
+    const deletedSpoolIds = [...existingVisibleIds].filter((id) => !nextVisibleIds.has(id));
+
+    setSpools((prev) => {
+      const preserved = prev.filter((s) => !existingVisibleIds.has(s.id));
+      return [...preserved, ...(newSpools || [])];
+    });
+
+    if (deletedSpoolIds.length === 0) return;
+    const deletedSet = new Set(deletedSpoolIds);
+    setSpoolMarkers((prev) => prev.filter((m) => !deletedSet.has(m.spoolId)));
+    setWeldPoints((prev) =>
+      prev.map((w) =>
+        deletedSet.has(w.spoolId) ? { ...w, spoolId: null } : w
+      )
+    );
+    setParts((prev) =>
+      prev.map((p) =>
+        deletedSet.has(p.spoolId) ? { ...p, spoolId: null } : p
+      )
+    );
+  }, [spoolsOnCurrentPage]);
+
+  const handleSaveVisibleLines = useCallback((newLines) => {
+    const existingVisibleIds = new Set(linesOnCurrentPage.map((line) => line.id));
+    const nextVisibleIds = new Set((newLines || []).map((line) => line.id));
+    const deletedLineIds = [...existingVisibleIds].filter((id) => !nextVisibleIds.has(id));
+
+    setLines((prev) => {
+      const preserved = prev.filter((line) => !existingVisibleIds.has(line.id));
+      return [...preserved, ...(newLines || [])];
+    });
+
+    if (deletedLineIds.length === 0) return;
+    const deletedSet = new Set(deletedLineIds);
+    setLineMarkers((prev) => prev.filter((marker) => !deletedSet.has(marker.lineId)));
+    setSpools((prev) =>
+      prev.map((spool) => (deletedSet.has(spool.lineId) ? { ...spool, lineId: null } : spool))
+    );
+    setDrawings((prev) =>
+      prev.map((drawing) => ({
+        ...drawing,
+        lineIds: Array.isArray(drawing.lineIds)
+          ? drawing.lineIds.filter((lineId) => !deletedSet.has(lineId))
+          : [],
+      }))
+    );
+  }, [linesOnCurrentPage]);
+
+  const handleSaveAllSpools = useCallback((newSpools) => {
+    const next = newSpools || [];
+    const prevIds = new Set(spools.map((s) => s.id));
+    const nextIds = new Set(next.map((s) => s.id));
+    const deletedSpoolIds = [...prevIds].filter((id) => !nextIds.has(id));
+
+    setSpools(next);
+
+    if (deletedSpoolIds.length === 0) return;
+    const deletedSet = new Set(deletedSpoolIds);
+    setSpoolMarkers((prev) => prev.filter((m) => !deletedSet.has(m.spoolId)));
+    setWeldPoints((prev) =>
+      prev.map((w) => (deletedSet.has(w.spoolId) ? { ...w, spoolId: null } : w))
+    );
+    setParts((prev) =>
+      prev.map((p) => (deletedSet.has(p.spoolId) ? { ...p, spoolId: null } : p))
+    );
+  }, [spools]);
+
+  const handleSaveAllLines = useCallback((newLines) => {
+    const next = newLines || [];
+    const prevIds = new Set(lines.map((l) => l.id));
+    const nextIds = new Set(next.map((l) => l.id));
+    const deletedLineIds = [...prevIds].filter((id) => !nextIds.has(id));
+
+    setLines(next);
+
+    if (deletedLineIds.length === 0) return;
+    const deletedSet = new Set(deletedLineIds);
+    setLineMarkers((prev) => prev.filter((marker) => !deletedSet.has(marker.lineId)));
+    setSpools((prev) =>
+      prev.map((spool) => (deletedSet.has(spool.lineId) ? { ...spool, lineId: null } : spool))
+    );
+    setDrawings((prev) =>
+      prev.map((drawing) => ({
+        ...drawing,
+        lineIds: Array.isArray(drawing.lineIds)
+          ? drawing.lineIds.filter((lineId) => !deletedSet.has(lineId))
+          : [],
+      }))
+    );
+  }, [lines]);
+
+  const handleUpdateDrawing = useCallback((dwgId, updates) => {
+    setDrawings((prev) => prev.map((drawing) => (drawing.id === dwgId ? { ...drawing, ...updates } : drawing)));
+  }, []);
+
+  const selectionScrollKey = [
+    selectedWeldId,
+    selectedSpoolMarkerId,
+    selectedPartMarkerId,
+    selectedLineMarkerId,
+  ]
+    .filter(Boolean)
+    .join("|");
 
   const scrollToTarget = useMemo(() => {
     if (selectedWeldId) {
@@ -882,13 +1879,140 @@ export default function WeldTrackerApp() {
       const m = partMarkers.find((x) => x.id === selectedPartMarkerId);
       if (m && m.pageNumber != null) return { pageNumber: m.pageNumber, xPercent: m.xPercent ?? 50, yPercent: m.yPercent ?? 50 };
     }
+    if (selectedLineMarkerId) {
+      const marker = lineMarkers.find((item) => item.id === selectedLineMarkerId);
+      if (marker && marker.pageNumber != null) return { pageNumber: marker.pageNumber, xPercent: marker.xPercent ?? 50, yPercent: marker.yPercent ?? 50 };
+    }
     return null;
-  }, [selectedWeldId, selectedSpoolMarkerId, selectedPartMarkerId, weldPoints, spoolMarkers, partMarkers]);
+  }, [selectionScrollKey]); // eslint-disable-line react-hooks/exhaustive-deps -- scroll only when selection id changes, not when dragging markers
+
+  const settingsStructureIntegration = useMemo(
+    () => ({
+      ...(pdfBlob
+        ? {
+            drawings: {
+              drawings,
+              activeDrawingId,
+              lines,
+              onSwitchDrawing: handleSwitchDrawing,
+              onAddDrawing: loadPdfFile,
+              onUpdateDrawing: handleUpdateDrawing,
+              onDeleteDrawing: handleDeleteDrawing,
+            },
+            lines: {
+              lines,
+              spools,
+              drawingSettings,
+              wpsLibrary,
+              onSaveLines: handleSaveAllLines,
+              onSaveSpools: handleSaveAllSpools,
+              appMode,
+            },
+            spools: {
+              spools,
+              parts,
+              spoolMarkers,
+              weldPoints,
+              weldStatusByWeldId,
+              getWeldName,
+              lines,
+              onSave: handleSaveAllSpools,
+              onAssignWeldToSpool: handleAssignWeldToSpool,
+              onAssignPartToSpool: handleAssignPartToSpool,
+              appMode,
+            },
+          }
+        : {}),
+      welds: {
+        weldPoints,
+        weldStatusByWeldId,
+        getWeldName,
+        spools,
+        parts,
+        lines,
+        personnel,
+        wpsLibrary,
+        electrodeLibrary,
+        drawingSettings,
+        appMode,
+        ndtAutoLabel: formatNdtRequirements(drawingSettings.ndtRequirements),
+        onSave: handleSaveWeldFromSettings,
+        onDelete: handleDeleteWeldFromSettings,
+        onUpdatePartHeat: handleUpdatePartHeat,
+      },
+    }),
+    [
+      pdfBlob,
+      drawings,
+      activeDrawingId,
+      lines,
+      handleSwitchDrawing,
+      loadPdfFile,
+      handleUpdateDrawing,
+      handleDeleteDrawing,
+      spools,
+      handleSaveAllLines,
+      handleSaveAllSpools,
+      appMode,
+      parts,
+      spoolMarkers,
+      weldPoints,
+      weldStatusByWeldId,
+      handleAssignWeldToSpool,
+      handleAssignPartToSpool,
+      drawingSettings,
+      personnel,
+      wpsLibrary,
+      electrodeLibrary,
+      handleSaveWeldFromSettings,
+      handleDeleteWeldFromSettings,
+      handleUpdatePartHeat,
+    ]
+  );
 
   return (
+    <NdtScopeProvider
+      systems={systems}
+      lines={lines}
+      spools={spools}
+      parts={parts}
+      drawingSettings={drawingSettings}
+    >
     <div className="md:container md:mx-auto p-0 md:p-4">
       <>
         <OfflineBanner />
+        {(storageAlerts.indexeddb || storageAlerts.sessionDraft) && (
+          <div className="space-y-2 mb-2" role="status">
+            {storageAlerts.indexeddb ? (
+              <div className="alert alert-warning shadow-sm py-2 px-3 text-sm flex flex-row flex-wrap items-center gap-2">
+                <span className="flex-1 min-w-0">{storageAlerts.indexeddb}</span>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-xs shrink-0"
+                  onClick={() =>
+                    setStorageAlerts((s) => (s.indexeddb ? { ...s, indexeddb: null } : s))
+                  }
+                >
+                  Dismiss
+                </button>
+              </div>
+            ) : null}
+            {storageAlerts.sessionDraft ? (
+              <div className="alert alert-warning shadow-sm py-2 px-3 text-sm flex flex-row flex-wrap items-center gap-2">
+                <span className="flex-1 min-w-0">{storageAlerts.sessionDraft}</span>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-xs shrink-0"
+                  onClick={() =>
+                    setStorageAlerts((s) => (s.sessionDraft ? { ...s, sessionDraft: null } : s))
+                  }
+                >
+                  Dismiss
+                </button>
+              </div>
+            ) : null}
+          </div>
+        )}
         <Toolbar
           hasPdf={!!pdfBlob}
           hasWelds={weldPoints.length > 0}
@@ -898,13 +2022,31 @@ export default function WeldTrackerApp() {
           onExportExcel={handleExportExcel}
           onOpenParameters={() => setShowParameters(true)}
           onOpenProjects={() => setShowProjects(true)}
-          onOpenNdt={() => setShowNdtPanel(true)}
-          onOpenStatus={() => setShowStatusPage(true)}
+          onOpenNdt={() => {
+            setShowStatusPage(false);
+            setShowHealthPage(false);
+            setShowNdtPanel(true);
+          }}
+          onOpenStatus={() => {
+            setShowNdtPanel(false);
+            setShowHealthPage(false);
+            setShowStatusPage(true);
+          }}
+          onOpenHealth={() => {
+            setShowNdtPanel(false);
+            setShowStatusPage(false);
+            setShowHealthPage(true);
+          }}
           onPrint={() => setShowPrintModal(true)}
+          onPersistSessionDraft={persistSessionDraftToStorage}
         />
       </>
 
-      {showStatusPage ? (
+      {!appReady ? (
+        <div className="flex min-h-[50vh] w-full items-center justify-center rounded-lg border border-base-300/50 bg-base-100">
+          <span className="loading loading-lg loading-spinner text-primary" aria-label="Loading" />
+        </div>
+      ) : showStatusPage ? (
         <div className="flex-1 min-h-0 flex flex-col rounded-lg overflow-hidden shadow bg-base-100">
           <StatusPage
             weldPoints={weldPoints}
@@ -916,11 +2058,43 @@ export default function WeldTrackerApp() {
               setSelectedWeldId(weldId);
               setSelectedSpoolMarkerId(null);
               setSelectedPartMarkerId(null);
+              setSelectedLineMarkerId(null);
               setFormWeld(weldPoints.find((w) => w.id === weldId) ?? null);
-              setShowWeldPanel(true);
+              setActiveSidePanel("welds");
               setShowStatusPage(false);
             }}
             onClose={() => setShowStatusPage(false)}
+          />
+        </div>
+      ) : showHealthPage ? (
+        <div className="flex-1 min-h-0 flex flex-col rounded-lg overflow-hidden shadow bg-base-100">
+          <ProjectHealthPage
+            weldPoints={weldPoints}
+            drawings={drawings}
+            spools={spools}
+            parts={parts}
+            lines={lines}
+            systems={systems}
+            personnel={personnel}
+            wpsLibrary={wpsLibrary}
+            electrodeLibrary={electrodeLibrary}
+            drawingSettings={drawingSettings}
+            projectMeta={projectMeta}
+            partMarkers={partMarkers}
+            spoolMarkers={spoolMarkers}
+            lineMarkers={lineMarkers}
+            getWeldName={getWeldName}
+            onOpenParameters={() => setShowParameters(true)}
+            onSelectWeld={(weldId) => {
+              setSelectedWeldId(weldId);
+              setSelectedSpoolMarkerId(null);
+              setSelectedPartMarkerId(null);
+              setSelectedLineMarkerId(null);
+              setFormWeld(weldPoints.find((w) => w.id === weldId) ?? null);
+              setActiveSidePanel("welds");
+              setShowHealthPage(false);
+            }}
+            onClose={() => setShowHealthPage(false)}
           />
         </div>
       ) : showNdtPanel ? (
@@ -934,6 +2108,12 @@ export default function WeldTrackerApp() {
             setWeldPoints={setWeldPoints}
             drawingSettings={drawingSettings}
             getWeldName={getWeldName}
+            drawings={drawings}
+            lines={lines}
+            systems={systems}
+            spools={spools}
+            parts={parts}
+            personnel={personnel}
             onClose={() => setShowNdtPanel(false)}
           />
         </div>
@@ -944,96 +2124,197 @@ export default function WeldTrackerApp() {
               <DashboardAnalytics
                 weldPoints={weldPoints}
                 weldStatusByWeldId={weldStatusByWeldId}
-                drawingSettings={drawingSettings}
                 spools={spools}
+                drawings={drawings}
+                lines={lines}
+                systems={systems}
+                parts={parts}
               />
             </div>
           )}
 
           <div className="relative flex gap-0 items-stretch md:rounded-lg overflow-hidden md:shadow bg-base-100 h-[calc(100dvh-3.5rem)] md:h-[calc(100dvh-10rem)] min-h-0">
-            {pdfBlob ? (
+            {showProjectHub && !pdfBlob ? (
+              <ProjectSetupHub
+                onNewProject={handleBeginNewProject}
+                onOpenSavedProjects={() => setShowProjects(true)}
+                onLoadProjectFile={handleLoadProject}
+                onSkipToWorkspace={() => setShowProjectHub(false)}
+                projectFileInputRef={hubProjectFileInputRef}
+              />
+            ) : pdfBlob ? (
               <>
                 {pdfBlob && (
-                  <div className="absolute top-2 left-2 z-20 flex flex-col gap-3 pointer-events-none items-start">
+                  <div
+                    className="absolute z-20 flex flex-col gap-3 pointer-events-none items-start"
+                    style={{ left: `${floatingToolbarPos.x}px`, top: `${floatingToolbarPos.y}px` }}
+                  >
                     <div className="pointer-events-auto shrink-0 flex items-center gap-2 px-2 py-1.5 rounded-lg bg-base-200/70 backdrop-blur-md border border-base-300/50 shadow-sm w-fit">
-                      <MarkupToolbar
-                        markupTool={markupTool}
-                        onToolChange={handleToolChange}
-                        appMode={appMode}
-                        onModeChange={handleModeChange}
-                        className="!p-0 !bg-transparent !border-0 !shadow-none"
-                      />
-                      <span className="w-px h-5 bg-base-300/60 shrink-0 hidden md:block" aria-hidden />
-                      <div className="hidden md:flex items-center gap-0">
-                        <button
-                          type="button"
-                          className="btn btn-xs btn-ghost h-7 min-h-7 w-7 p-0"
-                          onClick={() => setPdfScale((s) => Math.max(0.5, s - 0.25))}
-                          disabled={pdfScale <= 0.5}
-                          aria-label="Zoom out"
-                          title="Zoom out"
-                        >
-                          −
-                        </button>
-                        <span className="text-xs tabular-nums min-w-[2.5rem] text-center text-base-content/70">
-                          {Math.round(pdfScale * 100)}%
-                        </span>
-                        <button
-                          type="button"
-                          className="btn btn-xs btn-ghost h-7 min-h-7 w-7 p-0"
-                          onClick={() => setPdfScale((s) => Math.min(2.5, s + 0.25))}
-                          disabled={pdfScale >= 2.5}
-                          aria-label="Zoom in"
-                          title="Zoom in"
-                        >
-                          +
-                        </button>
-                      </div>
                       <button
                         type="button"
-                        className="btn btn-xs btn-ghost h-7 min-h-7 gap-1 hidden md:flex"
-                        onClick={() => setShowOverlay((v) => !v)}
-                        aria-label={showOverlay ? "Hide markers" : "Show markers"}
-                        title={showOverlay ? "Hide markers" : "Show markers"}
+                        className="btn btn-xs btn-ghost h-7 min-h-7 w-7 p-0 cursor-grab active:cursor-grabbing"
+                        title="Drag toolbar"
+                        aria-label="Drag toolbar"
+                        onPointerDown={(e) => {
+                          if (e.button !== 0 && e.pointerType === "mouse") return;
+                          e.preventDefault();
+                          floatingToolbarDragRef.current = {
+                            startX: floatingToolbarPos.x,
+                            startY: floatingToolbarPos.y,
+                            pointerStartX: e.clientX,
+                            pointerStartY: e.clientY,
+                          };
+                        }}
                       >
-                        {showOverlay ? "Hide markers" : "Show markers"}
+                        ::
                       </button>
-                      {numPdfPages != null && numPdfPages > 1 && (
+                      <button
+                        type="button"
+                        className="btn btn-xs btn-ghost h-7 min-h-7 w-7 p-0"
+                        onClick={() => setIsFloatingToolbarCollapsed((value) => !value)}
+                        aria-label={isFloatingToolbarCollapsed ? "Expand toolbar" : "Collapse toolbar"}
+                        title={isFloatingToolbarCollapsed ? "Expand toolbar" : "Collapse toolbar"}
+                      >
+                        {isFloatingToolbarCollapsed ? "▸" : "▾"}
+                      </button>
+                      {isFloatingToolbarCollapsed ? (
+                        <button
+                          type="button"
+                          className={`btn btn-xs ${appMode === "inspection" ? "btn-warning" : "btn-ghost"}`}
+                          onClick={() => handleModeChange(appMode === "inspection" ? "edition" : "inspection")}
+                          title={appMode === "inspection" ? "Locked (inspection)" : "Unlocked (edition)"}
+                        >
+                          {appMode === "inspection" ? "Locked" : "Tools"}
+                        </button>
+                      ) : (
                         <>
-                          <span className="w-px h-5 bg-base-300/60 shrink-0 ml-1" aria-hidden />
-                          <div className="flex items-center gap-0.5">
+                          <MarkupToolbar
+                            markupTool={markupTool}
+                            onToolChange={handleToolChange}
+                            appMode={appMode}
+                            onModeChange={handleModeChange}
+                            className="!p-0 !bg-transparent !border-0 !shadow-none"
+                          />
+                          <span className="w-px h-5 bg-base-300/60 shrink-0 hidden md:block" aria-hidden />
+                          <div className="hidden md:flex items-center gap-0">
                             <button
                               type="button"
                               className="btn btn-xs btn-ghost h-7 min-h-7 w-7 p-0"
-                              onClick={() => setPdfPage((p) => Math.max(1, p - 1))}
-                              disabled={pdfPage <= 1}
-                              aria-label="Previous page"
+                              onClick={() => setPdfScale((s) => Math.max(0.5, s - 0.25))}
+                              disabled={pdfScale <= 0.5}
+                              aria-label="Zoom out"
+                              title="Zoom out"
                             >
-                              ‹
+                              −
                             </button>
-                            <span className="text-xs tabular-nums min-w-[2.5rem] text-center">
-                              {pdfPage}/{numPdfPages}
+                            <span className="text-xs tabular-nums min-w-[2.5rem] text-center text-base-content/70">
+                              {Math.round(pdfScale * 100)}%
                             </span>
                             <button
                               type="button"
                               className="btn btn-xs btn-ghost h-7 min-h-7 w-7 p-0"
-                              onClick={() => setPdfPage((p) => Math.min(numPdfPages, p + 1))}
-                              disabled={pdfPage >= numPdfPages}
-                              aria-label="Next page"
+                              onClick={() => setPdfScale((s) => Math.min(2.5, s + 0.25))}
+                              disabled={pdfScale >= 2.5}
+                              aria-label="Zoom in"
+                              title="Zoom in"
                             >
-                              ›
+                              +
                             </button>
                           </div>
+                          <details className="dropdown dropdown-end hidden md:block">
+                            <summary className="btn btn-xs btn-ghost h-7 min-h-7 gap-1 list-none cursor-pointer [&::-webkit-details-marker]:hidden">
+                              Markers
+                              {markerLayers.welds &&
+                              markerLayers.spools &&
+                              markerLayers.parts &&
+                              markerLayers.lines
+                                ? ""
+                                : "…"}
+                            </summary>
+                            <div className="dropdown-content z-[100] mt-1 w-52 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg">
+                              <p className="px-1 pb-1 text-[10px] font-medium uppercase tracking-wide text-base-content/50">
+                                Show on drawing
+                              </p>
+                              {(
+                                [
+                                  ["welds", "Welds"],
+                                  ["spools", "Spools"],
+                                  ["parts", "Parts"],
+                                  ["lines", "Lines"],
+                                ]
+                              ).map(([key, label]) => (
+                                <label
+                                  key={key}
+                                  className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-xs hover:bg-base-200"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    className="checkbox checkbox-xs"
+                                    checked={markerLayers[key]}
+                                    onChange={() =>
+                                      setMarkerLayers((prev) => ({ ...prev, [key]: !prev[key] }))
+                                    }
+                                  />
+                                  {label}
+                                </label>
+                              ))}
+                              <button
+                                type="button"
+                                className="btn btn-ghost btn-xs mt-2 w-full"
+                                onClick={() =>
+                                  setMarkerLayers({
+                                    welds: true,
+                                    spools: true,
+                                    parts: true,
+                                    lines: true,
+                                  })
+                                }
+                              >
+                                Show all
+                              </button>
+                            </div>
+                          </details>
+                          {numPdfPages != null && numPdfPages > 1 && (
+                            <>
+                              <span className="w-px h-5 bg-base-300/60 shrink-0 ml-1" aria-hidden />
+                              <div className="flex items-center gap-0.5">
+                                <button
+                                  type="button"
+                                  className="btn btn-xs btn-ghost h-7 min-h-7 w-7 p-0"
+                                  onClick={() => handleManualPageSelect((p) => Math.max(1, p - 1))}
+                                  disabled={pdfPage <= 1}
+                                  aria-label="Previous page"
+                                >
+                                  ‹
+                                </button>
+                                <span className="text-xs tabular-nums min-w-[2.5rem] text-center">
+                                  {pdfPage}/{numPdfPages}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="btn btn-xs btn-ghost h-7 min-h-7 w-7 p-0"
+                                  onClick={() => handleManualPageSelect((p) => Math.min(numPdfPages, p + 1))}
+                                  disabled={pdfPage >= numPdfPages}
+                                  aria-label="Next page"
+                                >
+                                  ›
+                                </button>
+                              </div>
+                            </>
+                          )}
                         </>
                       )}
                     </div>
-                    {appMode === "edition" && markupTool !== "select" && (
+                    {!isFloatingToolbarCollapsed && appMode === "edition" && markupTool !== "select" && (
                       <div className="pointer-events-auto shrink-0">
                         <AddDefaultsBar
                           markupTool={markupTool}
                           addDefaults={addDefaults}
                           onAddDefaultsChange={setAddDefaults}
-                          spools={spools}
+                          spools={spoolsOnCurrentPage}
+                          lines={lines}
+                          linesForSpoolDefault={linesOnCurrentPage}
+                          systems={systems}
                           className="shadow-lg"
                         />
                       </div>
@@ -1045,10 +2326,10 @@ export default function WeldTrackerApp() {
                     pdfBlob={pdfBlob}
                     numPages={numPdfPages}
                     currentPage={pdfPage}
-                    onPageSelect={setPdfPage}
-                    weldPoints={weldPoints}
-                    spoolMarkers={spoolMarkers}
-                    partMarkers={partMarkers}
+                    onPageSelect={handleManualPageSelect}
+                    weldPoints={weldPointsOnActiveDrawing}
+                    spoolMarkers={spoolMarkersOnActiveDrawing}
+                    partMarkers={partMarkersOnActiveDrawing}
                     isOpen={showPagePanel}
                     onToggle={() => setShowPagePanel((v) => !v)}
                   />
@@ -1064,7 +2345,7 @@ export default function WeldTrackerApp() {
                     onNumPages={setNumPdfPages}
                     onPageClick={handlePageClick}
                     containerRef={containerRef}
-                    weldPoints={weldPoints}
+                    weldPoints={weldPointsOnActiveDrawing}
                     selectedWeldId={selectedWeldId}
                     onWeldClick={handleWeldClick}
                     onWeldDoubleClick={handleWeldDoubleClick}
@@ -1074,7 +2355,13 @@ export default function WeldTrackerApp() {
                     onMoveIndicator={handleMoveIndicator}
                     onResizeLabel={handleResizeLabel}
                     onMoveLineBend={handleMoveLineBend}
-                    spoolMarkers={spoolMarkers}
+                    lineMarkers={lineMarkersOnActiveDrawing}
+                    lines={lines}
+                    selectedLineMarkerId={selectedLineMarkerId}
+                    onLineMarkerClick={handleLineMarkerClick}
+                    onMoveLineMarker={handleMoveLineMarker}
+                    onMoveLineIndicator={handleMoveLineIndicator}
+                    spoolMarkers={spoolMarkersOnActiveDrawing}
                     spools={spools}
                     selectedSpoolMarkerId={selectedSpoolMarkerId}
                     onSpoolMarkerClick={handleSpoolMarkerClick}
@@ -1082,7 +2369,7 @@ export default function WeldTrackerApp() {
                     onMoveSpoolIndicator={handleMoveSpoolIndicator}
                     onDeleteSpoolMarker={handleDeleteSpoolMarker}
                     weldStatusByWeldId={weldStatusByWeldId}
-                    partMarkers={partMarkers}
+                    partMarkers={partMarkersOnActiveDrawing}
                     parts={parts}
                     selectedPartMarkerId={selectedPartMarkerId}
                     onPartMarkerClick={handlePartMarkerClick}
@@ -1090,14 +2377,13 @@ export default function WeldTrackerApp() {
                     onMovePartIndicator={handleMovePartIndicator}
                     onDeletePartMarker={handleDeletePartMarker}
                     scrollToTarget={scrollToTarget}
-                    showOverlay={showOverlay}
-                    onToggleOverlay={() => setShowOverlay((v) => !v)}
+                    markerLayers={markerLayers}
                     pendingLabelId={pendingLabelId}
                     onPendingLabelMove={handlePendingLabelMove}
                   />
                 </div>
                 {/* Resize handle - visible splitter between content and side panel */}
-                {(!showWeldPanel && !showSpoolPanel && !showPartPanel) ? null : (
+                {!anySidePanelOpen ? null : (
                   <div
                     className="hidden md:flex w-3 flex-shrink-0 cursor-col-resize flex-col items-center justify-center bg-base-300 hover:bg-primary/40 active:bg-primary/60 transition-colors select-none border-l border-base-300"
                     onMouseDown={(e) => {
@@ -1128,84 +2414,161 @@ export default function WeldTrackerApp() {
                   className="hidden md:flex flex-shrink-0 flex-col h-full min-h-0 overflow-hidden transition-[width] duration-200 ease-out border-l border-base-300"
                   data-print-hide
                   style={{
-                    width: !showWeldPanel && !showSpoolPanel && !showPartPanel ? 56 : sidePanelWidth,
-                    minWidth: !showWeldPanel && !showSpoolPanel && !showPartPanel ? 56 : undefined,
+                    width: anySidePanelOpen ? sidePanelWidth : 56,
+                    minWidth: anySidePanelOpen ? undefined : 56,
                   }}
                 >
                   <div
                     className={`flex flex-1 min-w-0 min-h-0 h-full overflow-hidden transition-all duration-300 ease-out ${
-                      !showWeldPanel && !showSpoolPanel && !showPartPanel ? "flex-col" : "flex-row items-stretch"
+                      anySidePanelOpen ? "flex-row items-stretch" : "flex-col"
                     }`}
                     style={{ minHeight: 0 }}
                   >
-                  <SidePanelWeldForm
-                    weldPoints={weldsOnCurrentPage}
-                    weldStatusByWeldId={weldStatusByWeldId}
-                    weld={formWeld}
-                    selectedWeldId={selectedWeldId}
-                    isOpen={showWeldPanel}
-                    onToggle={() => {
-                      setShowSpoolPanel(false);
-                      setShowPartPanel(false);
-                      setShowWeldPanel((v) => !v);
-                    }}
-                    onSelectWeld={(w) => {
-                      setFormWeld(w);
-                      setSelectedWeldId(w.id);
-                    }}
-                    onBackToList={handleBackToList}
-                    onSave={handleSaveWeld}
-                    onDelete={handleDeleteWeld}
-                    appMode={appMode}
-                    spools={spoolsOnCurrentPage}
-                    parts={partsOnCurrentPage}
-                    onUpdatePartHeat={handleUpdatePartHeat}
-                    personnel={personnel}
-                    ndtAutoLabel={formatNdtRequirements(drawingSettings.ndtRequirements)}
-                    drawingSettings={drawingSettings}
-                    isStacked={!showWeldPanel && !showSpoolPanel && !showPartPanel}
-                  />
-                  <SidePanelSpools
-                    spools={spoolsOnCurrentPage}
-                    isOpen={showSpoolPanel}
-                    onToggle={() => {
-                      setShowWeldPanel(false);
-                      setShowPartPanel(false);
-                      setShowSpoolPanel((v) => !v);
-                    }}
-                    isStacked={!showWeldPanel && !showSpoolPanel && !showPartPanel}
-                    onSave={(newSpools) => {
-                      setSpools(newSpools);
-                      setSpoolMarkers((prev) =>
-                        prev.filter((m) => newSpools.some((s) => s.id === m.spoolId))
-                      );
-                    }}
-                    onAssignWeldToSpool={handleAssignWeldToSpool}
-                    onAssignPartToSpool={handleAssignPartToSpool}
-                    parts={partsOnCurrentPage}
-                    spoolMarkers={spoolMarkersOnCurrentPage}
-                    appMode={appMode}
-                    weldPoints={weldsOnCurrentPage}
-                    weldStatusByWeldId={weldStatusByWeldId}
-                    getWeldName={getWeldName}
-                  />
-                  <SidePanelPartForm
-                    parts={partsOnCurrentPage}
-                    partMarkers={partMarkersOnCurrentPage}
-                    spools={spoolsOnCurrentPage}
-                    selectedPartMarkerId={selectedPartMarkerId}
-                    isOpen={showPartPanel}
-                    onToggle={() => {
-                      setShowWeldPanel(false);
-                      setShowSpoolPanel(false);
-                      setShowPartPanel((v) => !v);
-                    }}
-                    onSelectPartMarker={setSelectedPartMarkerId}
-                    onSavePart={handleSavePart}
-                    onDeletePart={handleDeletePart}
-                    appMode={appMode}
-                    isStacked={!showWeldPanel && !showSpoolPanel && !showPartPanel}
-                  />
+                    <nav
+                      className={`flex flex-col shrink-0 border-r border-base-300 bg-base-100 divide-y divide-base-300/60 overflow-y-auto overflow-x-hidden ${
+                        anySidePanelOpen ? "w-11" : "w-full"
+                      }`}
+                      aria-label="Side panels"
+                    >
+                      <SidePanelTabButton
+                        label="Dwg"
+                        title="Drawings"
+                        active={activeSidePanel === "drawings"}
+                        onClick={() =>
+                          setActiveSidePanel((p) => (p === "drawings" ? null : "drawings"))
+                        }
+                      />
+                      <SidePanelTabButton
+                        label="Line"
+                        title="Lines"
+                        active={activeSidePanel === "lines"}
+                        onClick={() =>
+                          setActiveSidePanel((p) => (p === "lines" ? null : "lines"))
+                        }
+                      />
+                      <SidePanelTabButton
+                        label="Spool"
+                        title="Spools"
+                        active={activeSidePanel === "spools"}
+                        onClick={() =>
+                          setActiveSidePanel((p) => (p === "spools" ? null : "spools"))
+                        }
+                      />
+                      <SidePanelTabButton
+                        label="Weld"
+                        title="Welds"
+                        active={activeSidePanel === "welds"}
+                        onClick={() =>
+                          setActiveSidePanel((p) => (p === "welds" ? null : "welds"))
+                        }
+                      />
+                      <SidePanelTabButton
+                        label="Part"
+                        title="Parts"
+                        active={activeSidePanel === "parts"}
+                        onClick={() =>
+                          setActiveSidePanel((p) => (p === "parts" ? null : "parts"))
+                        }
+                      />
+                    </nav>
+                    {anySidePanelOpen ? (
+                      <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden bg-base-200">
+                        {activeSidePanel === "drawings" ? (
+                          <SidePanelDrawings
+                            hideHeader
+                            drawings={drawings}
+                            activeDrawingId={activeDrawingId}
+                            lines={lines}
+                            isOpen
+                            onToggle={() => {}}
+                            onSwitchDrawing={handleSwitchDrawing}
+                            onAddDrawing={loadPdfFile}
+                            onUpdateDrawing={handleUpdateDrawing}
+                            onDeleteDrawing={handleDeleteDrawing}
+                          />
+                        ) : null}
+                        {activeSidePanel === "lines" ? (
+                          <SidePanelLines
+                            hideHeader
+                            systems={systems}
+                            lines={linesOnCurrentPage}
+                            selectedLineId={selectedLineIdFromMarker}
+                            spools={spoolsOnCurrentPage}
+                            wpsLibrary={wpsLibrary}
+                            isOpen
+                            onToggle={() => {}}
+                            onSaveLines={handleSaveVisibleLines}
+                            onSaveSpools={handleSaveVisibleSpools}
+                            appMode={appMode}
+                            systemsManagedExternally
+                          />
+                        ) : null}
+                        {activeSidePanel === "spools" ? (
+                          <SidePanelSpools
+                            hideHeader
+                            spools={spoolsOnCurrentPage}
+                            isOpen
+                            onToggle={() => {}}
+                            onSave={handleSaveVisibleSpools}
+                            onAssignWeldToSpool={handleAssignWeldToSpool}
+                            onAssignPartToSpool={handleAssignPartToSpool}
+                            parts={partsOnCurrentPage}
+                            spoolMarkers={spoolMarkersOnCurrentPage}
+                            appMode={appMode}
+                            weldPoints={weldsOnCurrentPage}
+                            weldStatusByWeldId={weldStatusByWeldId}
+                            getWeldName={getWeldName}
+                            lines={linesOnCurrentPage}
+                          />
+                        ) : null}
+                        {activeSidePanel === "welds" ? (
+                          <SidePanelWeldForm
+                            hideHeader
+                            weldPoints={weldsOnCurrentPage}
+                            weldStatusByWeldId={weldStatusByWeldId}
+                            weld={formWeld}
+                            selectedWeldId={selectedWeldId}
+                            isOpen
+                            onToggle={() => {}}
+                            onSelectWeld={(w) => {
+                              setFormWeld(w);
+                              setSelectedWeldId(w.id);
+                            }}
+                            onBackToList={handleBackToList}
+                            onSave={handleSaveWeld}
+                            onDelete={handleDeleteWeld}
+                            appMode={appMode}
+                            spools={spoolsOnCurrentPage}
+                            parts={parts}
+                            onUpdatePartHeat={handleUpdatePartHeat}
+                            personnel={personnel}
+                            wpsLibrary={wpsLibrary}
+                            electrodeLibrary={electrodeLibrary}
+                            ndtAutoLabel={formatNdtRequirements(drawingSettings.ndtRequirements)}
+                            drawingSettings={drawingSettings}
+                          />
+                        ) : null}
+                        {activeSidePanel === "parts" ? (
+                          <SidePanelPartForm
+                            hideHeader
+                            parts={partsOnCurrentPage}
+                            partMarkers={partMarkersOnCurrentPage}
+                            spools={spoolsOnCurrentPage}
+                            documents={documents}
+                            materialCertificates={materialCertificates}
+                            selectedPartMarkerId={selectedPartMarkerId}
+                            isOpen
+                            onToggle={() => {}}
+                            onSelectPartMarker={setSelectedPartMarkerId}
+                            onSavePart={handleSavePart}
+                            onSaveDocuments={setDocuments}
+                            onSaveMaterialCertificates={setMaterialCertificates}
+                            onDeletePart={handleDeletePart}
+                            appMode={appMode}
+                          />
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               </>
@@ -1243,11 +2606,20 @@ export default function WeldTrackerApp() {
                   </div>
                   <div className="space-y-2">
                     <h2 className="text-xl font-bold text-base-content">
-                      No drawing loaded
+                      {projectMeta?.projectName?.trim()
+                        ? `${projectMeta.projectName.trim()} — load a drawing`
+                        : "No drawing loaded"}
                     </h2>
                     <p className="text-base-content/70 text-sm leading-relaxed">
                       Load a PDF drawing or open a saved project to start marking weld points and recording details.
                     </p>
+                    <button
+                      type="button"
+                      className="link link-hover text-sm text-primary/90"
+                      onClick={() => setShowProjectHub(true)}
+                    >
+                      Project setup — open file, saved projects, or new wizard
+                    </button>
                   </div>
                   <div className="flex flex-col sm:flex-row gap-3 justify-center">
                     <button
@@ -1288,7 +2660,7 @@ export default function WeldTrackerApp() {
       )}
 
       {/* Mobile bottom sheet for welds/spools/parts */}
-      {pdfBlob && !showStatusPage && !showNdtPanel && (
+      {pdfBlob && !showStatusPage && !showHealthPage && !showNdtPanel && (
         <>
           {!mobileSheetOpen && (
             <button
@@ -1308,6 +2680,57 @@ export default function WeldTrackerApp() {
             activeTab={mobileSheetTab}
             onTabChange={setMobileSheetTab}
           >
+            {mobileSheetTab === "drawings" && (
+              <SidePanelDrawings
+                drawings={drawings}
+                activeDrawingId={activeDrawingId}
+                lines={lines}
+                isOpen={true}
+                onToggle={() => {}}
+                onSwitchDrawing={handleSwitchDrawing}
+                onAddDrawing={loadPdfFile}
+                onUpdateDrawing={handleUpdateDrawing}
+                onDeleteDrawing={handleDeleteDrawing}
+                isStacked={false}
+                hideHeader
+              />
+            )}
+            {mobileSheetTab === "lines" && (
+              <SidePanelLines
+                systems={systems}
+                lines={linesOnCurrentPage}
+                selectedLineId={selectedLineIdFromMarker}
+                spools={spoolsOnCurrentPage}
+                wpsLibrary={wpsLibrary}
+                isOpen={true}
+                onToggle={() => {}}
+                onSaveLines={handleSaveVisibleLines}
+                onSaveSpools={handleSaveVisibleSpools}
+                appMode={appMode}
+                systemsManagedExternally
+                isStacked={false}
+                hideHeader
+              />
+            )}
+            {mobileSheetTab === "spools" && (
+              <SidePanelSpools
+                spools={spoolsOnCurrentPage}
+                isOpen={true}
+                onToggle={() => {}}
+                isStacked={false}
+                hideHeader
+                onSave={handleSaveVisibleSpools}
+                onAssignWeldToSpool={handleAssignWeldToSpool}
+                onAssignPartToSpool={handleAssignPartToSpool}
+                parts={partsOnCurrentPage}
+                spoolMarkers={spoolMarkersOnCurrentPage}
+                appMode={appMode}
+                weldPoints={weldsOnCurrentPage}
+                weldStatusByWeldId={weldStatusByWeldId}
+                getWeldName={getWeldName}
+                lines={linesOnCurrentPage}
+              />
+            )}
             {mobileSheetTab === "welds" && (
               <SidePanelWeldForm
                 weldPoints={weldsOnCurrentPage}
@@ -1325,36 +2748,15 @@ export default function WeldTrackerApp() {
                 onDelete={handleDeleteWeld}
                 appMode={appMode}
                 spools={spoolsOnCurrentPage}
-                parts={partsOnCurrentPage}
+                parts={parts}
                 onUpdatePartHeat={handleUpdatePartHeat}
                 personnel={personnel}
+                wpsLibrary={wpsLibrary}
+                electrodeLibrary={electrodeLibrary}
                 ndtAutoLabel={formatNdtRequirements(drawingSettings.ndtRequirements)}
                 drawingSettings={drawingSettings}
                 isStacked={false}
                 hideHeader
-              />
-            )}
-            {mobileSheetTab === "spools" && (
-              <SidePanelSpools
-                spools={spoolsOnCurrentPage}
-                isOpen={true}
-                onToggle={() => {}}
-                isStacked={false}
-                hideHeader
-                onSave={(newSpools) => {
-                  setSpools(newSpools);
-                  setSpoolMarkers((prev) =>
-                    prev.filter((m) => newSpools.some((s) => s.id === m.spoolId))
-                  );
-                }}
-                onAssignWeldToSpool={handleAssignWeldToSpool}
-                onAssignPartToSpool={handleAssignPartToSpool}
-                parts={partsOnCurrentPage}
-                spoolMarkers={spoolMarkersOnCurrentPage}
-                appMode={appMode}
-                weldPoints={weldsOnCurrentPage}
-                weldStatusByWeldId={weldStatusByWeldId}
-                getWeldName={getWeldName}
               />
             )}
             {mobileSheetTab === "parts" && (
@@ -1362,11 +2764,15 @@ export default function WeldTrackerApp() {
                 parts={partsOnCurrentPage}
                 partMarkers={partMarkersOnCurrentPage}
                 spools={spoolsOnCurrentPage}
+                documents={documents}
+                materialCertificates={materialCertificates}
                 selectedPartMarkerId={selectedPartMarkerId}
                 isOpen={true}
                 onToggle={() => {}}
                 onSelectPartMarker={setSelectedPartMarkerId}
                 onSavePart={handleSavePart}
+                onSaveDocuments={setDocuments}
+                onSaveMaterialCertificates={setMaterialCertificates}
                 onDeletePart={handleDeletePart}
                 appMode={appMode}
                 isStacked={false}
@@ -1377,14 +2783,55 @@ export default function WeldTrackerApp() {
         </>
       )}
 
-      <ModalParameters
+      <ModalSettings
         isOpen={showParameters}
         onClose={() => setShowParameters(false)}
         settings={drawingSettings}
         personnel={personnel}
-        onSave={({ drawingSettings: s, personnel: p }) => {
+        systems={systems}
+        projectSettings={projectSettings}
+        projectMeta={projectMeta}
+        wpsLibrary={wpsLibrary}
+        electrodeLibrary={electrodeLibrary}
+        documents={documents}
+        materialCertificates={materialCertificates}
+        ndtReports={ndtReports}
+        ndtRequests={ndtRequests}
+        lines={lines}
+        spools={spools}
+        parts={parts}
+        drawings={drawings}
+        weldPoints={weldPoints}
+        structureIntegration={settingsStructureIntegration}
+        onSelectWeldFromSettings={handleFocusWeldFromSettings}
+        onSave={({
+          drawingSettings: s,
+          personnel: p,
+          projectSettings: ps,
+          projectMeta: pm,
+          systems: sys,
+          wpsLibrary: wps,
+          electrodeLibrary: electrodes,
+          documents: docs,
+          materialCertificates: mc,
+          ndtReports: nr,
+          ndtRequests: nreq,
+          weldPoints: wp,
+          lines: ln,
+        }) => {
           if (s != null) setDrawingSettings(s);
           if (p != null) setPersonnel(p);
+          if (ps != null) setProjectSettings(ps);
+          if (pm != null) setProjectMeta(pm);
+          if (sys != null) setSystems(sys);
+          if (wps != null) setWpsLibrary(wps);
+          if (electrodes != null) setElectrodeLibrary(electrodes);
+          if (docs != null) setDocuments(docs);
+          if (mc != null) setMaterialCertificates(mc);
+          if (nr != null) setNdtReports(nr);
+          if (nreq != null) setNdtRequests(nreq);
+          if (wp != null) setWeldPoints(wp);
+          if (ln != null) setLines(ln);
         }}
       />
 
@@ -1403,6 +2850,14 @@ export default function WeldTrackerApp() {
         hasSpools={spools.length > 0}
         hasParts={parts.length > 0}
       />
+
+      <ProjectSetupWizard
+        isOpen={showSetupWizard}
+        onClose={handleWizardClose}
+        onComplete={handleWizardComplete}
+        onRequestLoadPdf={handleRequestWizardLoadPdf}
+      />
     </div>
+    </NdtScopeProvider>
   );
 }

@@ -24,6 +24,8 @@ const categories = [
   ...pipedataFlanges.standards.map((std) => ({ id: std.id, label: std.label })),
   { id: "pipe", label: "Pipe" },
   { id: "fittings-butt-weld", label: "Fittings (Butt Weld)" },
+  { id: "fittings-threaded", label: "Fittings (Threaded)" },
+  { id: "fittings-socket-weld", label: "Fittings (Socket Weld)" },
 ];
 
 const entries = [];

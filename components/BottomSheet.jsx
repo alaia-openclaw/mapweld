@@ -79,8 +79,10 @@ function BottomSheet({ isOpen, onClose, activeTab, onTabChange, children }) {
   if (!isOpen) return null;
 
   const tabs = [
-    { id: "welds", label: "Welds" },
+    { id: "drawings", label: "Dwg" },
+    { id: "lines", label: "Lines" },
     { id: "spools", label: "Spools" },
+    { id: "welds", label: "Welds" },
     { id: "parts", label: "Parts" },
   ];
 

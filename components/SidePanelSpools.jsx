@@ -1,7 +1,20 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
+import { comparePartDisplayNumbers } from "@/lib/part-display-number";
+
+/** Prefer first occurrence when the project array accidentally contains duplicate ids. */
+function dedupeById(items) {
+  const seen = new Set();
+  return (items || []).filter((item) => {
+    const id = item?.id;
+    if (id == null || id === "") return true;
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+}
 
 function SidePanelSpools({
   spools = [],
@@ -16,6 +29,7 @@ function SidePanelSpools({
   weldPoints = [],
   weldStatusByWeldId,
   getWeldName,
+  lines = [],
   isStacked = false,
   hideHeader = false,
 }) {
@@ -27,6 +41,7 @@ function SidePanelSpools({
   const [editWeight, setEditWeight] = useState("");
   const [editPressureValue, setEditPressureValue] = useState("");
   const [editPressureUnit, setEditPressureUnit] = useState("bar");
+  const [editLineId, setEditLineId] = useState("");
   /** Portal menu so list isn’t clipped by panel overflow ({ kind, spoolId, rect } | null) */
   const [menuPortal, setMenuPortal] = useState(null);
 
@@ -41,10 +56,12 @@ function SidePanelSpools({
       closeMenuPortal();
     }
     window.addEventListener("keydown", onKey);
-    window.addEventListener("scroll", onResize, true);
+    // Do not listen to `scroll` with capture — scrolling inside the portal menu
+    // fires captured scroll events and was closing the menu when using the scrollbar.
+    window.addEventListener("resize", onResize);
     return () => {
       window.removeEventListener("keydown", onKey);
-      window.removeEventListener("scroll", onResize, true);
+      window.removeEventListener("resize", onResize);
     };
   }, [menuPortal, closeMenuPortal]);
 
@@ -65,6 +82,7 @@ function SidePanelSpools({
       setEditWeight(String(s.weight ?? ""));
       setEditPressureValue(String(s.pressureTestValue ?? ""));
       setEditPressureUnit(s.pressureTestUnit ?? "bar");
+      setEditLineId(s.lineId ?? "");
     }
   }, [expandedSpoolId, spools]);
 
@@ -82,6 +100,7 @@ function SidePanelSpools({
             weight: editWeight.trim() || "",
             pressureTestValue: editPressureValue.trim() || "",
             pressureTestUnit: editPressureUnit,
+            lineId: editLineId || null,
           }
         : sp
     );
@@ -95,24 +114,29 @@ function SidePanelSpools({
     }
   }
 
-  const weldsBySpoolId = weldPoints.reduce((acc, w) => {
-    const sid = w.spoolId;
-    if (!sid) return acc;
-    if (!acc[sid]) acc[sid] = [];
-    acc[sid].push(w);
-    return acc;
-  }, {});
+  const weldPointsDeduped = useMemo(() => dedupeById(weldPoints), [weldPoints]);
+  const partsDeduped = useMemo(() => dedupeById(parts), [parts]);
+
+  const weldsBySpoolId = useMemo(() => {
+    return weldPointsDeduped.reduce((acc, w) => {
+      const sid = w.spoolId;
+      if (!sid) return acc;
+      if (!acc[sid]) acc[sid] = [];
+      acc[sid].push(w);
+      return acc;
+    }, {});
+  }, [weldPointsDeduped]);
 
   function weldsNotOnSpool(spoolId) {
-    return weldPoints.filter((w) => w.spoolId !== spoolId);
+    return weldPointsDeduped.filter((w) => w.spoolId !== spoolId);
   }
 
   function partsOnSpool(spoolId) {
-    return parts.filter((p) => p.spoolId === spoolId);
+    return partsDeduped.filter((p) => p.spoolId === spoolId);
   }
 
   function partsNotOnSpool(spoolId) {
-    return parts.filter((p) => p.spoolId !== spoolId);
+    return partsDeduped.filter((p) => p.spoolId !== spoolId);
   }
 
   function getSpoolName(spoolId) {
@@ -123,15 +147,41 @@ function SidePanelSpools({
   function renderPortalMenu() {
     if (!menuPortal || typeof document === "undefined") return null;
     const { kind, spoolId, rect } = menuPortal;
-    const maxH = Math.min(320, window.innerHeight - rect.bottom - 16);
+    const margin = 12;
+    const spaceBelow = Math.max(0, window.innerHeight - rect.bottom - margin);
+    const spaceAbove = Math.max(0, rect.top - margin);
+    const idealMax = 360;
+    let openDownward = spaceBelow >= spaceAbove;
+    let avail = openDownward ? spaceBelow : spaceAbove;
+    let maxH = Math.min(idealMax, avail);
+    if (maxH < 80) {
+      const other = openDownward ? spaceAbove : spaceBelow;
+      if (other > avail) {
+        openDownward = !openDownward;
+        avail = other;
+        maxH = Math.min(idealMax, avail);
+      }
+    }
+    if (maxH < 48) {
+      maxH = Math.min(idealMax, Math.max(spaceBelow, spaceAbove));
+    }
+
     const menuStyle = {
       position: "fixed",
-      top: rect.bottom + 4,
       right: Math.max(8, window.innerWidth - rect.right),
+      minWidth: "12rem",
       maxHeight: maxH,
-      minWidth: "10rem",
       zIndex: 9999,
+      overflowY: "auto",
+      overscrollBehavior: "contain",
+      WebkitOverflowScrolling: "touch",
+      touchAction: "pan-y",
     };
+    if (openDownward) {
+      menuStyle.top = rect.bottom + 4;
+    } else {
+      menuStyle.bottom = window.innerHeight - rect.top + 4;
+    }
 
     const listWeld = () =>
       weldsNotOnSpool(spoolId).length === 0 ? (
@@ -175,7 +225,7 @@ function SidePanelSpools({
         <ul className="menu p-1">
           {partsNotOnSpool(spoolId)
             .slice()
-            .sort((a, b) => (a.displayNumber ?? 0) - (b.displayNumber ?? 0))
+            .sort(comparePartDisplayNumbers)
             .map((p) => {
               const otherSpoolName =
                 p.spoolId && p.spoolId !== spoolId ? getSpoolName(p.spoolId) : null;
@@ -222,8 +272,10 @@ function SidePanelSpools({
           onClick={closeMenuPortal}
         />
         <div
-          className="fixed overflow-y-auto rounded-box border border-base-300 bg-base-100 p-1 shadow-lg"
+          className="fixed rounded-box border border-base-300 bg-base-100 p-1 shadow-lg flex flex-col min-h-0 pointer-events-auto"
           style={menuStyle}
+          onMouseDown={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
         >
           {kind === "weld" && onAssignWeldToSpool && listWeld()}
           {kind === "part" && onAssignPartToSpool && listPart()}
@@ -288,34 +340,43 @@ function SidePanelSpools({
                   return (
                     <li
                       key={s.id}
-                      className="bg-base-100 rounded-lg overflow-hidden border border-base-300"
+                      className="bg-base-100 rounded-lg overflow-hidden border border-primary/40"
                     >
-                      <div className="flex items-center gap-2 p-2">
+                      <div className="flex items-center gap-2 p-2 min-w-0">
                         <button
                           type="button"
-                          className="flex-1 text-left truncate font-medium"
+                          className="flex-1 min-w-0 text-left truncate font-medium text-sm text-primary"
                           onClick={() =>
                             setExpandedSpoolId((prev) => (prev === s.id ? null : s.id))
                           }
+                          title={s.name || "Spool"}
                         >
                           {s.name}
                         </button>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className={`h-4 w-4 flex-shrink-0 transition-transform ${
-                            isExpanded ? "rotate-180" : ""
-                          }`}
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-xs btn-square shrink-0"
+                          onClick={() =>
+                            setExpandedSpoolId((prev) => (prev === s.id ? null : s.id))
+                          }
+                          aria-expanded={isExpanded}
+                          aria-label={isExpanded ? "Collapse" : "Expand"}
                         >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 9l-7 7-7 7"
-                          />
-                        </svg>
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M19 9l-7 7-7-7"
+                            />
+                          </svg>
+                        </button>
                       </div>
                       {isExpanded && (
                         <div className="border-t border-base-300 px-2 py-2 space-y-2">
@@ -325,7 +386,7 @@ function SidePanelSpools({
                             </label>
                             <input
                               type="text"
-                              className="input input-sm input-bordered w-full min-w-0"
+                              className="input input-xs input-bordered w-full min-w-0"
                               value={editName}
                               onChange={(e) => setEditName(e.target.value)}
                               onBlur={() => handleUpdate(s.id)}
@@ -340,7 +401,7 @@ function SidePanelSpools({
                               <input
                                 type="text"
                                 inputMode="numeric"
-                                className="input input-sm input-bordered flex-1 min-w-0 w-0"
+                                className="input input-xs input-bordered flex-1 min-w-0 w-0"
                                 value={editDimX}
                                 onChange={(e) => setEditDimX(e.target.value)}
                                 onBlur={() => handleUpdate(s.id)}
@@ -349,7 +410,7 @@ function SidePanelSpools({
                               <input
                                 type="text"
                                 inputMode="numeric"
-                                className="input input-sm input-bordered flex-1 min-w-0 w-0"
+                                className="input input-xs input-bordered flex-1 min-w-0 w-0"
                                 value={editDimY}
                                 onChange={(e) => setEditDimY(e.target.value)}
                                 onBlur={() => handleUpdate(s.id)}
@@ -358,7 +419,7 @@ function SidePanelSpools({
                               <input
                                 type="text"
                                 inputMode="numeric"
-                                className="input input-sm input-bordered flex-1 min-w-0 w-0"
+                                className="input input-xs input-bordered flex-1 min-w-0 w-0"
                                 value={editDimZ}
                                 onChange={(e) => setEditDimZ(e.target.value)}
                                 onBlur={() => handleUpdate(s.id)}
@@ -373,7 +434,7 @@ function SidePanelSpools({
                             <input
                               type="text"
                               inputMode="decimal"
-                              className="input input-sm input-bordered w-full min-w-0"
+                              className="input input-xs input-bordered w-full min-w-0"
                               value={editWeight}
                               onChange={(e) => setEditWeight(e.target.value)}
                               onBlur={() => handleUpdate(s.id)}
@@ -388,14 +449,14 @@ function SidePanelSpools({
                               <input
                                 type="text"
                                 inputMode="decimal"
-                                className="input input-sm input-bordered flex-1 min-w-0"
+                                className="input input-xs input-bordered flex-1 min-w-0"
                                 value={editPressureValue}
                                 onChange={(e) => setEditPressureValue(e.target.value)}
                                 onBlur={() => handleUpdate(s.id)}
                                 placeholder="Value"
                               />
                               <select
-                                className="select select-bordered select-sm flex-shrink-0 w-16"
+                                className="select select-bordered select-xs flex-shrink-0 w-16"
                                 value={editPressureUnit}
                                 onChange={(e) => {
                                   setEditPressureUnit(e.target.value);
@@ -407,6 +468,31 @@ function SidePanelSpools({
                               </select>
                             </div>
                           </div>
+                          {lines.length > 0 && (
+                            <div className="form-control">
+                              <label className="label py-0 min-h-0">
+                                <span className="label-text text-xs">Line</span>
+                              </label>
+                              <select
+                                className="select select-bordered select-xs w-full"
+                                value={editLineId}
+                                onChange={(e) => {
+                                  setEditLineId(e.target.value);
+                                  const updated = spools.map((sp) =>
+                                    sp.id === s.id ? { ...sp, lineId: e.target.value || null } : sp
+                                  );
+                                  onSave?.(updated);
+                                }}
+                              >
+                                <option value="">— No line —</option>
+                                {lines.map((line) => (
+                                  <option key={line.id} value={line.id}>
+                                    {line.name || line.id}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
                           <div className="space-y-1">
                             <div className="flex items-center justify-between gap-1">
                               <span className="label-text text-xs font-medium">
@@ -495,7 +581,7 @@ function SidePanelSpools({
                               <ul className="space-y-0.5">
                                 {partsOnSpool(s.id)
                                   .slice()
-                                  .sort((a, b) => (a.displayNumber ?? 0) - (b.displayNumber ?? 0))
+                                  .sort(comparePartDisplayNumbers)
                                   .map((p) => (
                                     <li
                                       key={p.id}

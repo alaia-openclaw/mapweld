@@ -38,7 +38,9 @@ function WeldOverlay({
           pageWrapperRef={pageWrapperRef}
           weldStatus={weldStatusByWeldId?.get(weld.id)}
           scale={scale}
-          indicatorPositionOverride={pendingWeldId === weld.id && placingIndicatorOverride ? placingIndicatorOverride : null}
+          indicatorPositionOverride={
+            pendingWeldId === weld.id ? placingIndicatorOverride : null
+          }
         />
       ))}
     </div>

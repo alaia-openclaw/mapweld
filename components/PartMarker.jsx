@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useEffect } from "react";
+import { warnIfDev } from "@/lib/dev-log";
 
 const PART_LINE_COLOUR = "text-accent";
 const PART_BADGE_COLOUR = "border-accent bg-accent";
@@ -92,13 +93,17 @@ function PartMarker({
       if (!canDrag || !onMovePartMarker) return;
       try {
         e.currentTarget.setPointerCapture(e.pointerId);
-      } catch (_) {}
+      } catch (err) {
+        warnIfDev("PartMarker", err);
+      }
       draggingRef.current = "point";
       const onUp = () => {
         draggingRef.current = null;
         try {
           e.target.releasePointerCapture(e.pointerId);
-        } catch (_) {}
+        } catch (err) {
+          warnIfDev("PartMarker", err);
+        }
         createDragOnUp();
         window.removeEventListener("pointermove", handlePointerMove);
         window.removeEventListener("pointerup", onUp);
@@ -118,13 +123,17 @@ function PartMarker({
       if (!canDrag || !onMovePartIndicator) return;
       try {
         e.currentTarget.setPointerCapture(e.pointerId);
-      } catch (_) {}
+      } catch (err) {
+        warnIfDev("PartMarker", err);
+      }
       draggingRef.current = "indicator";
       const onUp = () => {
         draggingRef.current = null;
         try {
           e.target.releasePointerCapture(e.pointerId);
-        } catch (_) {}
+        } catch (err) {
+          warnIfDev("PartMarker", err);
+        }
         createDragOnUp();
         window.removeEventListener("pointermove", handlePointerMove);
         window.removeEventListener("pointerup", onUp);
@@ -148,6 +157,7 @@ function PartMarker({
   return (
     <div
       className={`absolute inset-0 pointer-events-none ${showHandles ? "z-30" : ""}`}
+      data-print-marker="part"
       aria-hidden
     >
       <div

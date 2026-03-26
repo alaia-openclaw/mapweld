@@ -5,6 +5,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import WeldOverlay from "./WeldOverlay";
 import SpoolMarker from "./SpoolMarker";
 import PartMarker from "./PartMarker";
+import LineMarker from "./LineMarker";
+import { warnIfDev } from "@/lib/dev-log";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 
@@ -31,6 +33,12 @@ function PDFViewer({
   onMoveIndicator,
   onResizeLabel,
   onMoveLineBend,
+  lineMarkers = [],
+  lines = [],
+  selectedLineMarkerId,
+  onLineMarkerClick,
+  onMoveLineMarker,
+  onMoveLineIndicator,
   spoolMarkers = [],
   spools = [],
   selectedSpoolMarkerId,
@@ -47,8 +55,7 @@ function PDFViewer({
   onMovePartIndicator,
   onDeletePartMarker,
   scrollToTarget,
-  showOverlay = true,
-  onToggleOverlay,
+  markerLayers = { welds: true, spools: true, parts: true, lines: true },
   pendingLabelId = null,
   onPendingLabelMove,
   focusMode = false,
@@ -64,6 +71,7 @@ function PDFViewer({
   const isPanningRef = useRef(false);
   const pinchRef = useRef(null);
   const lastPlacementTapRef = useRef(0);
+  const placementSessionKeyRef = useRef("");
 
   const scale = controlledScale !== undefined ? controlledScale : internalScale;
   const currentPage = controlledPage !== undefined ? controlledPage : internalPage;
@@ -81,6 +89,13 @@ function PDFViewer({
       setInternalNumPages(null);
     }
   }, [pdfBlob, controlledPage]);
+
+  // After finishing label placement, reset so the next add-spool/weld click is not blocked by the
+  // 400ms anti-double-tap guard (same issue as confirming the indicator right after placing anchor).
+  useEffect(() => {
+    if (pendingLabelId) return;
+    lastPlacementTapRef.current = 0;
+  }, [pendingLabelId]);
 
   useEffect(() => {
     if (pendingLabelId) return;
@@ -120,7 +135,7 @@ function PDFViewer({
       if (pinchRef.current) return;
       if (e.target.closest("button, [role='button']")) return;
       if (pendingLabelId) return;
-      if (markupTool === "add" || markupTool === "addSpool" || markupTool === "addPart") return;
+      if (markupTool === "add" || markupTool === "addSpool" || markupTool === "addPart" || markupTool === "addLine") return;
       const el = containerRef?.current;
       if (!el) return;
       panStartRef.current = {
@@ -146,7 +161,9 @@ function PDFViewer({
         isPanningRef.current = true;
         try {
           e.currentTarget.setPointerCapture(e.pointerId);
-        } catch (_) {}
+        } catch (err) {
+          warnIfDev("PDFViewer.panCapture", err);
+        }
       }
       if (isPanningRef.current) {
         e.preventDefault();
@@ -161,7 +178,9 @@ function PDFViewer({
     (e) => {
       try {
         e.currentTarget.releasePointerCapture(e.pointerId);
-      } catch (_) {}
+      } catch (err) {
+        warnIfDev("PDFViewer.panRelease", err);
+      }
       panStartRef.current = null;
     },
     []
@@ -238,7 +257,11 @@ function PDFViewer({
         return;
       }
       const now = Date.now();
-      if (now - lastPlacementTapRef.current < 400) return;
+      if (
+        !pendingLabelId &&
+        now - lastPlacementTapRef.current < 400
+      )
+        return;
       lastPlacementTapRef.current = now;
       const target = pageWrapperRef.current;
       if (!target) return;
@@ -247,7 +270,7 @@ function PDFViewer({
       const y = ((e.clientY - rect.top) / rect.height) * 100;
       onPageClick?.({ xPercent: x, yPercent: y, pageNumber: currentPage - 1 });
     },
-    [onPageClick, currentPage]
+    [onPageClick, currentPage, pendingLabelId]
   );
 
   useEffect(() => {
@@ -273,7 +296,28 @@ function PDFViewer({
   const weldPointsOnPage = weldPoints.filter(
     (w) => (w.pageNumber ?? 0) === currentPage - 1
   );
+
+  /** Pending-weld label: ignore placingIndicatorPos until layout effect pins this session (avoids stale coords from prior placement). */
+  const pendingWeldPlacingOverride =
+    pendingLabelId?.type === "weld"
+      ? (() => {
+          const w = weldPointsOnPage.find((p) => p.id === pendingLabelId.id);
+          if (!w) return null;
+          const sessionKey = `weld:${pendingLabelId.id}`;
+          const sessionReady = placementSessionKeyRef.current === sessionKey;
+          if (placingIndicatorPos && sessionReady) {
+            return { xPercent: placingIndicatorPos.x, yPercent: placingIndicatorPos.y };
+          }
+          return {
+            xPercent: w.indicatorXPercent ?? w.xPercent ?? 0,
+            yPercent: w.indicatorYPercent ?? w.yPercent ?? 0,
+          };
+        })()
+      : null;
   const spoolMarkersOnPage = spoolMarkers.filter(
+    (m) => (m.pageNumber ?? 0) === currentPage - 1
+  );
+  const lineMarkersOnPage = lineMarkers.filter(
     (m) => (m.pageNumber ?? 0) === currentPage - 1
   );
   const partMarkersOnPage = partMarkers.filter(
@@ -285,25 +329,44 @@ function PDFViewer({
   useLayoutEffect(() => {
     if (!isPlacingLabel) {
       setPlacingIndicatorPos(null);
+      placementSessionKeyRef.current = "";
       return;
     }
     const pending = pendingLabelId;
     if (!pending) return;
+    const sessionKey = `${pending.type}:${pending.id}`;
+    const sessionChanged = placementSessionKeyRef.current !== sessionKey;
     let ix, iy;
     if (pending.type === "weld") {
       const w = weldPoints.find((p) => p.id === pending.id);
-      ix = w?.indicatorXPercent; iy = w?.indicatorYPercent;
+      ix = w?.indicatorXPercent;
+      iy = w?.indicatorYPercent;
     } else if (pending.type === "spool") {
       const m = spoolMarkers.find((p) => p.id === pending.id);
-      ix = m?.indicatorXPercent; iy = m?.indicatorYPercent;
+      ix = m?.indicatorXPercent;
+      iy = m?.indicatorYPercent;
     } else if (pending.type === "part") {
       const m = partMarkers.find((p) => p.id === pending.id);
-      ix = m?.indicatorXPercent; iy = m?.indicatorYPercent;
+      ix = m?.indicatorXPercent;
+      iy = m?.indicatorYPercent;
+    } else if (pending.type === "line") {
+      const m = lineMarkers.find((p) => p.id === pending.id);
+      ix = m?.indicatorXPercent;
+      iy = m?.indicatorYPercent;
+    }
+    if (sessionChanged) {
+      placementSessionKeyRef.current = sessionKey;
+      if (ix != null && iy != null) {
+        setPlacingIndicatorPos({ x: ix, y: iy });
+      } else {
+        setPlacingIndicatorPos(null);
+      }
+      return;
     }
     if (ix != null && iy != null) {
       setPlacingIndicatorPos((prev) => prev ?? { x: ix, y: iy });
     }
-  }, [isPlacingLabel, pendingLabelId, weldPoints, spoolMarkers, partMarkers]);
+  }, [isPlacingLabel, pendingLabelId, weldPoints, spoolMarkers, partMarkers, lineMarkers]);
 
   useLayoutEffect(() => {
     if (!isPlacingLabel || !onPendingLabelMove) return;
@@ -311,21 +374,19 @@ function PDFViewer({
       const target = pageWrapperRef?.current;
       if (!target) return;
       const rect = target.getBoundingClientRect();
-      const clientX = e.touches ? e.touches[0]?.clientX : e.clientX;
-      const clientY = e.touches ? e.touches[0]?.clientY : e.clientY;
+      const clientX = e.clientX;
+      const clientY = e.clientY;
       if (clientX == null || clientY == null) return;
       const x = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
       const y = Math.max(0, Math.min(100, ((clientY - rect.top) / rect.height) * 100));
       setPlacingIndicatorPos({ x, y });
       onPendingLabelMove({ xPercent: x, yPercent: y });
-      if (e.touches && e.cancelable) e.preventDefault();
+      if (e.cancelable && e.pointerType === "touch") e.preventDefault();
     };
     const opts = { passive: false, capture: true };
-    document.addEventListener("mousemove", handler, opts);
-    document.addEventListener("touchmove", handler, opts);
+    window.addEventListener("pointermove", handler, opts);
     return () => {
-      document.removeEventListener("mousemove", handler, opts);
-      document.removeEventListener("touchmove", handler, opts);
+      window.removeEventListener("pointermove", handler, opts);
     };
   }, [isPlacingLabel, onPendingLabelMove]);
 
@@ -405,7 +466,7 @@ function PDFViewer({
   const cursorClass =
     isPlacingLabel
       ? "cursor-crosshair"
-      : appMode === "edition" && (markupTool === "add" || markupTool === "addSpool" || markupTool === "addPart")
+      : appMode === "edition" && (markupTool === "add" || markupTool === "addSpool" || markupTool === "addPart" || markupTool === "addLine")
         ? "cursor-crosshair"
         : "cursor-default";
 
@@ -477,6 +538,9 @@ function PDFViewer({
             } else if (pending.type === "part") {
               const m = partMarkers.find((p) => p.id === pending.id);
               ix = m?.indicatorXPercent; iy = m?.indicatorYPercent;
+            } else if (pending.type === "line") {
+              const m = lineMarkers.find((p) => p.id === pending.id);
+              ix = m?.indicatorXPercent; iy = m?.indicatorYPercent;
             }
             if (ix == null || iy == null) return null;
             return (
@@ -492,28 +556,32 @@ function PDFViewer({
               </div>
             );
           })()}
-          {showOverlay && (
-            <>
-              <WeldOverlay
-                weldPoints={weldPointsOnPage}
-                selectedWeldId={selectedWeldId}
-                onWeldClick={onWeldClick}
-                onWeldDoubleClick={onWeldDoubleClick}
-                appMode={appMode}
-                canDrag={appMode === "edition"}
-                pageWrapperRef={pageWrapperRef}
-                onMoveWeldPoint={onMoveWeldPoint}
-                onMoveIndicator={onMoveIndicator}
-                onResizeLabel={onResizeLabel}
-                onMoveLineBend={onMoveLineBend}
-                weldStatusByWeldId={weldStatusByWeldId}
-                spools={spools}
-                scale={scale}
-                pendingWeldId={pendingLabelId?.type === "weld" ? pendingLabelId.id : null}
-                placingIndicatorOverride={placingIndicatorPos ? { xPercent: placingIndicatorPos.x, yPercent: placingIndicatorPos.y } : null}
-              />
-              <div className="absolute inset-0 pointer-events-none">
-                {spoolMarkersOnPage.map((m) => (
+          {markerLayers?.welds !== false && (
+            <WeldOverlay
+              weldPoints={weldPointsOnPage}
+              selectedWeldId={selectedWeldId}
+              onWeldClick={onWeldClick}
+              onWeldDoubleClick={onWeldDoubleClick}
+              appMode={appMode}
+              canDrag={appMode === "edition"}
+              pageWrapperRef={pageWrapperRef}
+              onMoveWeldPoint={onMoveWeldPoint}
+              onMoveIndicator={onMoveIndicator}
+              onResizeLabel={onResizeLabel}
+              onMoveLineBend={onMoveLineBend}
+              weldStatusByWeldId={weldStatusByWeldId}
+              spools={spools}
+              scale={scale}
+              pendingWeldId={pendingLabelId?.type === "weld" ? pendingLabelId.id : null}
+              placingIndicatorOverride={pendingWeldPlacingOverride}
+            />
+          )}
+          {(markerLayers?.spools !== false ||
+            markerLayers?.lines !== false ||
+            markerLayers?.parts !== false) && (
+            <div className="absolute inset-0 pointer-events-none">
+              {markerLayers?.spools !== false &&
+                spoolMarkersOnPage.map((m) => (
                   <SpoolMarker
                     key={m.id}
                     marker={m}
@@ -529,7 +597,27 @@ function PDFViewer({
                     indicatorPositionOverride={pendingLabelId?.type === "spool" && pendingLabelId?.id === m.id && placingIndicatorPos ? { xPercent: placingIndicatorPos.x, yPercent: placingIndicatorPos.y } : null}
                   />
                 ))}
-                {partMarkersOnPage.map((m) => {
+              {markerLayers?.lines !== false &&
+                lineMarkersOnPage.map((m) => {
+                  const line = lines.find((item) => item.id === m.lineId);
+                  return (
+                    <LineMarker
+                      key={m.id}
+                      marker={m}
+                      lineName={line?.name || "Line"}
+                      isSelected={m.id === selectedLineMarkerId}
+                      onClick={onLineMarkerClick}
+                      canDrag={appMode === "edition"}
+                      onMoveLineMarker={onMoveLineMarker}
+                      onMoveLineIndicator={onMoveLineIndicator}
+                      pageWrapperRef={pageWrapperRef}
+                      scale={scale}
+                      indicatorPositionOverride={pendingLabelId?.type === "line" && pendingLabelId?.id === m.id && placingIndicatorPos ? { xPercent: placingIndicatorPos.x, yPercent: placingIndicatorPos.y } : null}
+                    />
+                  );
+                })}
+              {markerLayers?.parts !== false &&
+                partMarkersOnPage.map((m) => {
                   const part = parts.find((p) => p.id === m.partId);
                   return (
                     <PartMarker
@@ -548,8 +636,7 @@ function PDFViewer({
                     />
                   );
                 })}
-              </div>
-            </>
+            </div>
           )}
           {isPlacingLabel && (
             <div

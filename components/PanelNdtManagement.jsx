@@ -8,6 +8,7 @@ import {
   NDT_REQUEST_STATUS_LABELS,
   NDT_REPORT_STATUS,
   NDT_REPORT_STATUS_LABELS,
+  sortNdtMethods,
 } from "@/lib/constants";
 import {
   applyReportToWelds,
@@ -21,6 +22,7 @@ import {
   isWeldAlreadyAcceptedForMethod,
   computeNdtSelection,
 } from "@/lib/weld-utils";
+import { useNdtScope } from "@/contexts/NdtScopeContext";
 import FormNdtReport from "@/components/FormNdtReport";
 import FormNdtRequest from "@/components/FormNdtRequest";
 
@@ -35,6 +37,7 @@ function PanelNdtManagement({
   getWeldName,
   onClose,
 }) {
+  const ndtContext = useNdtScope();
   const [view, setView] = useState("list");
   const [editingReportId, setEditingReportId] = useState(null);
   const [editingRequestId, setEditingRequestId] = useState(null);
@@ -48,6 +51,17 @@ function PanelNdtManagement({
   const requestToEdit = editingRequestId
     ? ndtRequests.find((r) => r.id === editingRequestId)
     : null;
+
+  const methodOptions = useMemo(
+    () =>
+      sortNdtMethods([
+        ...NDT_METHODS,
+        ...(drawingSettings?.ndtRequirements || []).map((item) => item?.method),
+        ...(ndtRequests || []).map((request) => request?.method),
+        ...(ndtReports || []).map((report) => report?.method),
+      ]),
+    [drawingSettings, ndtRequests, ndtReports]
+  );
 
   function handleCreateReport(linkedRequest = null) {
     setEditingReportId(null);
@@ -156,13 +170,13 @@ function PanelNdtManagement({
   function handleAutoGenerateNdtRequests() {
     const newRequests = [];
     const existingPlusNew = () => [...ndtRequests, ...newRequests];
-    NDT_METHODS.forEach((method) => {
+    methodOptions.forEach((method) => {
       const weldIds = weldPoints
         .filter((w) => {
-          const ndtSel = computeNdtSelection(w, drawingSettings, weldPoints);
+          const ndtSel = computeNdtSelection(w, drawingSettings, weldPoints, ndtContext);
           if (!ndtSel[method]) return false;
           return (
-            isWeldReadyForNdt(w) &&
+            isWeldReadyForNdt(w, ndtContext) &&
             !isWeldRepairNeeded(w) &&
             !isWeldAlreadyAcceptedForMethod(w, method) &&
             !isWeldInNdtRequestForMethod(w.id, method, existingPlusNew())
@@ -187,32 +201,32 @@ function PanelNdtManagement({
   }
 
   const weldsReadyCount = useMemo(
-    () => weldPoints.filter((w) => isWeldReadyForNdt(w)).length,
-    [weldPoints]
+    () => weldPoints.filter((w) => isWeldReadyForNdt(w, ndtContext)).length,
+    [weldPoints, ndtContext]
   );
 
   const recapOptions = useMemo(() => {
     const opts = [];
-    NDT_METHODS.forEach((m) => {
+    methodOptions.forEach((m) => {
       opts.push({ value: `ready-${m}`, label: `Ready for ${m}` });
     });
     opts.push({ value: "not-ready", label: "Not ready" });
-    NDT_METHODS.forEach((m) => {
+    methodOptions.forEach((m) => {
       opts.push({ value: `accepted-${m}`, label: `Already accepted (${m})` });
     });
-    NDT_METHODS.forEach((m) => {
+    methodOptions.forEach((m) => {
       opts.push({ value: `planned-${m}`, label: `Planned (${m})` });
     });
     opts.push({ value: "repair", label: "Repair needed" });
     return opts;
-  }, []);
+  }, [methodOptions]);
 
   const [recapFilter, setRecapFilter] = useState("");
 
   const recapWelds = useMemo(() => {
     if (!recapFilter) return [];
     if (recapFilter === "not-ready") {
-      return weldPoints.filter((w) => !isWeldReadyForNdt(w));
+      return weldPoints.filter((w) => !isWeldReadyForNdt(w, ndtContext));
     }
     if (recapFilter === "repair") {
       return weldPoints.filter((w) => isWeldRepairNeeded(w));
@@ -221,7 +235,7 @@ function PanelNdtManagement({
       const method = recapFilter.slice(6);
       return weldPoints.filter(
         (w) =>
-          isWeldReadyForNdt(w) &&
+          isWeldReadyForNdt(w, ndtContext) &&
           !isWeldRepairNeeded(w) &&
           !isWeldAlreadyAcceptedForMethod(w, method) &&
           !isWeldInNdtRequestForMethod(w.id, method, ndtRequests)
@@ -236,7 +250,7 @@ function PanelNdtManagement({
       return weldPoints.filter((w) => isWeldInNdtRequestForMethod(w.id, method, ndtRequests));
     }
     return [];
-  }, [weldPoints, recapFilter, ndtRequests]);
+  }, [weldPoints, recapFilter, ndtRequests, ndtContext]);
 
   return (
     <div className="flex flex-col h-full bg-base-100 border-l border-base-300">
@@ -253,7 +267,7 @@ function PanelNdtManagement({
             <section className="mb-4">
               <h3 className="font-medium mb-2">Recap by status</h3>
               <select
-                className="select select-bordered select-sm w-full max-w-xs"
+                className="select select-bordered select-xs w-full max-w-xs"
                 value={recapFilter}
                 onChange={(e) => setRecapFilter(e.target.value)}
                 aria-label="View welds by NDT status"
@@ -441,6 +455,7 @@ function PanelNdtManagement({
               weldPoints={weldPoints}
               ndtRequests={ndtRequests}
               drawingSettings={drawingSettings}
+              methodOptions={methodOptions}
               requestId={reportFromRequest?.id ?? null}
               initialRequest={reportFromRequest}
               report={reportToEdit}
@@ -459,6 +474,8 @@ function PanelNdtManagement({
             <FormNdtRequest
               weldPoints={weldPoints}
               ndtRequests={ndtRequests}
+              methodOptions={methodOptions}
+              drawingSettings={drawingSettings}
               request={requestToEdit}
               onSubmit={handleRequestSubmit}
               onCancel={handleCloseRequestForm}

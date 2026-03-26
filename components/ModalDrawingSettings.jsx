@@ -140,7 +140,7 @@ function ModalDrawingSettings({ isOpen, onClose, settings, onSave }) {
                       type="number"
                       min={0}
                       max={100}
-                      className="input input-bordered input-sm w-16"
+                      className="input input-bordered input-xs w-16"
                       value={r.pctShop ?? r.pct ?? 100}
                       onChange={(e) => updateRow(r.method, "shop", e.target.value)}
                     />
@@ -152,7 +152,7 @@ function ModalDrawingSettings({ isOpen, onClose, settings, onSave }) {
                       type="number"
                       min={0}
                       max={100}
-                      className="input input-bordered input-sm w-16"
+                      className="input input-bordered input-xs w-16"
                       value={r.pctField ?? r.pct ?? 100}
                       onChange={(e) => updateRow(r.method, "field", e.target.value)}
                     />
@@ -196,7 +196,7 @@ function ModalDrawingSettings({ isOpen, onClose, settings, onSave }) {
             <input
               id="weldingSpec"
               type="text"
-              className="input input-bordered"
+              className="input input-bordered input-xs"
               value={weldingSpec}
               onChange={(e) => setWeldingSpec(e.target.value)}
               placeholder="e.g. WPS-001, ASME IX"

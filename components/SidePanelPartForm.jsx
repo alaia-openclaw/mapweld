@@ -1,28 +1,48 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { PART_TYPES, PART_TYPE_LABELS } from "@/lib/constants";
-import {
-  partCatalog,
-  getCategories,
-  getCatalogEntry,
-} from "@/lib/part-catalog";
+import { getCategories, getCatalogEntry } from "@/lib/part-catalog";
 import {
   getHierarchyForCategory,
   getHierarchyStateFromEntry,
-  getOptionsForStep,
   findEntryByHierarchy,
+  expandHierarchyStateWithAutoFills,
 } from "@/lib/catalog-hierarchy";
+import CatalogHierarchyStepSelects from "@/components/CatalogHierarchyStepSelects";
+import CatalogTreeCascade from "@/components/CatalogTreeCascade";
+import {
+  leafIdToCatalogCategory,
+  getMergedCatalogEntries,
+  inferCatalogLeafIdFromPart,
+} from "@/lib/catalog-leaf-resolve";
+import { comparePartDisplayNumbers } from "@/lib/part-display-number";
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      resolve(result.replace(/^data:.*?;base64,/, ""));
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 
 function SidePanelPartForm({
   parts = [],
   partMarkers = [],
   spools = [],
+  documents = [],
+  materialCertificates = [],
   selectedPartMarkerId,
   isOpen,
   onToggle,
   onSelectPartMarker,
   onSavePart,
+  onSaveDocuments,
+  onSaveMaterialCertificates,
   onDeletePart,
   appMode = "edition",
   isStacked = false,
@@ -33,7 +53,7 @@ function SidePanelPartForm({
     ? parts.find((p) => p.id === selectedMarker.partId)
     : null;
 
-  const [catalogCategory, setCatalogCategory] = useState("");
+  const [catalogLeafId, setCatalogLeafId] = useState("");
   const [hierarchyState, setHierarchyState] = useState({});
   const [partType, setPartType] = useState("");
   const [nps, setNps] = useState("");
@@ -43,15 +63,19 @@ function SidePanelPartForm({
   const [spoolId, setSpoolId] = useState("");
   const [heatNumber, setHeatNumber] = useState("");
   const [variation, setVariation] = useState("");
+  /** Which part row shows the editor (Lines / Spools–style accordion). */
+  const [expandedPartMarkerId, setExpandedPartMarkerId] = useState(null);
   const autoSaveTimeoutRef = useRef(null);
+  const mtcUploadInputRef = useRef(null);
 
   const categories = getCategories();
+  const catalogCategory = catalogLeafId ? leafIdToCatalogCategory(catalogLeafId) : "";
   const catalogEntriesForCategory = useMemo(
     () =>
       catalogCategory
-        ? partCatalog.entries.filter((e) => e.catalogCategory === catalogCategory)
+        ? getMergedCatalogEntries(catalogCategory, catalogLeafId)
         : [],
-    [catalogCategory]
+    [catalogCategory, catalogLeafId]
   );
 
   const previousSelectedPartIdRef = useRef(null);
@@ -62,24 +86,36 @@ function SidePanelPartForm({
     }
     if (previousSelectedPartIdRef.current === selectedPart.id) return;
     previousSelectedPartIdRef.current = selectedPart.id;
+    const leaf = inferCatalogLeafIdFromPart(selectedPart);
+    setCatalogLeafId(leaf);
+    const cat = leaf ? leafIdToCatalogCategory(leaf) : (selectedPart.catalogCategory || "").trim();
+    const entriesForCat = cat ? getMergedCatalogEntries(cat, leaf) : [];
+
+    function hydrateHierarchyFromStored() {
+      const raw = selectedPart.catalogHierarchyState;
+      if (raw && typeof raw === "object" && Object.keys(raw).length > 0 && cat) {
+        const expanded = expandHierarchyStateWithAutoFills(cat, entriesForCat, { ...raw });
+        setHierarchyState(expanded);
+      } else {
+        setHierarchyState({});
+      }
+    }
+
     if (selectedPart.catalogPartId) {
       const entry = getCatalogEntry(selectedPart.catalogPartId);
       if (entry) {
-        setCatalogCategory(entry.catalogCategory);
         setHierarchyState(getHierarchyStateFromEntry(entry, entry.catalogCategory));
         setPartType(entry.partTypeLabel ?? "");
         setNps(entry.nps ?? "");
         setThickness(entry.thickness ?? "");
       } else {
-        setCatalogCategory("");
-        setHierarchyState({});
+        hydrateHierarchyFromStored();
         setPartType(selectedPart.partType ?? "");
         setNps(selectedPart.nps ?? "");
         setThickness(selectedPart.thickness ?? "");
       }
     } else {
-      setCatalogCategory("");
-      setHierarchyState({});
+      hydrateHierarchyFromStored();
       setPartType(selectedPart.partType ?? "");
       setNps(selectedPart.nps ?? "");
       setThickness(selectedPart.thickness ?? "");
@@ -90,6 +126,14 @@ function SidePanelPartForm({
     setHeatNumber(selectedPart.heatNumber ?? "");
     setVariation(selectedPart.variation ?? "");
   }, [selectedPart]);
+
+  useEffect(() => {
+    if (!selectedPartMarkerId) {
+      setExpandedPartMarkerId(null);
+      return;
+    }
+    setExpandedPartMarkerId(selectedPartMarkerId);
+  }, [selectedPartMarkerId]);
 
   useEffect(() => {
     if (!selectedPart) return;
@@ -109,7 +153,11 @@ function SidePanelPartForm({
         entry?.thickness ?? hierarchyState.schedule ?? thickness.trim();
       onSavePart?.({
         ...selectedPart,
+        catalogLeafId: catalogLeafId || "",
+        catalogCategory: catalogCategory || "",
         catalogPartId: entry?.catalogPartId ?? null,
+        catalogHierarchyState:
+          catalogLeafId && Object.keys(hierarchyState).length > 0 ? { ...hierarchyState } : undefined,
         partType: resolvedPartType,
         nps: resolvedNps,
         thickness: resolvedThickness,
@@ -126,6 +174,7 @@ function SidePanelPartForm({
     };
   }, [
     selectedPart,
+    catalogLeafId,
     catalogCategory,
     hierarchyState,
     partType,
@@ -159,14 +208,46 @@ function SidePanelPartForm({
     </option>
   ));
 
-  const isCatalogMode = Boolean(catalogCategory);
+  const isCatalogMode = Boolean(catalogLeafId);
   const hierarchySteps = useMemo(
     () => getHierarchyForCategory(catalogCategory),
     [catalogCategory]
   );
+  const mtcDocuments = useMemo(
+    () => (documents || []).filter((doc) => doc?.category === "mtc"),
+    [documents]
+  );
+  const normalizedHeat = (heatNumber || "").trim();
+  const linkedMtc = useMemo(
+    () =>
+      (materialCertificates || []).find(
+        (cert) => (cert?.heatNumber || "").trim() === normalizedHeat
+      ) || null,
+    [materialCertificates, normalizedHeat]
+  );
 
-  function handleCatalogCategoryChange(value) {
-    setCatalogCategory(value);
+  /** One row per canvas marker — avoids duplicate React keys when `parts` accidentally contains the same id twice. */
+  const partRows = useMemo(() => {
+    return (partMarkers || [])
+      .map((marker) => {
+        const p = (parts || []).find((x) => x.id === marker.partId);
+        if (!p) return null;
+        return { marker, part: p };
+      })
+      .filter(Boolean)
+      .sort((a, b) => comparePartDisplayNumbers(a.part, b.part));
+  }, [partMarkers, parts]);
+
+  function handleCatalogLeafChange(leafId) {
+    if (!leafId) {
+      setCatalogLeafId("");
+      setHierarchyState({});
+      setPartType("");
+      setNps("");
+      setThickness("");
+      return;
+    }
+    setCatalogLeafId(leafId);
     setHierarchyState({});
     setPartType("");
     setNps("");
@@ -185,10 +266,241 @@ function SidePanelPartForm({
     });
   }
 
+  const handleHierarchyStateReplace = useCallback((next) => {
+    setHierarchyState(next);
+  }, []);
+
+  function setHeatMtcDocument(documentId) {
+    if (!normalizedHeat || !onSaveMaterialCertificates) return;
+    const nextCertificates = [...(materialCertificates || [])];
+    const idx = nextCertificates.findIndex(
+      (cert) => (cert?.heatNumber || "").trim() === normalizedHeat
+    );
+    const nextEntry = {
+      id: idx >= 0 ? nextCertificates[idx].id : `mtc-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      heatNumber: normalizedHeat,
+      documentId: documentId || null,
+      linkedPartIds: idx >= 0 ? nextCertificates[idx].linkedPartIds || [] : [],
+    };
+    if (idx >= 0) nextCertificates[idx] = nextEntry;
+    else nextCertificates.push(nextEntry);
+    onSaveMaterialCertificates(nextCertificates);
+  }
+
+  async function handleUploadMtcForHeat(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !normalizedHeat || !onSaveDocuments || !onSaveMaterialCertificates) return;
+    const uploadedDoc = {
+      id: `doc-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      title: file.name || `${normalizedHeat} MTC`,
+      category: "mtc",
+      fileName: file.name || `${normalizedHeat}-mtc.pdf`,
+      mimeType: file.type || "application/pdf",
+      base64: await fileToBase64(file),
+      createdAt: new Date().toISOString(),
+    };
+    onSaveDocuments([...(documents || []), uploadedDoc]);
+    setHeatMtcDocument(uploadedDoc.id);
+  }
+
+  function renderPartEditorBody() {
+    return (
+      <div className="border-t border-base-300/60 px-2 py-1.5 space-y-2 w-full min-w-0 text-sm [&_.form-control]:gap-0.5 [&_.label]:py-0.5 [&_.label]:min-h-0 [&_.label-text]:text-xs [&_.input]:h-10 [&_.select]:h-10">
+        <div className="form-control">
+          <label className="label">
+            <span className="label-text">Catalog</span>
+          </label>
+          <div className="flex flex-wrap items-center gap-1 w-full min-w-0">
+            <CatalogTreeCascade
+              catalogCategories={categories}
+              valueLeafId={catalogLeafId}
+              onLeafChange={handleCatalogLeafChange}
+              variant="form"
+              idPrefix="part-catalog"
+            />
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs shrink-0"
+              onClick={() => handleCatalogLeafChange("")}
+              title="Clear catalog — use custom fields below"
+            >
+              Custom
+            </button>
+          </div>
+        </div>
+        {isCatalogMode ? (
+          <CatalogHierarchyStepSelects
+            catalogCategory={catalogCategory}
+            hierarchySteps={hierarchySteps}
+            hierarchyState={hierarchyState}
+            catalogEntriesForCategory={catalogEntriesForCategory}
+            onHierarchyChange={handleHierarchyChange}
+            onHierarchyStateReplace={handleHierarchyStateReplace}
+            variant="form"
+            idPrefix="part-hierarchy"
+          />
+        ) : (
+          <>
+            <div className="form-control">
+              <label className="label" htmlFor="part-type">
+                <span className="label-text">Part type</span>
+              </label>
+              <select
+                id="part-type"
+                className="select select-bordered select-xs w-full"
+                value={partType}
+                onChange={(e) => setPartType(e.target.value)}
+              >
+                <option value="">—</option>
+                {partTypeOptions}
+              </select>
+            </div>
+            <div className="form-control">
+              <label className="label" htmlFor="part-nps">
+                <span className="label-text">NPS</span>
+              </label>
+              <input
+                id="part-nps"
+                type="text"
+                className="input input-bordered input-xs w-full min-w-0"
+                value={nps}
+                onChange={(e) => setNps(e.target.value)}
+                placeholder="e.g. 2, 4, 6"
+              />
+            </div>
+            <div className="form-control">
+              <label className="label" htmlFor="part-thickness">
+                <span className="label-text">Schedule</span>
+              </label>
+              <input
+                id="part-thickness"
+                type="text"
+                className="input input-bordered input-xs w-full min-w-0"
+                value={thickness}
+                onChange={(e) => setThickness(e.target.value)}
+                placeholder="e.g. SCH 40"
+              />
+            </div>
+          </>
+        )}
+        <div className="form-control">
+          <label className="label" htmlFor="part-variation">
+            <span className="label-text">Variation (optional)</span>
+          </label>
+          <input
+            id="part-variation"
+            type="text"
+            className="input input-bordered input-xs w-full min-w-0"
+            value={variation}
+            onChange={(e) => setVariation(e.target.value)}
+            placeholder="Case-by-case note"
+          />
+        </div>
+        <div className="form-control">
+          <label className="label" htmlFor="part-material">
+            <span className="label-text">Material grade</span>
+          </label>
+          <input
+            id="part-material"
+            type="text"
+            className="input input-bordered input-xs w-full min-w-0"
+            value={materialGrade}
+            onChange={(e) => setMaterialGrade(e.target.value)}
+            placeholder="e.g. A106 Gr.B"
+          />
+        </div>
+        <div className="form-control">
+          <label className="label" htmlFor="part-length">
+            <span className="label-text">Length (optional)</span>
+          </label>
+          <input
+            id="part-length"
+            type="text"
+            className="input input-bordered input-xs w-full min-w-0"
+            value={length}
+            onChange={(e) => setLength(e.target.value)}
+            placeholder="e.g. 500 mm"
+          />
+        </div>
+        {spools.length > 0 && (
+          <div className="form-control">
+            <label className="label" htmlFor="part-spool">
+              <span className="label-text">Spool</span>
+            </label>
+            <select
+              id="part-spool"
+              className="select select-bordered select-xs w-full"
+              value={spoolId}
+              onChange={(e) => setSpoolId(e.target.value)}
+            >
+              <option value="">—</option>
+              {spools.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name || s.id}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        <div className="form-control">
+          <label className="label" htmlFor="part-heatNumber">
+            <span className="label-text">Heat number</span>
+          </label>
+          <input
+            id="part-heatNumber"
+            type="text"
+            className="input input-bordered input-xs"
+            value={heatNumber}
+            onChange={(e) => setHeatNumber(e.target.value)}
+            placeholder="e.g. H12345"
+          />
+        </div>
+        <div className="form-control">
+          <label className="label" htmlFor="part-mtc">
+            <span className="label-text">MTC PDF link</span>
+          </label>
+          <div className="flex gap-1">
+            <select
+              id="part-mtc"
+              className="select select-bordered select-xs flex-1"
+              value={linkedMtc?.documentId || ""}
+              onChange={(e) => setHeatMtcDocument(e.target.value)}
+              disabled={!normalizedHeat}
+            >
+              <option value="">
+                {normalizedHeat ? "No MTC linked" : "Enter heat number first"}
+              </option>
+              {mtcDocuments.map((doc) => (
+                <option key={doc.id} value={doc.id}>
+                  {doc.title || doc.fileName}
+                </option>
+              ))}
+            </select>
+            {!linkedMtc?.documentId && normalizedHeat && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-xs"
+                onClick={() => mtcUploadInputRef.current?.click()}
+              >
+                Load
+              </button>
+            )}
+          </div>
+          <p className="text-[11px] leading-snug text-base-content/60 mt-0.5">
+            Link certificate by heat number for databook traceability.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className={`flex flex-col bg-base-200 transition-all duration-300 ease-out min-w-0 ${
-        hideHeader ? "w-full flex-1 min-h-0 overflow-hidden flex-shrink" : `border-l border-base-300 ${isOpen ? "w-full min-w-[10rem] min-h-0 flex-1 h-full overflow-hidden flex-shrink" : "w-14 overflow-hidden flex-shrink-0"}`
+        hideHeader
+          ? "w-full flex-1 min-h-0 overflow-hidden"
+          : `flex-shrink-0 border-l border-base-300 ${isOpen ? "w-full min-w-[10rem] min-h-0 flex-1 h-full overflow-hidden" : "w-14 overflow-hidden"}`
       }`}
     >
       {!hideHeader && (
@@ -226,226 +538,85 @@ function SidePanelPartForm({
       {isOpen && (
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden w-full min-w-0 h-0 basis-0">
           <div className={`flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-auto p-3 space-y-3 pb-12 overscroll-contain [scrollbar-gutter:stable] break-words ${hideHeader ? "mobile-no-scrollbar" : ""}`}>
-            {parts.length === 0 ? (
+            {partRows.length === 0 ? (
               <div className="text-center py-6 text-base-content/60 text-sm break-words min-w-0">
                 <p>No parts yet</p>
                 <p className="mt-1">Add with the Add Part tool on the drawing</p>
               </div>
-            ) : selectedPart ? (
-              <>
-                <div className="flex items-center justify-between gap-2 min-w-0">
-                  <span className="font-medium truncate min-w-0">
-                    Part {selectedPart.displayNumber}
-                  </span>
-                  {appMode === "edition" && (
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-sm text-error shrink-0 whitespace-nowrap"
-                      onClick={handleDelete}
-                    >
-                      Delete
-                    </button>
-                  )}
-                </div>
-                <div className="space-y-3 w-full min-w-0">
-                  <div className="form-control">
-                    <label className="label" htmlFor="part-catalog-category">
-                      <span className="label-text">Category</span>
-                    </label>
-                    <select
-                      id="part-catalog-category"
-                      className="select select-bordered select-sm w-full"
-                      value={catalogCategory}
-                      onChange={(e) => handleCatalogCategoryChange(e.target.value)}
-                    >
-                      <option value="">Custom (free text)</option>
-                      {categories.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  {isCatalogMode ? (
-                    <>
-                      {hierarchySteps.map((step) => {
-                        const value = hierarchyState[step.key] ?? "";
-                        const options = getOptionsForStep(
-                          catalogEntriesForCategory,
-                          hierarchyState,
-                          catalogCategory,
-                          step.key
-                        );
-                        return (
-                          <div key={step.key} className="form-control">
-                            <label className="label" htmlFor={`part-hierarchy-${step.key}`}>
-                              <span className="label-text">{step.label}</span>
-                            </label>
-                            <select
-                              id={`part-hierarchy-${step.key}`}
-                              className="select select-bordered select-sm w-full"
-                              value={value}
-                              onChange={(e) => handleHierarchyChange(step.key, e.target.value)}
-                            >
-                              <option value="">—</option>
-                              {options.map((opt) => (
-                                <option key={opt} value={opt}>
-                                  {opt}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        );
-                      })}
-                    </>
-                  ) : (
-                    <>
-                      <div className="form-control">
-                        <label className="label" htmlFor="part-type">
-                          <span className="label-text">Part type</span>
-                        </label>
-                        <select
-                          id="part-type"
-                          className="select select-bordered select-sm w-full"
-                          value={partType}
-                          onChange={(e) => setPartType(e.target.value)}
-                        >
-                          <option value="">—</option>
-                          {partTypeOptions}
-                        </select>
-                      </div>
-                      <div className="form-control">
-                        <label className="label" htmlFor="part-nps">
-                          <span className="label-text">NPS</span>
-                        </label>
-                        <input
-                          id="part-nps"
-                          type="text"
-                          className="input input-bordered input-sm w-full min-w-0"
-                          value={nps}
-                          onChange={(e) => setNps(e.target.value)}
-                          placeholder="e.g. 2, 4, 6"
-                        />
-                      </div>
-                      <div className="form-control">
-                        <label className="label" htmlFor="part-thickness">
-                          <span className="label-text">Thickness</span>
-                        </label>
-                        <input
-                          id="part-thickness"
-                          type="text"
-                          className="input input-bordered input-sm w-full min-w-0"
-                          value={thickness}
-                          onChange={(e) => setThickness(e.target.value)}
-                          placeholder="e.g. SCH 40"
-                        />
-                      </div>
-                    </>
-                  )}
-                  <div className="form-control">
-                    <label className="label" htmlFor="part-variation">
-                      <span className="label-text">Variation (optional)</span>
-                    </label>
-                    <input
-                      id="part-variation"
-                      type="text"
-                      className="input input-bordered input-sm w-full min-w-0"
-                      value={variation}
-                      onChange={(e) => setVariation(e.target.value)}
-                      placeholder="Case-by-case note"
-                    />
-                  </div>
-                  <div className="form-control">
-                    <label className="label" htmlFor="part-material">
-                      <span className="label-text">Material grade</span>
-                    </label>
-                    <input
-                      id="part-material"
-                      type="text"
-                      className="input input-bordered input-sm w-full min-w-0"
-                      value={materialGrade}
-                      onChange={(e) => setMaterialGrade(e.target.value)}
-                      placeholder="e.g. A106 Gr.B"
-                    />
-                  </div>
-                  <div className="form-control">
-                    <label className="label" htmlFor="part-length">
-                      <span className="label-text">Length (optional)</span>
-                    </label>
-                    <input
-                      id="part-length"
-                      type="text"
-                      className="input input-bordered input-sm w-full min-w-0"
-                      value={length}
-                      onChange={(e) => setLength(e.target.value)}
-                      placeholder="e.g. 500 mm"
-                    />
-                  </div>
-                  {spools.length > 0 && (
-                    <div className="form-control">
-                      <label className="label" htmlFor="part-spool">
-                        <span className="label-text">Spool</span>
-                      </label>
-                      <select
-                        id="part-spool"
-                        className="select select-bordered select-sm w-full"
-                        value={spoolId}
-                        onChange={(e) => setSpoolId(e.target.value)}
-                      >
-                        <option value="">—</option>
-                        {spools.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.name || s.id}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                  <div className="form-control">
-                    <label className="label" htmlFor="part-heatNumber">
-                      <span className="label-text">Heat number</span>
-                    </label>
-                    <input
-                      id="part-heatNumber"
-                      type="text"
-                      className="input input-bordered input-sm"
-                      value={heatNumber}
-                      onChange={(e) => setHeatNumber(e.target.value)}
-                      placeholder="e.g. H12345"
-                    />
-                  </div>
-                </div>
-              </>
             ) : (
-                <div className="space-y-2 min-w-0">
-                  <ul className="space-y-2 min-w-0">
-                    {parts
-                      .slice()
-                      .sort((a, b) => (a.displayNumber ?? 0) - (b.displayNumber ?? 0))
-                      .map((p) => {
-                        const marker = partMarkers.find((m) => m.partId === p.id);
-                        const spoolName = p.spoolId ? getSpoolName(p.spoolId) : null;
-                        return (
-                          <li key={p.id} className="min-w-0">
+              <ul className="space-y-2 min-w-0">
+                {partRows.map(({ marker, part: p }) => {
+                    const spoolName = p.spoolId ? getSpoolName(p.spoolId) : null;
+                    const isExpanded = expandedPartMarkerId === marker.id;
+                    const isActivePart = selectedPartMarkerId === marker.id;
+                    return (
+                      <li
+                        key={marker.id}
+                        className="bg-base-100 border border-base-300 rounded-lg overflow-hidden min-w-0"
+                      >
+                        <div className="flex items-stretch gap-0 min-w-0">
+                          <button
+                            type="button"
+                            className="flex-1 min-w-0 text-left text-xs px-2 py-1.5 flex items-center justify-between gap-2 hover:bg-base-200/60"
+                            onClick={() => {
+                              onSelectPartMarker?.(marker.id);
+                              setExpandedPartMarkerId((prev) =>
+                                prev === marker.id ? null : marker.id
+                              );
+                            }}
+                          >
+                            <span className="font-medium shrink-0">Part {p.displayNumber}</span>
+                            <span className="text-xs text-base-content/60 truncate min-w-0 flex-1 text-right">
+                              {spoolName || (p.heatNumber ? `Heat: ${p.heatNumber}` : "") || "—"}
+                            </span>
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className={`h-3 w-3 flex-shrink-0 transition-transform ${
+                                isExpanded ? "rotate-180" : ""
+                              }`}
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M19 9l-7 7-7-7"
+                              />
+                            </svg>
+                          </button>
+                          {appMode === "edition" &&
+                          isExpanded &&
+                          isActivePart &&
+                          selectedPart?.id === p.id ? (
                             <button
                               type="button"
-                              className="w-full min-w-0 text-left p-2 rounded-lg bg-base-100 border border-base-300 hover:bg-base-200 flex items-center justify-between gap-2"
-                              onClick={() => marker && onSelectPartMarker?.(marker.id)}
+                              className="btn btn-ghost btn-xs text-error shrink-0 self-center mr-1"
+                              onClick={handleDelete}
                             >
-                              <span className="font-medium shrink-0">Part {p.displayNumber}</span>
-                              <span className="text-xs text-base-content/60 truncate min-w-0 flex-1">
-                                {spoolName || (p.heatNumber ? `Heat: ${p.heatNumber}` : "") || "—"}
-                              </span>
+                              Delete
                             </button>
-                          </li>
-                        );
-                      })}
-                  </ul>
-                </div>
-              )}
+                          ) : null}
+                        </div>
+                        {isExpanded && isActivePart && selectedPart?.id === p.id
+                          ? renderPartEditorBody()
+                          : null}
+                      </li>
+                    );
+                  })}
+              </ul>
+            )}
           </div>
         </div>
       )}
+      <input
+        ref={mtcUploadInputRef}
+        type="file"
+        accept=".pdf,application/pdf"
+        className="hidden"
+        onChange={handleUploadMtcForHeat}
+      />
     </div>
   );
 }

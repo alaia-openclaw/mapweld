@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import CatalogSidebar from "@/components/CatalogSidebar";
 import CatalogContent from "@/components/CatalogContent";
 import CatalogFilterBar from "@/components/CatalogFilterBar";
@@ -9,7 +9,7 @@ import {
   getFirstSelectableCategoryId,
   computeCategoryCounts,
   injectFlangeChildren,
-  getPropertyValueOptionsForAll,
+  CATALOG_UNIT_SYSTEMS,
 } from "@/lib/catalog-structure";
 
 export default function CatalogView({
@@ -32,26 +32,35 @@ export default function CatalogView({
 
   const [selectedId, setSelectedId] = useState(defaultSelected);
   const [search, setSearch] = useState("");
-  const [filters, setFilters] = useState([]);
+  const [catalogUnitSystem, setCatalogUnitSystem] = useState(
+    () => CATALOG_UNIT_SYSTEMS[0]
+  );
+
+  /** Category-specific property filters (DN, class, NPS, …) — rendered in the top catalog bar only. */
+  const [catalogFacets, setCatalogFacets] = useState({});
+
+  useEffect(() => {
+    setCatalogFacets({});
+  }, [selectedId, catalogUnitSystem]);
+
+  const handleFacetChange = useCallback((key, value) => {
+    setCatalogFacets((prev) => ({ ...prev, [key]: value }));
+  }, []);
+
+  const mergeFacets = useCallback((patch) => {
+    setCatalogFacets((prev) => ({ ...prev, ...patch }));
+  }, []);
 
   const counts = useMemo(
     () =>
-      computeCategoryCounts(
-        search,
-        filters,
-        { pipeEntries, fittingsEntries, flangesStandards }
-      ),
-    [search, filters, pipeEntries, fittingsEntries, flangesStandards]
-  );
-
-  const valueOptionsByProperty = useMemo(
-    () =>
-      getPropertyValueOptionsForAll({
+      computeCategoryCounts(search, [], {
         pipeEntries,
         fittingsEntries,
         flangesStandards,
+        tree,
+        catalogUnitSystem,
       }),
-    [pipeEntries, fittingsEntries, flangesStandards]
+    [search, pipeEntries, fittingsEntries, flangesStandards, tree, catalogUnitSystem]
   );
 
   return (
@@ -59,9 +68,14 @@ export default function CatalogView({
       <CatalogFilterBar
         search={search}
         onSearchChange={setSearch}
-        filters={filters}
-        onFiltersChange={setFilters}
-        valueOptionsByProperty={valueOptionsByProperty}
+        catalogUnitSystem={catalogUnitSystem}
+        onCatalogUnitSystemChange={setCatalogUnitSystem}
+        selectedId={selectedId}
+        catalogFacets={catalogFacets}
+        onFacetChange={handleFacetChange}
+        pipeEntries={pipeEntries}
+        fittingsEntries={fittingsEntries}
+        flangesStandards={flangesStandards}
       />
       <div className="flex flex-1 min-h-0">
         <CatalogSidebar
@@ -72,12 +86,16 @@ export default function CatalogView({
         />
         <div className="flex-1 min-w-0 p-3 overflow-auto">
           <CatalogContent
+            tree={tree}
             selectedId={selectedId}
             search={search}
-            filters={filters}
             flangesStandards={flangesStandards}
             pipeEntries={pipeEntries}
             fittingsEntries={fittingsEntries}
+            onSelectCategory={setSelectedId}
+            catalogUnitSystem={catalogUnitSystem}
+            catalogFacets={catalogFacets}
+            mergeFacets={mergeFacets}
           />
         </div>
       </div>

@@ -15,6 +15,7 @@ function ModalPrint({
   const [markerWelds, setMarkerWelds] = useState(true);
   const [markerSpools, setMarkerSpools] = useState(true);
   const [markerParts, setMarkerParts] = useState(true);
+  const [markerLines, setMarkerLines] = useState(true);
   const [weldMap, setWeldMap] = useState(true);
   const [projectProgress, setProjectProgress] = useState(true);
   const [projectSummary, setProjectSummary] = useState(true);
@@ -28,6 +29,7 @@ function ModalPrint({
         welds: markerWelds,
         spools: markerSpools,
         parts: markerParts,
+        lines: markerLines,
       },
       weldMap: hasWelds && weldMap,
       projectProgress,
@@ -39,6 +41,7 @@ function ModalPrint({
     markerWelds,
     markerSpools,
     markerParts,
+    markerLines,
     weldMap,
     projectProgress,
     projectSummary,
@@ -53,9 +56,9 @@ function ModalPrint({
   return (
     <dialog className="modal modal-open" open={isOpen}>
       <div className="modal-box max-w-md">
-        <h3 className="font-bold text-lg">Print</h3>
+        <h3 className="font-bold text-lg">Print / Export</h3>
         <p className="text-sm text-base-content/70 mt-1">
-          Select what to include. Printer, format, and layout are chosen in the print dialog.
+          PDF drawing is exported as a file (with overlays). Other sections open a print dialog.
         </p>
 
         <div className="mt-4 space-y-4">
@@ -98,6 +101,15 @@ function ModalPrint({
                     onChange={(e) => setMarkerParts(e.target.checked)}
                   />
                   Parts
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="checkbox checkbox-xs"
+                    checked={markerLines}
+                    onChange={(e) => setMarkerLines(e.target.checked)}
+                  />
+                  Lines
                 </label>
               </div>
             </div>
@@ -146,7 +158,7 @@ function ModalPrint({
             onClick={handlePrint}
             disabled={!hasAny}
           >
-            Print…
+            Continue
           </button>
         </div>
       </div>

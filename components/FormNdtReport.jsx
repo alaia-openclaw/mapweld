@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import {
   NDT_METHODS,
   NDT_METHOD_LABELS,
   NDT_RESULT_OUTCOMES,
   NDT_RESULT_OUTCOME_LABELS,
+  sortNdtMethods,
 } from "@/lib/constants";
-import { getWeldName, getWeldOverallStatus } from "@/lib/weld-utils";
-import { computeNdtSelection } from "@/lib/weld-utils";
+import { getWeldName, getWeldOverallStatus, computeNdtSelection } from "@/lib/weld-utils";
+import { useNdtScope } from "@/contexts/NdtScopeContext";
 
 function generateId() {
   return `row-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -27,11 +28,11 @@ function fileToBase64(file) {
   });
 }
 
-function getWeldStatusLabel(weld, weldPoints, ndtRequests, drawingSettings) {
+function getWeldStatusLabel(weld, weldPoints, ndtRequests, drawingSettings, ndtContext) {
   const req = (ndtRequests || []).find((r) => (r.weldIds || []).includes(weld.id));
   if (req) return `In NDT request: ${req.title || req.method || req.id}`;
-  const ndtSel = computeNdtSelection(weld, drawingSettings, weldPoints);
-  const status = getWeldOverallStatus(weld, ndtSel);
+  const ndtSel = computeNdtSelection(weld, drawingSettings, weldPoints, ndtContext);
+  const status = getWeldOverallStatus(weld, ndtSel, ndtContext);
   const labels = { complete: "Complete", incomplete: "Incomplete", not_started: "Not started" };
   return labels[status] || status;
 }
@@ -42,15 +43,36 @@ function FormNdtReport({
   requestId: initialRequestId,
   initialRequest = null,
   report: initialReport,
+  methodOptions = [],
+  hideMethodSelect = false,
   onSubmit,
   onCancel,
   getWeldName: getWeldNameProp,
   drawingSettings = {},
 }) {
+  const ndtContext = useNdtScope();
   const getWeldNameLocal = getWeldNameProp || ((w) => getWeldName(w, weldPoints));
+  const availableMethods = useMemo(() => {
+    // In locked contexts (e.g. Kanban tab), methodOptions should define allowed values.
+    if (hideMethodSelect && Array.isArray(methodOptions) && methodOptions.length > 0) {
+      return sortNdtMethods([
+        ...methodOptions,
+        initialRequest?.method,
+        initialReport?.method,
+      ]);
+    }
+    return sortNdtMethods([
+      ...(methodOptions || []),
+      ...NDT_METHODS,
+      ...(drawingSettings?.ndtRequirements || []).map((item) => item?.method),
+      ...(ndtRequests || []).map((request) => request?.method),
+      initialRequest?.method,
+      initialReport?.method,
+    ]);
+  }, [hideMethodSelect, methodOptions, drawingSettings, ndtRequests, initialRequest?.method, initialReport?.method]);
 
   const [method, setMethod] = useState(
-    initialReport?.method || initialRequest?.method || NDT_METHODS[0]
+    initialReport?.method || initialRequest?.method || availableMethods[0] || NDT_METHODS[0]
   );
   const [reportDate, setReportDate] = useState(
     initialReport?.reportDate || new Date().toISOString().slice(0, 10)
@@ -182,24 +204,41 @@ function FormNdtReport({
 
   const validRows = rows.filter((r) => r.weldId);
 
+  useEffect(() => {
+    if (!availableMethods.includes(method)) {
+      setMethod(availableMethods[0] || NDT_METHODS[0]);
+    }
+  }, [availableMethods, method]);
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="form-control">
-        <label className="label">
-          <span className="label-text">NDT method</span>
-        </label>
-        <select
-          className="select select-bordered w-full"
-          value={method}
-          onChange={(e) => setMethod(e.target.value)}
-        >
-          {NDT_METHODS.map((m) => (
-            <option key={m} value={m}>
-              {NDT_METHOD_LABELS[m] || m}
-            </option>
-          ))}
-        </select>
-      </div>
+      {!hideMethodSelect && availableMethods.length > 1 ? (
+        <div className="form-control">
+          <label className="label">
+            <span className="label-text">NDT method</span>
+          </label>
+          <select
+            className="select select-bordered w-full"
+            value={method}
+            onChange={(e) => setMethod(e.target.value)}
+          >
+            {availableMethods.map((m) => (
+              <option key={m} value={m}>
+                {NDT_METHOD_LABELS[m] || m}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : (
+        <div className="form-control">
+          <label className="label">
+            <span className="label-text">NDT method</span>
+          </label>
+          <p className="text-sm font-medium text-base-content/80 py-1">
+            {NDT_METHOD_LABELS[method] || method}
+          </p>
+        </div>
+      )}
 
       <div className="form-control">
         <label className="label">
@@ -207,7 +246,7 @@ function FormNdtReport({
         </label>
         <input
           type="date"
-          className="input input-bordered w-full"
+          className="input input-bordered input-xs w-full"
           value={reportDate}
           onChange={(e) => setReportDate(e.target.value)}
         />
@@ -253,7 +292,7 @@ function FormNdtReport({
           type="file"
           multiple
           accept=".pdf,application/pdf,.dwg"
-          className="file-input file-input-bordered w-full"
+          className="file-input file-input-bordered file-input-xs w-full"
           onChange={handleFileSelect}
           disabled={isUploading}
         />
@@ -325,8 +364,8 @@ function FormNdtReport({
                         </span>
                       )}
                     </td>
-                    <td className="text-xs text-base-content/70 align-top" title={weld ? getWeldStatusLabel(weld, weldPoints, ndtRequests, drawingSettings) : ""}>
-                      {weld ? getWeldStatusLabel(weld, weldPoints, ndtRequests, drawingSettings) : "—"}
+                    <td className="text-xs text-base-content/70 align-top" title={weld ? getWeldStatusLabel(weld, weldPoints, ndtRequests, drawingSettings, ndtContext) : ""}>
+                      {weld ? getWeldStatusLabel(weld, weldPoints, ndtRequests, drawingSettings, ndtContext) : "—"}
                     </td>
                     <td>
                       <select
