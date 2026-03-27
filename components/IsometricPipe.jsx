@@ -68,66 +68,61 @@ export default function IsometricPipe({ className = "" }) {
       >
         {/* Main isometric pipe system */}
         <g strokeWidth="2.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
-
           {/* Left flange */}
-          <rect x="50" y="148" width="14" height="64" rx="3" opacity="0.35" style={t(0, 0.8)} />
+          <rect x="48" y="154" width="16" height="62" rx="3" opacity="0.34" style={t(0, 0.8)} />
 
-          {/* Main horizontal run */}
-          <path d="M64 155 L280 155" style={t(0.15, 1.4)} />
-          <path d="M64 200 L280 200" style={t(0.15, 1.4)} opacity="0.5" />
+          {/* Main horizontal run - front and back edges kept parallel */}
+          <path d="M64 164 L288 164" style={t(0.12, 1.3)} />
+          <path d="M64 206 L286 206" style={t(0.12, 1.3)} opacity="0.52" />
 
-          {/* Elbow down */}
-          <path d="M280 155 Q325 155 325 200" style={t(0.6, 0.9)} />
-          <path d="M280 200 Q315 200 315 230" style={t(0.6, 0.9)} opacity="0.5" />
-
-          {/* Vertical drop */}
-          <path d="M315 230 L315 310" style={t(0.9, 0.8)} opacity="0.5" />
-          <path d="M325 200 L325 310" style={t(0.9, 0.8)} />
+          {/* Long-radius elbow into vertical drop */}
+          <path d="M288 164 C334 164 352 182 352 226 L352 318" style={t(0.48, 1.15)} />
+          <path d="M286 206 C324 206 340 220 340 254 L340 318" style={t(0.48, 1.15)} opacity="0.52" />
 
           {/* Bottom flange */}
-          <rect x="308" y="310" width="24" height="12" rx="3" opacity="0.35" style={t(1.3, 0.6)} />
+          <rect x="333" y="318" width="26" height="12" rx="3" opacity="0.34" style={t(1.06, 0.55)} />
 
-          {/* Tee branch going up-right */}
-          <path d="M170 155 L170 105 L430 105" style={t(0.5, 1.3)} />
-          <path d="M180 155 L180 115 L430 115" style={t(0.5, 1.3)} opacity="0.5" />
+          {/* Branch spool with smoother tee and consistent wall spacing */}
+          <path d="M184 164 L184 110 C184 104 188 100 194 100 L450 100" style={t(0.34, 1.2)} />
+          <path d="M198 164 L198 122 C198 116 202 112 208 112 L450 112" style={t(0.34, 1.2)} opacity="0.52" />
 
           {/* Right flange on branch */}
-          <rect x="430" y="95" width="14" height="30" rx="3" opacity="0.35" style={t(1.1, 0.6)} />
+          <rect x="450" y="91" width="16" height="30" rx="3" opacity="0.34" style={t(0.98, 0.55)} />
         </g>
 
         {/* Weld symbols */}
         <g strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <g className="text-amber-400" stroke="currentColor" style={fade(1.4)}>
-            <path d="M110 149 L118 138 L126 149" />
-            <path d="M110 206 L118 210 L126 206" />
+          <g className="text-amber-400" stroke="currentColor" style={fade(1.35)}>
+            <path d="M118 158 L126 147 L134 158" />
+            <path d="M118 212 L126 216 L134 212" />
           </g>
-          <g className="text-amber-400" stroke="currentColor" style={fade(1.6)}>
-            <path d="M230 149 L238 138 L246 149" />
-            <path d="M230 206 L238 210 L246 206" />
+          <g className="text-amber-400" stroke="currentColor" style={fade(1.55)}>
+            <path d="M242 158 L250 147 L258 158" />
+            <path d="M242 212 L250 216 L258 212" />
           </g>
-          <g className="text-amber-400" stroke="currentColor" style={fade(1.8)}>
-            <path d="M165 105 L173 95 L181 105" />
+          <g className="text-amber-400" stroke="currentColor" style={fade(1.75)}>
+            <path d="M186 108 L194 98 L202 108" />
           </g>
         </g>
 
         {/* Annotations */}
         <Annotation
-          x={118} y={138} labelX={40} labelY={68}
+          x={126} y={147} labelX={42} labelY={70}
           label="WELD" value="W-001 · SMAW"
           delay={2200} isVisible={drawn}
         />
         <Annotation
-          x={238} y={138} labelX={240} labelY={50}
+          x={250} y={147} labelX={242} labelY={52}
           label="STATUS" value="Complete ✓"
           delay={2500} isVisible={drawn}
         />
         <Annotation
-          x={320} y={270} labelX={380} labelY={268}
+          x={346} y={274} labelX={394} labelY={274}
           label="NDT" value="RT — pending"
           delay={2800} isVisible={drawn}
         />
         <Annotation
-          x={175} y={95} labelX={400} labelY={42}
+          x={194} y={100} labelX={402} labelY={44}
           label="SPOOL" value="SP-2204-A"
           delay={3100} isVisible={drawn}
         />
