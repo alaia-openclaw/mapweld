@@ -3,7 +3,7 @@ import Link from "next/link";
 export const metadata = {
   title: "About",
   description:
-    "MapWeld is a free weld-tracking tool built by a fabrication project manager. Learn why it exists and how it helps your team.",
+    "Why MapWeld exists, what problem it solves in fabrication, and what it does without pretending to be a full enterprise platform.",
   alternates: { canonical: "https://www.mapweld.app/about" },
 };
 
@@ -17,20 +17,22 @@ export default function AboutPage() {
           </h1>
 
           <p>
-            MapWeld is a free, browser-based tool that lets you track welds
-            directly on your PDF drawings. No installation, no sign-up, no
-            cloud dependency &mdash; your data stays on your device.
+            MapWeld is a browser-based weld-tracking tool built for fabrication
+            teams who need something more structured than paper or spreadsheets,
+            but lighter than a full enterprise rollout. It runs in the browser,
+            works offline for core project data, and keeps the drawing at the
+            center of the workflow.
           </p>
 
           <h2 className="text-xl font-bold text-base-content mt-8">
             Why it exists
           </h2>
           <p>
-            Paper markups get lost. Photos don&apos;t compile into a single
-            source of truth. Spreadsheets drift from the drawing. MapWeld was
-            built by a fabrication project manager who got tired of chasing
-            weld lists and wanted a better way to keep everything in one
-            place.
+            Paper markups get lost. Photos don&apos;t become a live register.
+            Spreadsheets drift away from the drawing they are supposed to describe.
+            MapWeld exists to close that gap: use the isometric as the working view,
+            capture weld information where the work is happening, and export structured
+            data when the team needs registers, reporting, or document support.
           </p>
 
           <h2 className="text-xl font-bold text-base-content mt-8">
@@ -46,6 +48,16 @@ export default function AboutPage() {
             <li>Export everything to Excel</li>
             <li>Works offline as a Progressive Web App</li>
           </ul>
+
+          <h2 className="text-xl font-bold text-base-content mt-8">
+            What it is not
+          </h2>
+          <p>
+            MapWeld is not pretending to be a full ERP, MES, or enterprise QA
+            platform. It is the practical capture layer around the drawing:
+            quick to open, simple to test, and focused on weld traceability,
+            status visibility, and exportable records.
+          </p>
 
           <h2 className="text-xl font-bold text-base-content mt-8">
             Get in touch
