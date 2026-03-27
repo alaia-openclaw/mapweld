@@ -11,9 +11,9 @@ import {
 } from "@/components/LandingAnimated";
 
 export const metadata = {
-  title: "MapWeld — Live weld traceability on your drawings",
+  title: "MapWeld — Weld tracking on PDF isometrics, without spreadsheets",
   description:
-    "Mark welds directly on PDF isometrics from the shop floor. Fully offline, file-based, zero IT setup. Free for now.",
+    "Track welds directly on PDF drawings. Works offline in the browser, stores project data locally, and exports structured weld registers without server setup.",
   alternates: {
     canonical: "https://www.mapweld.app",
   },
@@ -86,20 +86,42 @@ const comparisonCards = [
 const personas = [
   {
     role: "QC Inspector",
-    desc: "Spend your time inspecting, not typing. Data capture happens on the drawing as you go.",
+    desc: "Capture weld status at the drawing instead of writing notes in the field and retyping them later.",
   },
   {
     role: "QA/QC Manager",
-    desc: "See real progress, not Excel promises. Traceability built in from the source.",
+    desc: "See which welds are pending, inspected, or blocked without waiting for another spreadsheet revision.",
   },
   {
     role: "Fabrication / Project Manager",
-    desc: "Know what's welded, what's pending, what's blocked — without chasing anyone.",
+    desc: "Use the isometric as the live status view for workpacks, weld progress, and hold points.",
   },
   {
     role: "Document Control",
-    desc: "Export data-book artifacts from data that was captured at source — not reassembled after the fact.",
+    desc: "Export structured registers from source data instead of rebuilding traceability after the job moves on.",
   },
+];
+
+const proofCards = [
+  {
+    title: "You can verify the core workflow immediately",
+    text: "Open the app, load a drawing, place markers, save a project, and export data without speaking to sales or waiting for a setup call.",
+  },
+  {
+    title: "No server dependency for project data",
+    text: "MapWeld stores your working data locally in the browser and in files you control. If the internet drops, the core workflow still works.",
+  },
+  {
+    title: "Designed for fabrication reality",
+    text: "The point is not pretty annotation. The point is keeping weld status, WPS, NDT, and notes attached to the drawing people are already using.",
+  },
+];
+
+const honestyPoints = [
+  "No account required to try the product",
+  "No fake form submissions or gated demo funnel",
+  "No claim that MapWeld replaces ERP, MES, or full QA systems",
+  "Simple capture layer first: drawing, welds, status, export",
 ];
 
 const faqItems = [
@@ -170,20 +192,21 @@ export default function LandingPage() {
             {/* Left: copy */}
             <div className="space-y-8">
               <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-[5.5rem] font-extrabold tracking-tight leading-[1.05] animate-fade-up">
-                Ditch the
+                Stop chasing
                 <br />
-                paper.
+                weld lists.
                 <br />
                 <span className="text-amber-400 animate-fade-up delay-200 inline-block">
-                  Track welds
+                  Track them on
                   <br />
-                  on your drawings.
+                  the drawing.
                 </span>
               </h1>
 
-              <p className="text-xl md:text-2xl text-white/50 max-w-lg leading-relaxed animate-fade-up delay-400">
-                Open a PDF isometric on any tablet. Mark welds, assign WPS,
-                track status — right from the shop floor.
+              <p className="text-xl md:text-2xl text-white/50 max-w-xl leading-relaxed animate-fade-up delay-400">
+                MapWeld turns a PDF isometric into a working weld register:
+                place markers, assign WPS and NDT, update status, and export
+                structured data without spinning up another spreadsheet.
               </p>
 
               <div className="flex flex-wrap items-center gap-4 text-sm text-white/35 animate-fade-up delay-500">
@@ -212,9 +235,9 @@ export default function LandingPage() {
 
               <div className="grid gap-3 sm:grid-cols-3 animate-fade-up delay-700">
                 {[
-                  ["Offline-first", "No cloud dependency for project data"],
-                  ["No account required", "Open the app and start working"],
-                  ["Direct contact", "contact@mapweld.app"],
+                  ["Offline-first", "Core workflow works without a cloud backend for project data"],
+                  ["Start in minutes", "No login, no install, no setup project just to evaluate it"],
+                  ["Direct contact", "Email the team at contact@mapweld.app"],
                 ].map(([title, text]) => (
                   <div key={title} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 backdrop-blur-sm">
                     <p className="text-sm font-bold text-white">{title}</p>
@@ -250,11 +273,11 @@ export default function LandingPage() {
               How it works
             </p>
             <h2 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-base-content tracking-tight leading-[1.08]">
-              It&apos;s so easy
+              From drawing to register
             </h2>
-            <p className="text-base-content/50 text-lg md:text-xl max-w-xl mx-auto leading-relaxed">
-              No onboarding call. No training. No IT ticket.
-              <br className="hidden md:block" /> Just open and start.
+            <p className="text-base-content/50 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed">
+              The workflow is deliberately short: open the drawing, place the welds,
+              update status, export the data. That&apos;s the point.
             </p>
           </RevealOnScroll>
 
@@ -315,9 +338,9 @@ export default function LandingPage() {
               Why MapWeld
             </p>
             <h2 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.08]">
-              Not another tool.
+              Built for the gap
               <br />
-              <span className="text-white/40">The right tool.</span>
+              <span className="text-white/40">between paper and enterprise software.</span>
             </h2>
           </RevealOnScroll>
 
@@ -340,6 +363,63 @@ export default function LandingPage() {
               </div>
             ))}
           </StaggerChildren>
+        </div>
+      </section>
+
+      {/* ════════════════════════════════════════════
+          PROOF / HONESTY
+      ════════════════════════════════════════════ */}
+      <section className="relative px-6 py-24 md:py-28 bg-base-100 border-b border-base-300/60 overflow-hidden">
+        <FloatingShapes variant="light" />
+
+        <div className="relative max-w-6xl mx-auto grid gap-10 lg:grid-cols-[1.15fr,0.85fr] items-start">
+          <RevealOnScroll className="space-y-6">
+            <div className="space-y-4">
+              <p className="text-primary font-semibold text-sm uppercase tracking-[0.2em]">
+                What you can verify
+              </p>
+              <h2 className="text-4xl md:text-5xl font-extrabold text-base-content tracking-tight leading-[1.08]">
+                No borrowed credibility.
+                <br />Just clear product claims.
+              </h2>
+              <p className="text-base-content/60 text-lg leading-relaxed max-w-2xl">
+                If a website wants trust, it should make claims you can test. MapWeld is
+                intentionally simple to evaluate: open it, try the workflow, inspect where
+                your data lives, and decide whether it fits your fabrication process.
+              </p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              {proofCards.map(({ title, text }) => (
+                <div key={title} className="rounded-3xl border border-base-300 bg-base-200/50 p-6 shadow-sm">
+                  <p className="text-base font-bold text-base-content leading-snug">{title}</p>
+                  <p className="mt-3 text-sm leading-relaxed text-base-content/65">{text}</p>
+                </div>
+              ))}
+            </div>
+          </RevealOnScroll>
+
+          <RevealOnScroll className="rounded-3xl border border-base-300 bg-base-200/60 p-6 md:p-8 shadow-sm" animation="animate-slide-right">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">Straight answer</p>
+            <h3 className="mt-3 text-2xl md:text-3xl font-extrabold tracking-tight text-base-content">
+              What MapWeld is — and what it isn&apos;t
+            </h3>
+            <ul className="mt-6 space-y-3">
+              {honestyPoints.map((point) => (
+                <li key={point} className="flex items-start gap-3 text-base-content/70 leading-relaxed">
+                  <span className="mt-1 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                  </span>
+                  <span>{point}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-6 rounded-2xl border border-base-300 bg-base-100 p-4 text-sm text-base-content/65">
+              Want a walkthrough or want to discuss a pilot? Email <a href="mailto:contact@mapweld.app" className="link link-primary">contact@mapweld.app</a>.
+            </div>
+          </RevealOnScroll>
         </div>
       </section>
 
@@ -386,16 +466,17 @@ export default function LandingPage() {
           SOCIAL PROOF
       ════════════════════════════════════════════ */}
       <section className="relative px-6 py-20 md:py-24 bg-base-200 border-y border-base-300/50">
-        <RevealOnScroll className="max-w-3xl mx-auto text-center space-y-4" animation="animate-scale-up">
-          <svg className="w-10 h-10 text-primary/30 mx-auto" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z" />
-          </svg>
-          <p className="text-base-content/75 italic text-2xl md:text-3xl leading-relaxed font-light">
-            Built by fabrication PMs who got tired of retyping weld lists.
+        <RevealOnScroll className="max-w-4xl mx-auto text-center space-y-5" animation="animate-scale-up">
+          <div className="inline-flex mx-auto items-center gap-2 rounded-full border border-base-300 bg-base-100 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-base-content/55">
+            Why teams try it
+          </div>
+          <p className="text-base-content/80 text-2xl md:text-4xl leading-relaxed font-light">
+            Because spreadsheets are too detached, enterprise suites are too heavy,
+            and paper markups die in someone&apos;s backpack.
           </p>
-          <p className="text-base text-base-content/45">
-            Designed for pipe prefab, offshore modules, and shipyards.
-            <br />Works offline on the shop floor.
+          <p className="text-base text-base-content/50 max-w-2xl mx-auto leading-relaxed">
+            MapWeld is the narrow layer in the middle: the drawing stays central,
+            weld status stays visible, and exports stay structured.
           </p>
         </RevealOnScroll>
       </section>
@@ -428,20 +509,25 @@ export default function LandingPage() {
 
         <RevealOnScroll className="relative max-w-3xl mx-auto text-center space-y-8" animation="animate-scale-up">
           <h2 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.08]">
-            Your next weld is
-            <br />happening right now.
+            Try the workflow.
             <br />
-            <span className="text-amber-400">Is it being tracked?</span>
+            <span className="text-amber-400">Judge the product after that.</span>
           </h2>
-          <p className="text-white/40 text-lg max-w-md mx-auto">
-            Open MapWeld and start marking welds on your drawings. Free, offline, instant.
+          <p className="text-white/40 text-lg max-w-2xl mx-auto leading-relaxed">
+            Load a drawing, place a few welds, export the register. If that short loop feels
+            right for your team, MapWeld is worth a closer look.
           </p>
-          <Link
-            href="/app"
-            className="btn btn-lg bg-amber-500 hover:bg-amber-400 text-black border-0 shadow-xl shadow-amber-500/25 hover:shadow-amber-400/40 transition-all duration-300 hover:scale-[1.03] active:scale-[0.97] text-lg px-12 font-bold"
-          >
-            Start now — free
-          </Link>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Link
+              href="/app"
+              className="btn btn-lg bg-amber-500 hover:bg-amber-400 text-black border-0 shadow-xl shadow-amber-500/25 hover:shadow-amber-400/40 transition-all duration-300 hover:scale-[1.03] active:scale-[0.97] text-lg px-12 font-bold"
+            >
+              Open the app
+            </Link>
+            <Link href="/contact" className="btn btn-lg btn-ghost text-white/70 hover:text-white hover:bg-white/5">
+              Talk to the team
+            </Link>
+          </div>
         </RevealOnScroll>
       </section>
 
