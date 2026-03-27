@@ -1,6 +1,7 @@
 import Link from "next/link";
 import IsometricPipe from "@/components/IsometricPipe";
 import PipeSplitSection from "@/components/PipeSplitSection";
+import BrandLogo from "@/components/BrandLogo";
 import {
   RevealOnScroll,
   StaggerChildren,
@@ -112,11 +113,28 @@ const faqItems = [
   { q: "Where is my data stored?", a: "On your device, in project files you control. Nothing is sent to a cloud." },
 ];
 
+const faqStructuredData = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faqItems.map(({ q, a }) => ({
+    "@type": "Question",
+    name: q,
+    acceptedAnswer: {
+      "@type": "Answer",
+      text: a,
+    },
+  })),
+};
+
 /* ─── Page ─── */
 
 export default function LandingPage() {
   return (
     <div className="min-h-screen flex flex-col overflow-x-hidden">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqStructuredData) }}
+      />
 
       {/* ════════════════════════════════════════════
           HERO
@@ -139,9 +157,7 @@ export default function LandingPage() {
         <div className="relative max-w-7xl mx-auto px-6 pt-8 pb-12 md:pt-12 md:pb-16">
           {/* Nav */}
           <nav className="flex items-center justify-between mb-20 md:mb-28">
-            <Link href="/" className="text-2xl font-extrabold tracking-tight">
-              MapWeld
-            </Link>
+            <BrandLogo href="/" className="text-white" />
             <Link
               href="/app"
               className="btn bg-amber-500 hover:bg-amber-400 text-black border-0 shadow-lg shadow-amber-500/20 hover:shadow-amber-400/30 transition-all duration-300 hover:scale-105 font-bold"
@@ -192,6 +208,19 @@ export default function LandingPage() {
                 >
                   See how it works ↓
                 </a>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-3 animate-fade-up delay-700">
+                {[
+                  ["Offline-first", "No cloud dependency for project data"],
+                  ["No account required", "Open the app and start working"],
+                  ["Direct contact", "contact@mapweld.app"],
+                ].map(([title, text]) => (
+                  <div key={title} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 backdrop-blur-sm">
+                    <p className="text-sm font-bold text-white">{title}</p>
+                    <p className="mt-1 text-sm leading-relaxed text-white/50">{text}</p>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -422,13 +451,16 @@ export default function LandingPage() {
       <footer className="relative border-t border-base-300 bg-base-200">
         <div className="max-w-5xl mx-auto px-6 py-12 space-y-8">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
-            <div className="flex flex-col items-center sm:items-start gap-2">
-              <Link href="/" className="text-xl font-extrabold text-base-content">
-                MapWeld
-              </Link>
-              <p className="text-sm text-base-content/50">
-                Live weld traceability — from the shop floor.
-              </p>
+            <div className="flex flex-col items-center sm:items-start gap-3">
+              <BrandLogo href="/" />
+              <div>
+                <p className="text-sm text-base-content/50">
+                  Live weld traceability — from the shop floor.
+                </p>
+                <p className="mt-1 text-xs text-base-content/40">
+                  Questions? <a href="mailto:contact@mapweld.app" className="hover:text-base-content transition-colors">contact@mapweld.app</a>
+                </p>
+              </div>
             </div>
             <Link
               href="/app"

@@ -171,18 +171,132 @@ export function FaqAccordion({ items }) {
 }
 
 export function ImagePlaceholder({ label = "Image", aspect = "4/3", className = "" }) {
+  const lower = label.toLowerCase();
+  const isLoad = lower.includes("loaded") || lower.includes("drawing");
+  const isMarkers = lower.includes("markers") || lower.includes("weld");
+  const isExport = lower.includes("export");
+
   return (
     <div
-      className={`relative rounded-2xl border-2 border-dashed border-base-300 bg-base-200/50 overflow-hidden ${className}`}
+      className={`group relative overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_20px_60px_-24px_rgba(15,23,42,0.35)] ${className}`}
       style={{ aspectRatio: aspect }}
     >
-      <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-base-content/30">
-        <svg className="w-12 h-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-          <circle cx="8.5" cy="8.5" r="1.5" />
-          <polyline points="21 15 16 10 5 21" />
-        </svg>
-        <span className="text-sm font-medium">{label}</span>
+      <div className="absolute inset-x-0 top-0 h-10 border-b border-slate-200 bg-slate-50/95" />
+      <div className="absolute left-4 top-3 flex items-center gap-2">
+        <span className="h-2.5 w-2.5 rounded-full bg-rose-400" />
+        <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
+        <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
+      </div>
+      <div className="absolute right-4 top-2.5 rounded-full bg-slate-100 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+        Product preview
+      </div>
+
+      <div className="absolute inset-0 top-10 bg-gradient-to-br from-slate-50 via-white to-slate-100" />
+
+      <div className="absolute inset-y-10 left-0 w-[27%] border-r border-slate-200 bg-slate-50/80 p-3">
+        <div className="mb-3 h-7 rounded-lg bg-slate-900 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white">
+          MapWeld
+        </div>
+        <div className="space-y-2">
+          {[72, 84, 64, 78, 58].map((w, i) => (
+            <div key={i} className="h-3 rounded-full bg-slate-200" style={{ width: `${w}%` }} />
+          ))}
+        </div>
+        <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+          <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Status</div>
+          <div className="grid grid-cols-2 gap-2 text-[10px] font-semibold">
+            <div className="rounded-lg bg-emerald-50 px-2 py-2 text-emerald-700">Welded</div>
+            <div className="rounded-lg bg-amber-50 px-2 py-2 text-amber-700">NDT due</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="absolute inset-y-10 right-0 left-[27%] p-4 md:p-5">
+        <div className="relative h-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-inner">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(251,191,36,0.10),_transparent_40%),linear-gradient(to_bottom_right,_#ffffff,_#f8fafc)]" />
+          <svg viewBox="0 0 800 520" className="absolute inset-0 h-full w-full">
+            <g stroke="#cbd5e1" strokeWidth="5" fill="none" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M120 390 L120 180 L320 180 L320 120 L540 120" />
+              <path d="M320 180 L500 180 L500 320 L650 320" />
+              <path d="M500 180 L600 90" />
+              <path d="M320 180 L260 300 L180 300" />
+            </g>
+            <g stroke="#94a3b8" strokeWidth="2" fill="none" opacity="0.6">
+              <path d="M120 390 L90 430" />
+              <path d="M650 320 L700 355" />
+              <path d="M600 90 L660 55" />
+            </g>
+
+            {isLoad && (
+              <g>
+                <rect x="470" y="42" width="230" height="82" rx="18" fill="#0f172a" opacity="0.96" />
+                <text x="500" y="74" fill="#ffffff" fontSize="24" fontWeight="700">ISO-014_REV-B.pdf</text>
+                <text x="500" y="102" fill="#94a3b8" fontSize="16">Drawing loaded • ready to mark</text>
+              </g>
+            )}
+
+            {isMarkers && (
+              <g>
+                {[
+                  [320, 180, 'W-101'],
+                  [500, 180, 'W-102'],
+                  [500, 320, 'W-103'],
+                  [120, 180, 'W-104'],
+                  [600, 90, 'W-105'],
+                ].map(([x, y, id]) => (
+                  <g key={id}>
+                    <circle cx={x} cy={y} r="18" fill="#f59e0b" />
+                    <circle cx={x} cy={y} r="27" fill="#f59e0b" opacity="0.18" />
+                    <text x={x + 22} y={y - 18} fill="#0f172a" fontSize="16" fontWeight="700">{id}</text>
+                  </g>
+                ))}
+                <g>
+                  <rect x="448" y="44" width="248" height="128" rx="18" fill="#ffffff" stroke="#e2e8f0" />
+                  <text x="470" y="75" fill="#0f172a" fontSize="20" fontWeight="700">Selected weld</text>
+                  <text x="470" y="102" fill="#475569" fontSize="16">W-102 • 6Mo spool • WPS-24</text>
+                  <rect x="470" y="118" width="78" height="24" rx="12" fill="#dcfce7" />
+                  <text x="487" y="135" fill="#166534" fontSize="13" fontWeight="700">Welded</text>
+                  <rect x="556" y="118" width="88" height="24" rx="12" fill="#fef3c7" />
+                  <text x="575" y="135" fill="#92400e" fontSize="13" fontWeight="700">RT pending</text>
+                </g>
+              </g>
+            )}
+
+            {isExport && (
+              <g>
+                <rect x="422" y="62" width="286" height="250" rx="22" fill="#ffffff" stroke="#e2e8f0" />
+                <text x="450" y="96" fill="#0f172a" fontSize="22" fontWeight="700">Export weld register</text>
+                {[
+                  ['Drawing', 'ISO-014'],
+                  ['Spool', 'SP-22A'],
+                  ['Welder', 'WM-07'],
+                  ['NDT', 'RT 10%'],
+                ].map(([k, v], i) => (
+                  <g key={k}>
+                    <text x="450" y={132 + i * 34} fill="#64748b" fontSize="14">{k}</text>
+                    <text x="560" y={132 + i * 34} fill="#0f172a" fontSize="14" fontWeight="700">{v}</text>
+                  </g>
+                ))}
+                <rect x="450" y="220" width="104" height="34" rx="12" fill="#0f172a" />
+                <text x="476" y="242" fill="#ffffff" fontSize="14" fontWeight="700">Excel</text>
+                <rect x="564" y="220" width="116" height="34" rx="12" fill="#f59e0b" />
+                <text x="590" y="242" fill="#111827" fontSize="14" fontWeight="700">Summary</text>
+              </g>
+            )}
+
+            {!isLoad && !isMarkers && !isExport && (
+              <g>
+                <rect x="446" y="58" width="250" height="110" rx="20" fill="#ffffff" stroke="#e2e8f0" />
+                <text x="472" y="92" fill="#0f172a" fontSize="22" fontWeight="700">Open MapWeld</text>
+                <text x="472" y="122" fill="#475569" fontSize="16">No install • no login • works offline</text>
+              </g>
+            )}
+          </svg>
+        </div>
+      </div>
+
+      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-900/[0.02] to-transparent p-4 text-xs font-medium text-slate-500">
+        {label}
       </div>
     </div>
   );
