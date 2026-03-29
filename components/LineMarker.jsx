@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import { warnIfDev } from "@/lib/dev-log";
+import MarkerProgressPill from "./MarkerProgressPill";
 
 const LINE_MARKER_LINE = "text-sky-500";
 const LINE_BADGE = "border-2 border-sky-500 bg-white text-sky-500";
@@ -25,6 +26,7 @@ function LineMarker({
   onMoveLineIndicator,
   pageWrapperRef,
   scale = 1,
+  progressPercent = 0,
   indicatorPositionOverride = null,
 }) {
   const draggingRef = useRef(null);
@@ -148,12 +150,13 @@ function LineMarker({
         } ${isSelected ? (showHandles ? "ring-2 ring-error ring-offset-1 rounded-full" : "ring-2 ring-primary ring-offset-1 rounded-full") : ""}`}
         style={{ left: `${ix}%`, top: `${iy}%` }}
       >
-        <span
-          className={`flex items-center justify-center border-2 border-solid rounded-full px-1 font-medium leading-none select-none ${LINE_BADGE}`}
+        <MarkerProgressPill
+          progressPercent={progressPercent}
+          className={`min-h-0 border-2 border-solid rounded-full font-medium leading-none select-none ${LINE_BADGE}`}
           style={{ minWidth: `${badgeMin}px`, minHeight: `${badgeMin}px`, fontSize: `${badgeFontSize}px` }}
         >
           {label}
-        </span>
+        </MarkerProgressPill>
         {showHandles && (
           <div
             role="button"

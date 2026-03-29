@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useEffect } from "react";
 import { warnIfDev } from "@/lib/dev-log";
+import MarkerProgressPill from "./MarkerProgressPill";
 
 const PART_LINE = "text-teal-600";
 const PART_BADGE = "border-2 border-teal-600 bg-white text-teal-600";
@@ -26,6 +27,7 @@ function PartMarker({
   onMovePartIndicator,
   pageWrapperRef,
   scale = 1,
+  progressPercent = 0,
   indicatorPositionOverride = null,
 }) {
   const draggingRef = useRef(null);
@@ -199,8 +201,9 @@ function PartMarker({
           top: `${iy}%`,
         }}
       >
-        <span
-          className={`flex items-center justify-center border-2 border-solid rounded-full px-1 font-medium leading-none select-none ${PART_BADGE}`}
+        <MarkerProgressPill
+          progressPercent={progressPercent}
+          className={`min-h-0 border-2 border-solid rounded-full font-medium leading-none select-none ${PART_BADGE}`}
           style={{
             minWidth: `${badgeMin}px`,
             minHeight: `${badgeMin}px`,
@@ -208,7 +211,7 @@ function PartMarker({
           }}
         >
           {label}
-        </span>
+        </MarkerProgressPill>
         {showHandles && (
           <div
             role="button"

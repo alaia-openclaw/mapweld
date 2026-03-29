@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useEffect } from "react";
 import { warnIfDev } from "@/lib/dev-log";
+import MarkerProgressPill from "./MarkerProgressPill";
 
 const SPOOL_LINE = "text-pink-600";
 const SPOOL_BADGE = "border-2 border-pink-600 bg-white text-pink-600";
@@ -26,6 +27,7 @@ function SpoolMarker({
   onMoveSpoolIndicator,
   pageWrapperRef,
   scale = 1,
+  progressPercent = 0,
   indicatorPositionOverride = null,
 }) {
   const draggingRef = useRef(null);
@@ -199,8 +201,9 @@ function SpoolMarker({
           top: `${iy}%`,
         }}
       >
-        <span
-          className={`flex items-center justify-center border-2 border-solid rounded-full px-1 font-medium leading-none select-none ${SPOOL_BADGE}`}
+        <MarkerProgressPill
+          progressPercent={progressPercent}
+          className={`min-h-0 border-2 border-solid rounded-full font-medium leading-none select-none ${SPOOL_BADGE}`}
           style={{
             minWidth: `${badgeMin}px`,
             minHeight: `${badgeMin}px`,
@@ -208,7 +211,7 @@ function SpoolMarker({
           }}
         >
           {displayName}
-        </span>
+        </MarkerProgressPill>
         {showHandles && (
           <div
             role="button"

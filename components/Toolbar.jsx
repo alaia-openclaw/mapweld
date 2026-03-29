@@ -6,6 +6,19 @@ import { useCallback, useRef } from "react";
 
 const iconClass = "h-4 w-4 shrink-0";
 
+function IconUser() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+      />
+    </svg>
+  );
+}
+
 function IconLoadPdf() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -95,10 +108,17 @@ function Toolbar({
   onOpenHealth,
   /** Persist workspace to sessionStorage before SPA navigation (e.g. Catalog) so /app restores on return. */
   onPersistSessionDraft,
+  exportTitle = "Export Excel or drawing PDF",
+  /** `loading` while session is resolving — export stays disabled. */
+  authSessionStatus = "authenticated",
+  userEmail = "",
+  onSignOut,
+  showAuthActions = false,
 }) {
   const router = useRouter();
   const projectInputRef = useRef(null);
   const btn = "btn btn-xs h-8 min-h-8 px-2 gap-1.5 md:min-w-0";
+  const exportDisabled = (!hasPdf && !hasWelds) || authSessionStatus === "loading";
 
   const handleNavigateToCatalog = useCallback(
     async (e) => {
@@ -110,7 +130,10 @@ function Toolbar({
     [onPersistSessionDraft, router]
   );
 
-  const desktopActions = (
+  const groupClass = "flex items-center gap-1 flex-wrap";
+  const groupSepClass = "hidden sm:block w-px h-6 shrink-0 bg-base-300/70 self-center";
+
+  const fileActions = (
     <>
       <label htmlFor="pdf-file-input" className={`${btn} btn-outline cursor-pointer`} title="Load PDF">
         <IconLoadPdf />
@@ -164,12 +187,17 @@ function Toolbar({
         type="button"
         className={`${btn} btn-secondary`}
         onClick={onOpenExport}
-        disabled={!hasPdf && !hasWelds}
-        title="Export Excel or drawing PDF"
+        disabled={exportDisabled}
+        title={exportTitle}
       >
         <IconExport />
         <span className="hidden lg:inline">Export</span>
       </button>
+    </>
+  );
+
+  const workspaceActions = (
+    <>
       {hasPdf && onOpenParameters && (
         <button type="button" className={`${btn} btn-ghost`} onClick={onOpenParameters} title="Settings">
           <IconCog />
@@ -225,6 +253,62 @@ function Toolbar({
     </>
   );
 
+  const authActions = (
+    <>
+      {showAuthActions && authSessionStatus === "unauthenticated" ? (
+        <Link
+          href="/login?callbackUrl=%2Fapp"
+          className={`${btn} btn-ghost`}
+          title="Sign in to export"
+        >
+          <IconUser />
+          <span className="hidden lg:inline">Sign in</span>
+        </Link>
+      ) : null}
+      {showAuthActions && authSessionStatus === "authenticated" && onSignOut ? (
+        <div className="dropdown dropdown-end hidden md:block">
+          <button
+            type="button"
+            tabIndex={0}
+            className={`${btn} btn-ghost max-w-[10rem] truncate`}
+            title={userEmail || "Account"}
+          >
+            <IconUser />
+            <span className="truncate hidden lg:inline max-w-[7rem]">{userEmail || "Account"}</span>
+          </button>
+          <ul
+            tabIndex={0}
+            className="dropdown-content menu bg-base-100 rounded-box z-[100] w-52 p-2 shadow border border-base-300"
+          >
+            <li>
+              <button type="button" onClick={() => onSignOut()}>
+                Sign out
+              </button>
+            </li>
+          </ul>
+        </div>
+      ) : null}
+    </>
+  );
+
+  const hasAuthVisible =
+    showAuthActions &&
+    (authSessionStatus === "unauthenticated" || (authSessionStatus === "authenticated" && onSignOut));
+
+  const desktopActions = (
+    <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
+      <div className={groupClass}>{fileActions}</div>
+      <span className={groupSepClass} aria-hidden />
+      <div className={groupClass}>{workspaceActions}</div>
+      {hasAuthVisible ? (
+        <>
+          <span className={groupSepClass} aria-hidden />
+          <div className={`${groupClass} shrink-0`}>{authActions}</div>
+        </>
+      ) : null}
+    </div>
+  );
+
   return (
     <>
       {/* Desktop toolbar — static */}
@@ -232,9 +316,7 @@ function Toolbar({
         <div className="flex items-center min-w-0 gap-2">
           <span className="text-lg font-bold truncate">Weld Dashboard</span>
         </div>
-        <div className="flex items-center gap-1 flex-wrap justify-end">
-          {desktopActions}
-        </div>
+        <div className="flex min-w-0 flex-1 items-center justify-end">{desktopActions}</div>
       </div>
 
       {/* Mobile — always-visible small menu button, expands to full dropdown */}
@@ -283,21 +365,17 @@ function Toolbar({
               </button>
             </li>
             <li>
-              <button type="button" onClick={onOpenExport} disabled={!hasPdf && !hasWelds}>
+              <button type="button" onClick={onOpenExport} disabled={exportDisabled}>
                 Export
               </button>
+            </li>
+            <li className="pointer-events-none !min-h-0 !py-0 !-mx-2">
+              <hr className="border-base-300/70 my-1" />
             </li>
             {hasPdf && onOpenParameters && (
               <li>
                 <button type="button" onClick={onOpenParameters}>
                   Settings
-                </button>
-              </li>
-            )}
-            {hasPdf && onOpenNdt && (
-              <li>
-                <button type="button" onClick={onOpenNdt}>
-                  NDT
                 </button>
               </li>
             )}
@@ -310,6 +388,13 @@ function Toolbar({
                 <Link href="/catalog">Catalog</Link>
               )}
             </li>
+            {hasPdf && onOpenNdt && (
+              <li>
+                <button type="button" onClick={onOpenNdt}>
+                  NDT
+                </button>
+              </li>
+            )}
             {hasPdf && onOpenStatus && (
               <li>
                 <button type="button" onClick={onOpenStatus}>
@@ -324,6 +409,21 @@ function Toolbar({
                 </button>
               </li>
             )}
+            <li className="pointer-events-none !min-h-0 !py-0 !-mx-2">
+              <hr className="border-base-300/70 my-1" />
+            </li>
+            {showAuthActions && authSessionStatus === "unauthenticated" ? (
+              <li>
+                <Link href="/login?callbackUrl=%2Fapp">Sign in</Link>
+              </li>
+            ) : null}
+            {showAuthActions && authSessionStatus === "authenticated" && onSignOut ? (
+              <li>
+                <button type="button" onClick={() => onSignOut()}>
+                  Sign out
+                </button>
+              </li>
+            ) : null}
           </ul>
         </div>
       </div>

@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { signOut, useSession } from "next-auth/react";
 import { useRef, useState, useCallback, useEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
 import Toolbar from "@/components/Toolbar";
@@ -41,6 +43,10 @@ import { assignPartDisplayNumbersForAllDrawings } from "@/lib/part-display-numbe
 import {
   getWeldName,
   getWeldOverallStatus,
+  getWeldProgressPercent,
+  getSpoolProgressPercent,
+  getLineProgressPercent,
+  getPartHeatProgressPercent,
   computeNdtSelection,
   assignWeldNumbersPerDrawing,
 } from "@/lib/weld-utils";
@@ -63,6 +69,9 @@ const PDFViewerDynamic = dynamic(() => import("@/components/PDFViewer"), {
 const ModalExportDynamic = dynamic(() => import("@/components/ModalExport"), {
   ssr: false,
 });
+
+/** Set `true` to show toolbar Health + ProjectHealthPage (wording TBD). */
+const SHOW_PROJECT_HEALTH_UI = false;
 
 function generateId() {
   return `wp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -108,6 +117,8 @@ function SidePanelTabButton({ label, title, active, onClick }) {
 }
 
 export default function WeldTrackerApp() {
+  const router = useRouter();
+  const { data: session, status: sessionStatus } = useSession();
   const containerRef = useRef(null);
   const [pdfBlob, setPdfBlob] = useState(null);
   const [pdfFilename, setPdfFilename] = useState("");
@@ -1551,6 +1562,7 @@ export default function WeldTrackerApp() {
   );
 
   const handleExportExcel = useCallback(() => {
+    if (sessionStatus !== "authenticated") return;
     exportWeldsToExcel(weldPoints, {
       pdfFilename,
       projectMeta,
@@ -1562,7 +1574,19 @@ export default function WeldTrackerApp() {
       ndtReports,
       drawings,
     });
-  }, [weldPoints, pdfFilename, spools, parts, personnel, drawingSettings, projectMeta, ndtContext, ndtReports, drawings]);
+  }, [
+    sessionStatus,
+    weldPoints,
+    pdfFilename,
+    spools,
+    parts,
+    personnel,
+    drawingSettings,
+    projectMeta,
+    ndtContext,
+    ndtReports,
+    drawings,
+  ]);
 
   const weldStatusByWeldId = useMemo(() => {
     const map = new Map();
@@ -1572,6 +1596,42 @@ export default function WeldTrackerApp() {
     });
     return map;
   }, [weldPoints, drawingSettings, ndtContext]);
+
+  const weldProgressByWeldId = useMemo(() => {
+    const map = new Map();
+    weldPoints.forEach((w) => {
+      const ndtSel = computeNdtSelection(w, drawingSettings, weldPoints, ndtContext);
+      map.set(w.id, getWeldProgressPercent(w, ndtSel, ndtContext));
+    });
+    return map;
+  }, [weldPoints, drawingSettings, ndtContext]);
+
+  const spoolProgressBySpoolId = useMemo(() => {
+    const map = new Map();
+    spools.forEach((s) => {
+      if (!s?.id) return;
+      map.set(s.id, getSpoolProgressPercent(s.id, weldPoints, drawingSettings, ndtContext));
+    });
+    return map;
+  }, [spools, weldPoints, drawingSettings, ndtContext]);
+
+  const lineProgressByLineId = useMemo(() => {
+    const map = new Map();
+    lines.forEach((ln) => {
+      if (!ln?.id) return;
+      map.set(ln.id, getLineProgressPercent(ln.id, weldPoints, spools, drawingSettings, ndtContext));
+    });
+    return map;
+  }, [lines, weldPoints, spools, drawingSettings, ndtContext]);
+
+  const partProgressByPartId = useMemo(() => {
+    const map = new Map();
+    parts.forEach((p) => {
+      if (!p?.id) return;
+      map.set(p.id, getPartHeatProgressPercent(p));
+    });
+    return map;
+  }, [parts]);
 
   const currentPage0 = pdfPage - 1;
 
@@ -1628,6 +1688,7 @@ export default function WeldTrackerApp() {
 
   const handlePrint = useCallback(
     async (options) => {
+      if (sessionStatus !== "authenticated") return;
       const { runPrint } = await import("@/lib/print-utils");
       const exportMarkerLayers = {
         welds: !!options?.markers?.welds,
@@ -1649,11 +1710,14 @@ export default function WeldTrackerApp() {
         spools,
         parts,
         lines: linesLinkedToActiveDrawing,
+        drawingSettings,
+        ndtContext,
         getWeldName,
         exportAction: options.exportAction === "print" ? "print" : "download",
       });
     },
     [
+      sessionStatus,
       pdfBlob,
       pdfFilename,
       pdfScale,
@@ -1664,8 +1728,26 @@ export default function WeldTrackerApp() {
       spools,
       parts,
       linesLinkedToActiveDrawing,
+      drawingSettings,
+      ndtContext,
     ]
   );
+
+  const exportToolbarTitle =
+    sessionStatus === "loading"
+      ? "Checking session…"
+      : sessionStatus === "authenticated"
+        ? "Export Excel or drawing PDF"
+        : "Sign in to export";
+
+  const handleOpenExport = useCallback(() => {
+    if (sessionStatus === "loading") return;
+    if (sessionStatus !== "authenticated") {
+      router.push(`/login?callbackUrl=${encodeURIComponent("/app")}`);
+      return;
+    }
+    setShowExportModal(true);
+  }, [sessionStatus, router]);
 
   const weldsOnCurrentPage = useMemo(
     () => weldPointsOnActiveDrawing.filter((w) => (w.pageNumber ?? 0) === currentPage0),
@@ -1986,7 +2068,12 @@ export default function WeldTrackerApp() {
           onLoadPdf={loadPdfFile}
           onLoadProject={handleLoadProject}
           onSaveProject={handleSaveProject}
-          onOpenExport={() => setShowExportModal(true)}
+          onOpenExport={handleOpenExport}
+          exportTitle={exportToolbarTitle}
+          authSessionStatus={sessionStatus}
+          userEmail={session?.user?.email ?? ""}
+          onSignOut={() => void signOut({ callbackUrl: "/app" })}
+          showAuthActions
           onOpenParameters={() => setShowParameters(true)}
           onOpenProjects={() => setShowProjects(true)}
           onOpenNdt={() => {
@@ -1999,11 +2086,15 @@ export default function WeldTrackerApp() {
             setShowHealthPage(false);
             setShowStatusPage(true);
           }}
-          onOpenHealth={() => {
-            setShowNdtPanel(false);
-            setShowStatusPage(false);
-            setShowHealthPage(true);
-          }}
+          onOpenHealth={
+            SHOW_PROJECT_HEALTH_UI
+              ? () => {
+                  setShowNdtPanel(false);
+                  setShowStatusPage(false);
+                  setShowHealthPage(true);
+                }
+              : undefined
+          }
           onPersistSessionDraft={persistSessionDraftToStorage}
         />
       </>
@@ -2032,7 +2123,7 @@ export default function WeldTrackerApp() {
             onClose={() => setShowStatusPage(false)}
           />
         </div>
-      ) : showHealthPage ? (
+      ) : SHOW_PROJECT_HEALTH_UI && showHealthPage ? (
         <div className="flex-1 min-h-0 flex flex-col rounded-lg overflow-hidden shadow bg-base-100">
           <ProjectHealthPage
             weldPoints={weldPoints}
@@ -2296,6 +2387,7 @@ export default function WeldTrackerApp() {
                     weldPoints={weldPointsOnActiveDrawing}
                     spoolMarkers={spoolMarkersOnActiveDrawing}
                     partMarkers={partMarkersOnActiveDrawing}
+                    lineMarkers={lineMarkersOnActiveDrawing}
                     isOpen={showPagePanel}
                     onToggle={() => setShowPagePanel((v) => !v)}
                   />
@@ -2334,7 +2426,10 @@ export default function WeldTrackerApp() {
                     onMoveSpoolMarker={handleMoveSpoolMarker}
                     onMoveSpoolIndicator={handleMoveSpoolIndicator}
                     onDeleteSpoolMarker={handleDeleteSpoolMarker}
-                    weldStatusByWeldId={weldStatusByWeldId}
+                    weldProgressByWeldId={weldProgressByWeldId}
+                    spoolProgressBySpoolId={spoolProgressBySpoolId}
+                    lineProgressByLineId={lineProgressByLineId}
+                    partProgressByPartId={partProgressByPartId}
                     partMarkers={partMarkersOnActiveDrawing}
                     parts={parts}
                     selectedPartMarkerId={selectedPartMarkerId}
