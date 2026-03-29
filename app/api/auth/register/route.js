@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
+import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { connectMongo } from "@/lib/mongodb";
 import { User } from "@/lib/models/User";
-import { sendWelcomeEmail } from "@/lib/email";
+import { sendVerificationEmail } from "@/lib/email";
 
 const MIN_PASSWORD = 8;
+const VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
 
 function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -36,12 +38,22 @@ export async function POST(request) {
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
-    await User.create({ email, passwordHash, name: name || "" });
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+    const verificationTokenExpires = new Date(Date.now() + VERIFICATION_TTL_MS);
+
+    await User.create({
+      email,
+      passwordHash,
+      name: name || "",
+      emailVerified: false,
+      verificationToken,
+      verificationTokenExpires,
+    });
 
     try {
-      await sendWelcomeEmail({ to: email, name: name || undefined });
+      await sendVerificationEmail({ to: email, name: name || undefined, token: verificationToken });
     } catch (err) {
-      console.error("Welcome email failed", err);
+      console.error("Verification email failed", err);
     }
 
     return NextResponse.json({ ok: true }, { status: 201 });

@@ -15,9 +15,18 @@ const ERROR_MESSAGES = {
   Default: "Sign-in failed. Try again.",
 };
 
-function errorMessage(code) {
-  if (!code) return null;
-  return ERROR_MESSAGES[code] || ERROR_MESSAGES.Default;
+const MSG_VERIFY_SIGNIN =
+  "Verify your email before signing in. Check your inbox for the link we sent.";
+const MSG_INVALID_TOKEN =
+  "This verification link is invalid or expired. Try registering again or use Google sign-in.";
+
+function urlAlert(searchParams) {
+  const error = searchParams.get("error");
+  const code = searchParams.get("code");
+  if (error === "invalid_token") return { kind: "error", text: MSG_INVALID_TOKEN };
+  if (code === "email_not_verified") return { kind: "warning", text: MSG_VERIFY_SIGNIN };
+  if (error && ERROR_MESSAGES[error]) return { kind: "error", text: ERROR_MESSAGES[error] };
+  return null;
 }
 
 export default function LoginForm({ googleEnabled }) {
@@ -33,8 +42,9 @@ export default function LoginForm({ googleEnabled }) {
     [searchParams]
   );
 
-  const urlError = errorMessage(searchParams.get("error") || undefined);
-  const registered = searchParams.get("registered") === "1";
+  const urlAlertMsg = useMemo(() => urlAlert(searchParams), [searchParams]);
+  const pendingVerify = searchParams.get("verify") === "1";
+  const emailVerifiedOk = searchParams.get("verified") === "1";
 
   const handleCredentials = useCallback(
     async (e) => {
@@ -49,7 +59,9 @@ export default function LoginForm({ googleEnabled }) {
           callbackUrl,
         });
         if (res?.error) {
-          setFormError(ERROR_MESSAGES.CredentialsSignin);
+          setFormError(
+            res.code === "email_not_verified" ? MSG_VERIFY_SIGNIN : ERROR_MESSAGES.CredentialsSignin
+          );
           setSubmitting(false);
           return;
         }
@@ -76,12 +88,24 @@ export default function LoginForm({ googleEnabled }) {
             <p className="text-sm text-base-content/70 mt-1">MapWeld — access export and your account</p>
           </div>
 
-          {registered ? (
-            <div className="alert alert-success text-sm py-2">Account created. Sign in below.</div>
+          {pendingVerify ? (
+            <div className="alert alert-info text-sm py-2">
+              Check your email for a verification link. After you verify, you can sign in here.
+            </div>
           ) : null}
-          {urlError ? (
-            <div className="alert alert-error text-sm py-2" role="alert">
-              {urlError}
+          {emailVerifiedOk ? (
+            <div className="alert alert-success text-sm py-2">
+              Email verified. You can sign in below.
+            </div>
+          ) : null}
+          {urlAlertMsg ? (
+            <div
+              className={`alert text-sm py-2 ${
+                urlAlertMsg.kind === "warning" ? "alert-warning" : "alert-error"
+              }`}
+              role="alert"
+            >
+              {urlAlertMsg.text}
             </div>
           ) : null}
           {formError ? (

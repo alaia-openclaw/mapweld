@@ -43,6 +43,10 @@ import { assignPartDisplayNumbersForAllDrawings } from "@/lib/part-display-numbe
 import {
   getWeldName,
   getWeldOverallStatus,
+  getWeldProgressPercent,
+  getSpoolProgressPercent,
+  getLineProgressPercent,
+  getPartHeatProgressPercent,
   computeNdtSelection,
   assignWeldNumbersPerDrawing,
 } from "@/lib/weld-utils";
@@ -65,6 +69,9 @@ const PDFViewerDynamic = dynamic(() => import("@/components/PDFViewer"), {
 const ModalExportDynamic = dynamic(() => import("@/components/ModalExport"), {
   ssr: false,
 });
+
+/** Set `true` to show toolbar Health + ProjectHealthPage (wording TBD). */
+const SHOW_PROJECT_HEALTH_UI = false;
 
 function generateId() {
   return `wp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -1590,6 +1597,42 @@ export default function WeldTrackerApp() {
     return map;
   }, [weldPoints, drawingSettings, ndtContext]);
 
+  const weldProgressByWeldId = useMemo(() => {
+    const map = new Map();
+    weldPoints.forEach((w) => {
+      const ndtSel = computeNdtSelection(w, drawingSettings, weldPoints, ndtContext);
+      map.set(w.id, getWeldProgressPercent(w, ndtSel, ndtContext));
+    });
+    return map;
+  }, [weldPoints, drawingSettings, ndtContext]);
+
+  const spoolProgressBySpoolId = useMemo(() => {
+    const map = new Map();
+    spools.forEach((s) => {
+      if (!s?.id) return;
+      map.set(s.id, getSpoolProgressPercent(s.id, weldPoints, drawingSettings, ndtContext));
+    });
+    return map;
+  }, [spools, weldPoints, drawingSettings, ndtContext]);
+
+  const lineProgressByLineId = useMemo(() => {
+    const map = new Map();
+    lines.forEach((ln) => {
+      if (!ln?.id) return;
+      map.set(ln.id, getLineProgressPercent(ln.id, weldPoints, spools, drawingSettings, ndtContext));
+    });
+    return map;
+  }, [lines, weldPoints, spools, drawingSettings, ndtContext]);
+
+  const partProgressByPartId = useMemo(() => {
+    const map = new Map();
+    parts.forEach((p) => {
+      if (!p?.id) return;
+      map.set(p.id, getPartHeatProgressPercent(p));
+    });
+    return map;
+  }, [parts]);
+
   const currentPage0 = pdfPage - 1;
 
   const hasMultipleDrawings = drawings.length > 1;
@@ -1667,6 +1710,8 @@ export default function WeldTrackerApp() {
         spools,
         parts,
         lines: linesLinkedToActiveDrawing,
+        drawingSettings,
+        ndtContext,
         getWeldName,
         exportAction: options.exportAction === "print" ? "print" : "download",
       });
@@ -1683,6 +1728,8 @@ export default function WeldTrackerApp() {
       spools,
       parts,
       linesLinkedToActiveDrawing,
+      drawingSettings,
+      ndtContext,
     ]
   );
 
@@ -2039,11 +2086,15 @@ export default function WeldTrackerApp() {
             setShowHealthPage(false);
             setShowStatusPage(true);
           }}
-          onOpenHealth={() => {
-            setShowNdtPanel(false);
-            setShowStatusPage(false);
-            setShowHealthPage(true);
-          }}
+          onOpenHealth={
+            SHOW_PROJECT_HEALTH_UI
+              ? () => {
+                  setShowNdtPanel(false);
+                  setShowStatusPage(false);
+                  setShowHealthPage(true);
+                }
+              : undefined
+          }
           onPersistSessionDraft={persistSessionDraftToStorage}
         />
       </>
@@ -2072,7 +2123,7 @@ export default function WeldTrackerApp() {
             onClose={() => setShowStatusPage(false)}
           />
         </div>
-      ) : showHealthPage ? (
+      ) : SHOW_PROJECT_HEALTH_UI && showHealthPage ? (
         <div className="flex-1 min-h-0 flex flex-col rounded-lg overflow-hidden shadow bg-base-100">
           <ProjectHealthPage
             weldPoints={weldPoints}
@@ -2336,6 +2387,7 @@ export default function WeldTrackerApp() {
                     weldPoints={weldPointsOnActiveDrawing}
                     spoolMarkers={spoolMarkersOnActiveDrawing}
                     partMarkers={partMarkersOnActiveDrawing}
+                    lineMarkers={lineMarkersOnActiveDrawing}
                     isOpen={showPagePanel}
                     onToggle={() => setShowPagePanel((v) => !v)}
                   />
@@ -2374,7 +2426,10 @@ export default function WeldTrackerApp() {
                     onMoveSpoolMarker={handleMoveSpoolMarker}
                     onMoveSpoolIndicator={handleMoveSpoolIndicator}
                     onDeleteSpoolMarker={handleDeleteSpoolMarker}
-                    weldStatusByWeldId={weldStatusByWeldId}
+                    weldProgressByWeldId={weldProgressByWeldId}
+                    spoolProgressBySpoolId={spoolProgressBySpoolId}
+                    lineProgressByLineId={lineProgressByLineId}
+                    partProgressByPartId={partProgressByPartId}
                     partMarkers={partMarkersOnActiveDrawing}
                     parts={parts}
                     selectedPartMarkerId={selectedPartMarkerId}

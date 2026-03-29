@@ -34,7 +34,7 @@ export default function RegisterForm({ googleEnabled }) {
           setSubmitting(false);
           return;
         }
-        router.push("/login?registered=1");
+        router.push("/login?verify=1");
         router.refresh();
       } catch {
         setError("Something went wrong. Try again.");

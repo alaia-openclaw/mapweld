@@ -4,6 +4,7 @@ import Google from "next-auth/providers/google";
 import bcrypt from "bcryptjs";
 import { connectMongo } from "@/lib/mongodb";
 import { User } from "@/lib/models/User";
+import { EmailNotVerified } from "@/lib/auth-errors";
 
 /**
  * @param {{ email: string; name?: string; image?: string }} params
@@ -17,11 +18,13 @@ async function upsertGoogleUser({ email, name, image }) {
       passwordHash: null,
       name: name || "",
       image: image || "",
+      emailVerified: true,
     });
   }
   const patch = {};
   if (name && !user.name) patch.name = name;
   if (image && !user.image) patch.image = image;
+  if (user.emailVerified !== true) patch.emailVerified = true;
   if (Object.keys(patch).length) await User.updateOne({ _id: user._id }, { $set: patch });
   return User.findById(user._id);
 }
@@ -40,6 +43,7 @@ const providers = [
       if (!user?.passwordHash) return null;
       const ok = await bcrypt.compare(String(credentials.password), user.passwordHash);
       if (!ok) return null;
+      if (user.emailVerified === false) throw new EmailNotVerified();
       return {
         id: user._id.toString(),
         email: user.email,

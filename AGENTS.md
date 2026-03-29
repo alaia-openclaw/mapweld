@@ -4,7 +4,7 @@
 
 ### Overview
 
-MapWeld is a weld traceability web app built with Next.js 14 (App Router), React 18, Tailwind CSS, and DaisyUI. **Project data** stays in the browser (IndexedDB / sessionStorage) and in `.weldproject` files. **Accounts** use **NextAuth v5** ([`auth.js`](auth.js): email/password + optional Google), MongoDB for users, optional Resend for welcome email — see `.env.example`. Route handlers are re-exported from [`app/api/auth/[...nextauth]/route.js`](app/api/auth/[...nextauth]/route.js).
+MapWeld is a weld traceability web app built with Next.js 14 (App Router), React 18, Tailwind CSS, and DaisyUI. **Project data** stays in the browser (IndexedDB / sessionStorage) and in `.weldproject` files. **Accounts** use **NextAuth v5** ([`auth.js`](auth.js): email/password + optional Google), MongoDB for users, optional Resend for verification + welcome email — see `.env.example`. Email/password signups receive a verification link; welcome sends after the link is used. Route handlers are re-exported from [`app/api/auth/[...nextauth]/route.js`](app/api/auth/[...nextauth]/route.js).
 
 **Commercial MVP scope and ship plan:** [docs/MVP-ROADMAP.md](docs/MVP-ROADMAP.md). **Architecture reference:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
@@ -20,7 +20,7 @@ MapWeld is a weld traceability web app built with Next.js 14 (App Router), React
 |---|---|---|---|
 | Next.js dev server | `npm run dev` | 3000 | Primary dev server |
 | MongoDB | Atlas or local | — | Required for sign-in / register (set `MONGODB_URI`) |
-| Resend | (API) | — | Optional; `RESEND_API_KEY` + `EMAIL_FROM` for welcome email |
+| Resend | (API) | — | Optional; `RESEND_API_KEY` + `EMAIL_FROM_VERIFICATION` / `EMAIL_FROM_WELCOME` (see `.env.example`) |
 
 ### Running
 
@@ -35,7 +35,7 @@ MapWeld is a weld traceability web app built with Next.js 14 (App Router), React
 - The `/api/pipedata-image` route serves images from a gitignored `3CQC ref/` folder. The app works fine without this folder; flange catalog images will simply return 404.
 - PWA service worker is only active in production builds; in dev mode it is disabled.
 - The app page (`/app`) is a large client-side bundle (~670 kB First Load JS). Hot reload works but may take a moment on first load.
-- **Auth env:** copy `.env.example` to `.env.local` and set at least `MONGODB_URI`, `NEXTAUTH_SECRET`, and `NEXTAUTH_URL` for login and **export** on `/app`. Without them, the workspace still loads but export stays gated and auth API routes will error.
+- **Auth env:** copy `.env.example` to `.env.local` and set at least `MONGODB_URI`, `NEXTAUTH_SECRET`, and `NEXTAUTH_URL` for login and **export** on `/app`. Use a **dev** MongoDB URI locally (e.g. `mapweld_dev` on localhost or Atlas) and a **separate prod** URI in hosting env vars (e.g. `mapweld_prod`); `.env.example` has concrete patterns. Without env, the workspace still loads but export stays gated and auth API routes will error.
 - If **IndexedDB** or **sessionStorage** fails (private mode, quota), the UI shows a dismissible warning; **Save project** (`.weldproject`) remains reliable.
 - **Settings** (toolbar **Settings**, component `ModalSettings` in `components/ModalParameters.jsx`) replaces the old Parameters modal: left-hand section tree (project NDT & spec, personnel, project info & libraries, and when a PDF is loaded — drawings, systems & lines, spools). NDT sampling uses **project → system → line** resolution when `NdtScopeProvider` (`contexts/NdtScopeContext.jsx`) supplies systems/lines/spools (`lib/ndt-resolution.js`, `computeNdtSelection` in `lib/weld-utils.js`). Optional **`ndtRequirements`** arrays on each **system** and **line** (same shape as project: method + shop/field %) **merge per method** with project defaults; line overrides system. UI: project table in **Project NDT & spec**; compact override tables on each system (Project info) and each line (Lines panel / Settings → Systems & lines). Shared editor: `components/NdtRequirementsOverrideTable.jsx` + `lib/ndt-requirements-rows.js`. **WPS** can be set on each **system** and **line** (`wps` field); effective code for a weld is **weld → line → system** (`lib/wps-resolution.js`, used by `getWeldSectionCompletion` / export when scope is passed).
 - **`.weldproject` version** is `PROJECT_FILE_VERSION` in [`lib/project-file.js`](lib/project-file.js) (currently **v6**). Weld `jointDimensions` (NPS/schedule per side, part inheritance) are normalized via [`lib/joint-dimensions.js`](lib/joint-dimensions.js) on load/save.

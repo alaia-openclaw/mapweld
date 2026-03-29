@@ -11,6 +11,7 @@ function PageThumbnailPanel({
   weldPoints = [],
   spoolMarkers = [],
   partMarkers = [],
+  lineMarkers = [],
   isOpen,
   onToggle,
 }) {
@@ -30,13 +31,14 @@ function PageThumbnailPanel({
     const counts = [];
     for (let i = 0; i < (numPages || 0); i++) {
       counts.push({
+        lines: lineMarkers.filter((m) => (m.pageNumber ?? 0) === i).length,
         welds: weldPoints.filter((w) => (w.pageNumber ?? 0) === i).length,
         spools: spoolMarkers.filter((m) => (m.pageNumber ?? 0) === i).length,
         parts: partMarkers.filter((m) => (m.pageNumber ?? 0) === i).length,
       });
     }
     return counts;
-  }, [numPages, weldPoints, spoolMarkers, partMarkers]);
+  }, [numPages, weldPoints, spoolMarkers, partMarkers, lineMarkers]);
 
   if (!pdfBlob || !numPages || numPages <= 1) return null;
 
@@ -61,8 +63,8 @@ function PageThumbnailPanel({
             {Array.from({ length: numPages }, (_, i) => {
               const pageNum = i + 1;
               const isActive = pageNum === currentPage;
-              const counts = pageCounts[i] || { welds: 0, spools: 0, parts: 0 };
-              const hasItems = counts.welds + counts.spools + counts.parts > 0;
+              const counts = pageCounts[i] || { lines: 0, welds: 0, spools: 0, parts: 0 };
+              const hasItems = counts.lines + counts.welds + counts.spools + counts.parts > 0;
 
               return (
                 <button
@@ -101,6 +103,27 @@ function PageThumbnailPanel({
 
                     {hasItems && (
                       <div className="flex items-center gap-1">
+                        {counts.lines > 0 && (
+                          <span
+                            className="flex items-center gap-0.5 text-[9px] font-semibold text-white/90 bg-primary/85 rounded px-1 py-0.5 leading-none"
+                            title={`${counts.lines} line marker${counts.lines > 1 ? "s" : ""}`}
+                          >
+                            <svg
+                              className="w-2.5 h-2.5 shrink-0"
+                              viewBox="0 0 16 16"
+                              fill="none"
+                              aria-hidden
+                            >
+                              <path
+                                d="M3 8h10M3 6.25v3.5M13 6.25v3.5"
+                                stroke="currentColor"
+                                strokeWidth="1.75"
+                                strokeLinecap="round"
+                              />
+                            </svg>
+                            {counts.lines}
+                          </span>
+                        )}
                         {counts.welds > 0 && (
                           <span className="flex items-center gap-0.5 text-[9px] font-semibold text-white/90 bg-error/80 rounded px-1 py-0.5 leading-none" title={`${counts.welds} weld${counts.welds > 1 ? "s" : ""}`}>
                             <svg className="w-2.5 h-2.5" viewBox="0 0 16 16" fill="currentColor">
