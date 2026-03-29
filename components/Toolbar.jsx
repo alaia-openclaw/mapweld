@@ -30,14 +30,6 @@ function IconSave() {
   );
 }
 
-function IconTable() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-    </svg>
-  );
-}
-
 function IconCog() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -76,10 +68,15 @@ function IconHealth() {
   );
 }
 
-function IconPrint() {
+function IconExport() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"
+      />
     </svg>
   );
 }
@@ -90,8 +87,7 @@ function Toolbar({
   onLoadPdf,
   onLoadProject,
   onSaveProject,
-  onExportExcel,
-  onPrint,
+  onOpenExport,
   onOpenParameters,
   onOpenProjects,
   onOpenNdt,
@@ -167,24 +163,13 @@ function Toolbar({
       <button
         type="button"
         className={`${btn} btn-secondary`}
-        onClick={onExportExcel}
-        disabled={!hasWelds}
-        title="Export Excel"
+        onClick={onOpenExport}
+        disabled={!hasPdf && !hasWelds}
+        title="Export Excel or drawing PDF"
       >
-        <IconTable />
-        <span className="hidden lg:inline">Excel</span>
+        <IconExport />
+        <span className="hidden lg:inline">Export</span>
       </button>
-      {onPrint && (
-        <button
-          type="button"
-          className={`${btn} btn-ghost`}
-          onClick={onPrint}
-          title="Print"
-        >
-          <IconPrint />
-          <span className="hidden xl:inline">Print</span>
-        </button>
-      )}
       {hasPdf && onOpenParameters && (
         <button type="button" className={`${btn} btn-ghost`} onClick={onOpenParameters} title="Settings">
           <IconCog />
@@ -298,17 +283,10 @@ function Toolbar({
               </button>
             </li>
             <li>
-              <button type="button" onClick={onExportExcel} disabled={!hasWelds}>
-                Export Excel
+              <button type="button" onClick={onOpenExport} disabled={!hasPdf && !hasWelds}>
+                Export
               </button>
             </li>
-            {onPrint && (
-              <li>
-                <button type="button" onClick={onPrint}>
-                  Print
-                </button>
-              </li>
-            )}
             {hasPdf && onOpenParameters && (
               <li>
                 <button type="button" onClick={onOpenParameters}>

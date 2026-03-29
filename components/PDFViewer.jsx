@@ -474,7 +474,7 @@ function PDFViewer({
     <div className="flex flex-col gap-0">
       <div
         ref={containerRef}
-        className={`relative bg-base-100 overflow-auto min-h-[50dvh] mobile-no-scrollbar ${focusMode ? "max-h-[100dvh]" : "max-h-[calc(100dvh-3.5rem)] md:max-h-[calc(100dvh-10rem)]"} ${cursorClass}`}
+        className={`relative bg-white overflow-auto min-h-[50dvh] mobile-no-scrollbar ${focusMode ? "max-h-[100dvh]" : "max-h-[calc(100dvh-3.5rem)] md:max-h-[calc(100dvh-10rem)]"} ${cursorClass}`}
         style={{ touchAction: "pan-x pan-y" }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -487,7 +487,7 @@ function PDFViewer({
         <div
           ref={pageWrapperRef}
           data-print-target="pdf-with-overlays"
-          className="relative inline-block min-w-0 origin-center"
+          className="relative inline-block min-w-0 origin-center bg-white"
           style={
             pinchScaleRatio != null
               ? {
@@ -570,7 +570,6 @@ function PDFViewer({
               onResizeLabel={onResizeLabel}
               onMoveLineBend={onMoveLineBend}
               weldStatusByWeldId={weldStatusByWeldId}
-              spools={spools}
               scale={scale}
               pendingWeldId={pendingLabelId?.type === "weld" ? pendingLabelId.id : null}
               placingIndicatorOverride={pendingWeldPlacingOverride}

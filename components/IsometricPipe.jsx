@@ -75,12 +75,12 @@ export default function IsometricPipe({ className = "" }) {
           <path d="M64 164 L288 164" style={t(0.12, 1.3)} />
           <path d="M64 206 L286 206" style={t(0.12, 1.3)} opacity="0.52" />
 
-          {/* Long-radius elbow into vertical drop */}
-          <path d="M288 164 C334 164 352 182 352 226 L352 318" style={t(0.48, 1.15)} />
-          <path d="M286 206 C324 206 340 220 340 254 L340 318" style={t(0.48, 1.15)} opacity="0.52" />
+          {/* Long-radius elbow into vertical drop — keep same apparent diameter as horizontal (dy ≈ 42 → dx ≈ 42 on vertical) */}
+          <path d="M288 164 C334 164 367 182 367 226 L367 318" style={t(0.48, 1.15)} />
+          <path d="M286 206 C318 206 325 218 325 254 L325 318" style={t(0.48, 1.15)} opacity="0.52" />
 
           {/* Bottom flange */}
-          <rect x="333" y="318" width="26" height="12" rx="3" opacity="0.34" style={t(1.06, 0.55)} />
+          <rect x="325" y="318" width="42" height="12" rx="3" opacity="0.34" style={t(1.06, 0.55)} />
 
           {/* Branch spool with smoother tee and consistent wall spacing */}
           <path d="M184 164 L184 110 C184 104 188 100 194 100 L450 100" style={t(0.34, 1.2)} />

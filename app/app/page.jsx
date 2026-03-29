@@ -60,7 +60,7 @@ const PDFViewerDynamic = dynamic(() => import("@/components/PDFViewer"), {
   loading: () => <div className="p-8">Loading viewer...</div>,
 });
 
-const ModalPrintDynamic = dynamic(() => import("@/components/ModalPrint"), {
+const ModalExportDynamic = dynamic(() => import("@/components/ModalExport"), {
   ssr: false,
 });
 
@@ -135,7 +135,7 @@ export default function WeldTrackerApp() {
   const [showNdtPanel, setShowNdtPanel] = useState(false);
   const [showStatusPage, setShowStatusPage] = useState(false);
   const [showHealthPage, setShowHealthPage] = useState(false);
-  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const [appReady, setAppReady] = useState(false);
   const [showProjectHub, setShowProjectHub] = useState(false);
   const [showSetupWizard, setShowSetupWizard] = useState(false);
@@ -1573,80 +1573,6 @@ export default function WeldTrackerApp() {
     return map;
   }, [weldPoints, drawingSettings, ndtContext]);
 
-  const handlePrint = useCallback(
-    async (options) => {
-      const { runPrint } = await import("@/lib/print-utils");
-      const includePdfDrawing = !!options.pdfDrawing;
-      const prevLayers = { ...markerLayers };
-      const expectsOverlayMarkers =
-        includePdfDrawing &&
-        !!options?.markers &&
-        (options.markers.welds || options.markers.spools || options.markers.parts || options.markers.lines);
-
-      async function waitForOverlayMarkers(maxFrames = 36) {
-        for (let i = 0; i < maxFrames; i++) {
-          const target = document.querySelector("[data-print-target='pdf-with-overlays']");
-          if (target?.querySelector("[data-print-marker]")) return;
-          await new Promise((resolve) => requestAnimationFrame(resolve));
-        }
-      }
-      if (includePdfDrawing) {
-        setMarkerLayers({
-          welds: !!options?.markers?.welds,
-          spools: !!options?.markers?.spools,
-          parts: !!options?.markers?.parts,
-          lines: !!options?.markers?.lines,
-        });
-        if (expectsOverlayMarkers) await waitForOverlayMarkers();
-      }
-      try {
-        await runPrint({
-          pdfDrawing: options.pdfDrawing,
-          markers: options.markers,
-          weldMap: options.weldMap,
-          projectProgress: options.projectProgress,
-          projectSummary: options.projectSummary,
-          pdfBlob,
-          pdfFilename,
-          weldPoints,
-          spools,
-          parts,
-          personnel,
-          drawingSettings,
-          weldStatusByWeldId,
-          getWeldName,
-          ndtContext,
-          drawings,
-          currentPage: pdfPage,
-          markerLayers,
-          spoolMarkers,
-          lineMarkers,
-          partMarkers,
-        });
-      } finally {
-        if (includePdfDrawing) setMarkerLayers(prevLayers);
-      }
-    },
-    [
-      markerLayers,
-      pdfBlob,
-      pdfFilename,
-      weldPoints,
-      spools,
-      parts,
-      personnel,
-      drawingSettings,
-      weldStatusByWeldId,
-      ndtContext,
-      drawings,
-      pdfPage,
-      markerLayers,
-      spoolMarkers,
-      lineMarkers,
-      partMarkers,
-    ]
-  );
-
   const currentPage0 = pdfPage - 1;
 
   const hasMultipleDrawings = drawings.length > 1;
@@ -1699,6 +1625,47 @@ export default function WeldTrackerApp() {
         })
       );
   }, [lines, activeDrawingId, drawings]);
+
+  const handlePrint = useCallback(
+    async (options) => {
+      const { runPrint } = await import("@/lib/print-utils");
+      const exportMarkerLayers = {
+        welds: !!options?.markers?.welds,
+        spools: !!options?.markers?.spools,
+        parts: !!options?.markers?.parts,
+        lines: !!options?.markers?.lines,
+      };
+      return runPrint({
+        pdfDrawing: !!options.pdfDrawing,
+        pdfBlob,
+        pdfRenderScale: Math.min(3, Math.max(1.25, (pdfScale || 1) * 1.75)),
+        includeDrawingMarkers: options.includeDrawingMarkers !== false,
+        exportMarkerLayers,
+        pdfFilename,
+        weldPoints: weldPointsOnActiveDrawing,
+        spoolMarkers: spoolMarkersOnActiveDrawing,
+        lineMarkers: lineMarkersOnActiveDrawing,
+        partMarkers: partMarkersOnActiveDrawing,
+        spools,
+        parts,
+        lines: linesLinkedToActiveDrawing,
+        getWeldName,
+        exportAction: options.exportAction === "print" ? "print" : "download",
+      });
+    },
+    [
+      pdfBlob,
+      pdfFilename,
+      pdfScale,
+      weldPointsOnActiveDrawing,
+      spoolMarkersOnActiveDrawing,
+      partMarkersOnActiveDrawing,
+      lineMarkersOnActiveDrawing,
+      spools,
+      parts,
+      linesLinkedToActiveDrawing,
+    ]
+  );
 
   const weldsOnCurrentPage = useMemo(
     () => weldPointsOnActiveDrawing.filter((w) => (w.pageNumber ?? 0) === currentPage0),
@@ -2019,7 +1986,7 @@ export default function WeldTrackerApp() {
           onLoadPdf={loadPdfFile}
           onLoadProject={handleLoadProject}
           onSaveProject={handleSaveProject}
-          onExportExcel={handleExportExcel}
+          onOpenExport={() => setShowExportModal(true)}
           onOpenParameters={() => setShowParameters(true)}
           onOpenProjects={() => setShowProjects(true)}
           onOpenNdt={() => {
@@ -2037,7 +2004,6 @@ export default function WeldTrackerApp() {
             setShowStatusPage(false);
             setShowHealthPage(true);
           }}
-          onPrint={() => setShowPrintModal(true)}
           onPersistSessionDraft={persistSessionDraftToStorage}
         />
       </>
@@ -2334,7 +2300,7 @@ export default function WeldTrackerApp() {
                     onToggle={() => setShowPagePanel((v) => !v)}
                   />
                 </div>
-                <div className="flex-1 min-w-0 min-h-0 relative">
+                <div className="flex-1 min-w-0 min-h-0 relative bg-white">
                   <PDFViewerDynamic
                     key={pdfViewerKey}
                     pdfBlob={pdfBlob}
@@ -2841,10 +2807,11 @@ export default function WeldTrackerApp() {
         onOpenProject={handleOpenProjectFromStorage}
       />
 
-      <ModalPrintDynamic
-        isOpen={showPrintModal}
-        onClose={() => setShowPrintModal(false)}
-        onPrint={handlePrint}
+      <ModalExportDynamic
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        onExportExcel={handleExportExcel}
+        onDrawingExport={handlePrint}
         hasPdf={!!pdfBlob}
         hasWelds={weldPoints.length > 0}
         hasSpools={spools.length > 0}

@@ -3,6 +3,7 @@ import IsometricPipe from "@/components/IsometricPipe";
 import PipeSplitSection from "@/components/PipeSplitSection";
 import BrandLogo from "@/components/BrandLogo";
 import LandingStepVideo from "@/components/LandingStepVideo";
+import LandingFeedbackStrip from "@/components/LandingFeedbackStrip";
 import {
   RevealOnScroll,
   StaggerChildren,
@@ -21,6 +22,10 @@ export const metadata = {
 
 /* ─── Data ─── */
 
+/** How-it-works clips: optional per-video framing (omit keys to use LandingStepVideo defaults).
+ *  aspect — CSS aspect-ratio of the chrome frame (e.g. "16/10", "16/9").
+ *  cropSidesPct / cropBottomPct — trim encoded letterbox (% of box); black bars are in the pixels.
+ *  objectFit / objectPosition — passed to the <video> element. */
 const howSteps = [
   {
     num: "1",
@@ -137,6 +142,14 @@ const faqItems = [
   { q: "Does it replace our ERP or MES?", a: "No. MapWeld is a capture layer. Export data into whatever system you already use." },
   { q: "Do I need IT to set it up?", a: "No. It runs in a browser, works offline, and saves to local files. No server, no account, no IT ticket." },
   { q: "Where is my data stored?", a: "On your device, in project files you control. Nothing is sent to a cloud." },
+  {
+    q: "Who is MapWeld for?",
+    a: "Fabrication shops, QA/QC teams, and project or document control leads who track welds on PDF isometrics and need structured exports without a heavy enterprise rollout. If that sounds like your team, try the app or email hello@mapweld.app.",
+  },
+  {
+    q: "Can we run a pilot on one project?",
+    a: "Yes. Many teams start with a single job or drawing set. Email hello@mapweld.app or use the Contact page with topic “pilot” so we know what you’re trying to validate.",
+  },
 ];
 
 const faqStructuredData = {
@@ -182,14 +195,22 @@ export default function LandingPage() {
 
         <div className="relative max-w-7xl mx-auto px-6 pt-8 pb-12 md:pt-12 md:pb-16">
           {/* Nav */}
-          <nav className="flex items-center justify-between mb-20 md:mb-28">
+          <nav className="flex items-center justify-between gap-3 mb-20 md:mb-28">
             <BrandLogo href="/" className="text-white" />
-            <Link
-              href="/app"
-              className="btn bg-amber-500 hover:bg-amber-400 text-black border-0 shadow-lg shadow-amber-500/20 hover:shadow-amber-400/30 transition-all duration-300 hover:scale-105 font-bold"
-            >
-              Start free
-            </Link>
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+              <a
+                href="#contact"
+                className="btn btn-ghost btn-sm sm:btn-md text-white/80 hover:text-white hover:bg-white/10 border-0"
+              >
+                Contact
+              </a>
+              <Link
+                href="/app"
+                className="btn bg-amber-500 hover:bg-amber-400 text-black border-0 shadow-lg shadow-amber-500/20 hover:shadow-amber-400/30 transition-all duration-300 hover:scale-105 font-bold"
+              >
+                Start free
+              </Link>
+            </div>
           </nav>
 
           <div className="grid lg:grid-cols-2 gap-16 lg:gap-20 items-center">
@@ -200,10 +221,10 @@ export default function LandingPage() {
                 <br />
                 weld lists.
                 <br />
-                <span className="text-amber-400 animate-fade-up delay-200 inline-block">
-                  Track them on
+                <span className="text-amber-400 animate-fade-up delay-200 block">
+                  Track&nbsp;them&nbsp;on
                   <br />
-                  the drawing.
+                  the&nbsp;drawing.
                 </span>
               </h1>
 
@@ -222,7 +243,7 @@ export default function LandingPage() {
                 ))}
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-4 pt-2 animate-fade-up delay-600">
+              <div className="flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4 pt-2 animate-fade-up delay-600">
                 <Link
                   href="/app"
                   className="btn btn-lg bg-amber-500 hover:bg-amber-400 text-black border-0 shadow-xl shadow-amber-500/25 hover:shadow-amber-400/40 transition-all duration-300 hover:scale-[1.03] active:scale-[0.97] text-lg px-10 font-bold"
@@ -235,13 +256,19 @@ export default function LandingPage() {
                 >
                   See how it works ↓
                 </a>
+                <a
+                  href="#contact"
+                  className="btn btn-lg btn-ghost text-white/50 hover:text-white hover:bg-white/5 transition-all duration-300"
+                >
+                  Contact
+                </a>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-3 animate-fade-up delay-700">
                 {[
                   ["Offline-first", "Core workflow works without a cloud backend for project data"],
                   ["Start in minutes", "No login, no install, no setup project just to evaluate it"],
-                  ["Direct contact", "Email the team at contact@mapweld.app"],
+                  ["Contact", "hello@mapweld.app — or jump to the contact section"],
                 ].map(([title, text]) => (
                   <div key={title} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 backdrop-blur-sm">
                     <p className="text-sm font-bold text-white">{title}</p>
@@ -267,12 +294,12 @@ export default function LandingPage() {
       {/* ════════════════════════════════════════════
           HOW IT WORKS
       ════════════════════════════════════════════ */}
-      <section id="how-it-works" className="relative px-6 py-24 md:py-32 bg-base-100 scroll-mt-8 overflow-hidden">
+      <section id="how-it-works" className="relative px-4 sm:px-6 lg:px-10 py-24 md:py-32 bg-base-100 scroll-mt-8 overflow-hidden">
         <FloatingShapes variant="light" />
 
-        <div className="relative max-w-6xl mx-auto">
+        <div className="relative w-full max-w-screen-2xl mx-auto">
           {/* Section header */}
-          <RevealOnScroll className="text-center mb-20 md:mb-28 space-y-4">
+          <RevealOnScroll className="text-center mb-16 md:mb-24 space-y-4">
             <p className="text-primary font-semibold text-sm uppercase tracking-[0.2em]">
               How it works
             </p>
@@ -286,18 +313,32 @@ export default function LandingPage() {
           </RevealOnScroll>
 
           {/* Steps */}
-          <div className="space-y-20 md:space-y-32">
-            {howSteps.map(({ num, title, desc, videoSrc, posterSrc, badge, objectPosition, side }) => (
+          <div className="space-y-16 md:space-y-28">
+            {howSteps.map(
+              ({
+                num,
+                title,
+                desc,
+                videoSrc,
+                posterSrc,
+                badge,
+                objectPosition,
+                side,
+                aspect = "16/10",
+                cropSidesPct,
+                cropBottomPct,
+                objectFit,
+              }) => (
               <RevealOnScroll
                 key={num}
                 animation={side === "left" ? "animate-slide-left" : "animate-slide-right"}
               >
                 <div
-                  className={`flex flex-col items-center gap-12 md:gap-16 ${
-                    side === "left" ? "md:flex-row" : "md:flex-row-reverse"
+                  className={`flex flex-col items-stretch gap-10 lg:gap-14 xl:gap-16 ${
+                    side === "left" ? "lg:flex-row" : "lg:flex-row-reverse"
                   }`}
                 >
-                  <div className="relative flex-1 w-full max-w-2xl">
+                  <div className="relative w-full min-w-0 lg:flex-[2.25] lg:max-w-none">
                     <span
                       className={`absolute -top-10 ${
                         side === "left" ? "-left-4 md:-left-8" : "-right-4 md:-right-8"
@@ -310,14 +351,17 @@ export default function LandingPage() {
                       poster={posterSrc}
                       title={title}
                       badge={badge}
-                      aspect="16/10"
+                      aspect={aspect}
                       objectPosition={objectPosition}
+                      cropSidesPct={cropSidesPct}
+                      cropBottomPct={cropBottomPct}
+                      objectFit={objectFit}
                     />
                   </div>
 
                   {/* Text */}
-                  <div className="flex-1 space-y-5 text-center md:text-left max-w-md">
-                    <div className="flex items-center justify-center md:justify-start gap-4">
+                  <div className="w-full min-w-0 lg:flex-[0.7] shrink-0 space-y-5 text-center lg:text-left max-w-xl mx-auto lg:mx-0 lg:max-w-sm lg:pt-2 lg:self-center">
+                    <div className="flex items-center justify-center lg:justify-start gap-4">
                       <span className="w-12 h-12 rounded-full bg-primary text-primary-content flex items-center justify-center text-lg font-bold shadow-lg shadow-primary/20">
                         {num}
                       </span>
@@ -429,7 +473,15 @@ export default function LandingPage() {
               </p>
             </div>
             <div className="mt-6 rounded-2xl border border-base-300 bg-base-100 p-4 text-sm text-base-content/65">
-              Want a walkthrough or want to discuss a pilot? Email <a href="mailto:contact@mapweld.app" className="link link-primary">contact@mapweld.app</a>.
+              Want a walkthrough or a pilot on one project?{" "}
+              <Link href="/contact?topic=pilot" className="link link-primary">
+                Contact us
+              </Link>{" "}
+              or email{" "}
+              <a href="mailto:hello@mapweld.app" className="link link-primary">
+                hello@mapweld.app
+              </a>
+              .
             </div>
           </RevealOnScroll>
         </div>
@@ -514,6 +566,38 @@ export default function LandingPage() {
       </section>
 
       {/* ════════════════════════════════════════════
+          CONTACT · FEEDBACK
+      ════════════════════════════════════════════ */}
+      <section
+        id="contact"
+        className="relative px-4 sm:px-6 lg:px-10 py-24 md:py-32 bg-base-200 border-y border-base-300/60 scroll-mt-8 overflow-hidden"
+      >
+        <FloatingShapes variant="light" />
+
+        <div className="relative max-w-3xl mx-auto space-y-12 md:space-y-14">
+          <RevealOnScroll animation="animate-slide-right">
+            <LandingFeedbackStrip />
+          </RevealOnScroll>
+
+          <RevealOnScroll className="rounded-3xl border border-base-300 bg-base-100 p-6 md:p-8 shadow-sm text-center md:text-left space-y-4">
+            <h2 className="text-2xl font-bold text-base-content">Contact</h2>
+            <p className="text-base-content/70 leading-relaxed">
+              Prefer email or a full message form? We usually reply within a few business days.
+            </p>
+            <div className="flex flex-col sm:flex-row flex-wrap gap-3 items-stretch sm:items-center">
+              <a href="mailto:hello@mapweld.app" className="link link-primary text-lg font-semibold break-all">
+                hello@mapweld.app
+              </a>
+              <span className="hidden sm:inline text-base-content/30">·</span>
+              <Link href="/contact" className="btn btn-primary sm:btn-md w-full sm:w-auto">
+                Open contact form
+              </Link>
+            </div>
+          </RevealOnScroll>
+        </div>
+      </section>
+
+      {/* ════════════════════════════════════════════
           BOTTOM CTA
       ════════════════════════════════════════════ */}
       <section className="relative px-6 py-24 md:py-32 bg-[#0f172a] text-white overflow-hidden">
@@ -536,9 +620,9 @@ export default function LandingPage() {
             >
               Open the app
             </Link>
-            <Link href="/contact" className="btn btn-lg btn-ghost text-white/70 hover:text-white hover:bg-white/5">
+            <a href="#contact" className="btn btn-lg btn-ghost text-white/70 hover:text-white hover:bg-white/5">
               Talk to the team
-            </Link>
+            </a>
           </div>
         </RevealOnScroll>
       </section>
@@ -556,7 +640,7 @@ export default function LandingPage() {
                   Live weld traceability — from the shop floor.
                 </p>
                 <p className="mt-1 text-xs text-base-content/40">
-                  Questions? <a href="mailto:contact@mapweld.app" className="hover:text-base-content transition-colors">contact@mapweld.app</a>
+                  Questions? <a href="mailto:hello@mapweld.app" className="hover:text-base-content transition-colors">hello@mapweld.app</a>
                 </p>
               </div>
             </div>
@@ -571,7 +655,7 @@ export default function LandingPage() {
             {[
               ["/about", "About"],
               ["/catalog", "Part Catalog"],
-              ["/contact", "Contact"],
+              ["/#contact", "Contact"],
               ["/privacy", "Privacy Policy"],
               ["/terms", "Terms of Use"],
             ].map(([href, label]) => (

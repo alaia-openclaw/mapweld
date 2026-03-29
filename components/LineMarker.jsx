@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef } from "react";
 import { warnIfDev } from "@/lib/dev-log";
 
-const LINE_BADGE_COLOUR = "border-info bg-info";
+const LINE_MARKER_LINE = "text-sky-500";
+const LINE_BADGE = "border-2 border-sky-500 bg-white text-sky-500";
 
 function clientToPercent(clientX, clientY, pageWrapperRef) {
   const el = pageWrapperRef?.current;
@@ -133,7 +134,7 @@ function LineMarker({
   return (
     <div className={`absolute inset-0 pointer-events-none ${showHandles ? "z-30" : ""}`} data-print-marker="line" aria-hidden>
       {pathHasLength && (
-        <svg className="absolute inset-0 w-full h-full pointer-events-none text-info" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
+        <svg className={`absolute inset-0 w-full h-full pointer-events-none ${LINE_MARKER_LINE}`} viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
           <path d={`M ${ix} ${iy} L ${wx} ${wy}`} fill="none" stroke="currentColor" strokeWidth="0.1" />
         </svg>
       )}
@@ -148,7 +149,7 @@ function LineMarker({
         style={{ left: `${ix}%`, top: `${iy}%` }}
       >
         <span
-          className={`flex items-center justify-center border border-solid rounded-full px-1 font-medium leading-none select-none text-base-100 ${LINE_BADGE_COLOUR}`}
+          className={`flex items-center justify-center border-2 border-solid rounded-full px-1 font-medium leading-none select-none ${LINE_BADGE}`}
           style={{ minWidth: `${badgeMin}px`, minHeight: `${badgeMin}px`, fontSize: `${badgeFontSize}px` }}
         >
           {label}
@@ -165,8 +166,16 @@ function LineMarker({
         )}
       </div>
 
-      <div role="presentation" className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none z-10" style={{ left: `${wx}%`, top: `${wy}%` }}>
-        <span className="block rounded-full bg-info" style={{ width: `${dotSize}px`, height: `${dotSize}px` }} aria-hidden />
+      <div
+        role="presentation"
+        className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none z-10 ${LINE_MARKER_LINE}`}
+        style={{ left: `${wx}%`, top: `${wy}%` }}
+      >
+        <span
+          className="block rounded-full border-2 border-sky-500 bg-white box-border shrink-0"
+          style={{ width: `${Math.max(dotSize + 4, 6)}px`, height: `${Math.max(dotSize + 4, 6)}px` }}
+          aria-hidden
+        />
         {showHandles && (
           <div
             role="button"

@@ -14,7 +14,6 @@ function WeldOverlay({
   onMoveLineBend,
   pageWrapperRef,
   weldStatusByWeldId,
-  spools = [],
   scale = 1,
   pendingWeldId = null,
   placingIndicatorOverride = null,
@@ -26,7 +25,6 @@ function WeldOverlay({
           key={weld.id}
           weld={weld}
           weldPoints={weldPoints}
-          spools={spools}
           onClick={onWeldClick}
           onDoubleClick={onWeldDoubleClick}
           isSelected={weld.id === selectedWeldId}
