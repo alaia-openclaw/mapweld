@@ -3,7 +3,6 @@ import IsometricPipe from "@/components/IsometricPipe";
 import PipeSplitSection from "@/components/PipeSplitSection";
 import BrandLogo from "@/components/BrandLogo";
 import LandingStepVideo from "@/components/LandingStepVideo";
-import LandingFeedbackStrip from "@/components/LandingFeedbackStrip";
 import {
   RevealOnScroll,
   StaggerChildren,
@@ -55,6 +54,7 @@ const howSteps = [
     posterSrc: "/media/mapweld/step-3-fill-weld-info.jpg",
     badge: "Step 3 · Data capture",
     objectPosition: "center top",
+    cropSidesPct: 12.9,
     side: "left",
   },
   {
@@ -66,6 +66,7 @@ const howSteps = [
     badge: "Step 4 · Export",
     objectPosition: "center top",
     side: "right",
+    cropSidesPct: 3.3,
   },
 ];
 
@@ -362,7 +363,7 @@ export default function LandingPage() {
                   {/* Text */}
                   <div className="w-full min-w-0 lg:flex-[0.7] shrink-0 space-y-5 text-center lg:text-left max-w-xl mx-auto lg:mx-0 lg:max-w-sm lg:pt-2 lg:self-center">
                     <div className="flex items-center justify-center lg:justify-start gap-4">
-                      <span className="w-12 h-12 rounded-full bg-primary text-primary-content flex items-center justify-center text-lg font-bold shadow-lg shadow-primary/20">
+                      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary text-lg font-bold text-primary-content shadow-lg shadow-primary/20">
                         {num}
                       </span>
                       <h3 className="text-2xl md:text-3xl font-extrabold text-base-content">
@@ -566,7 +567,7 @@ export default function LandingPage() {
       </section>
 
       {/* ════════════════════════════════════════════
-          CONTACT · FEEDBACK
+          CONTACT
       ════════════════════════════════════════════ */}
       <section
         id="contact"
@@ -575,10 +576,6 @@ export default function LandingPage() {
         <FloatingShapes variant="light" />
 
         <div className="relative max-w-3xl mx-auto space-y-12 md:space-y-14">
-          <RevealOnScroll animation="animate-slide-right">
-            <LandingFeedbackStrip />
-          </RevealOnScroll>
-
           <RevealOnScroll className="rounded-3xl border border-base-300 bg-base-100 p-6 md:p-8 shadow-sm text-center md:text-left space-y-4">
             <h2 className="text-2xl font-bold text-base-content">Contact</h2>
             <p className="text-base-content/70 leading-relaxed">

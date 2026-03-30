@@ -14,7 +14,7 @@ export default function LandingStepVideo({
   /** `cover` fills the frame. Screen recordings often encode black side/top/bottom padding; see crop props. */
   objectFit = "cover",
   /** Crop encoded black bars: % trimmed from left/right of the video (after object-fit). */
-  cropSidesPct = 13,
+  cropSidesPct = 0,
   /** % trimmed from bottom (e.g. OS dock / taskbar in capture). */
   cropBottomPct = 0,
 }) {

@@ -7,7 +7,7 @@ export default function SiteStructuredData() {
         name: "MapWeld",
         url: "https://www.mapweld.app",
         email: "hello@mapweld.app",
-        logo: "https://www.mapweld.app/icon.svg",
+        logo: "https://www.mapweld.app/img/Logo_only.png",
       },
       {
         "@type": "WebSite",
