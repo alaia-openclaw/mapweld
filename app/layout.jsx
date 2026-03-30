@@ -42,8 +42,8 @@ export const metadata = {
     follow: true,
   },
   icons: {
-    icon: "/icon.svg",
-    apple: "/icon.svg",
+    icon: "/img/Logo_only.png",
+    apple: "/img/Logo_only.png",
   },
   alternates: {
     canonical: "https://www.mapweld.app",

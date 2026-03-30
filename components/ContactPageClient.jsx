@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import BrandLogo from "@/components/BrandLogo";
 
 const TOPIC_COPY = {
@@ -25,30 +25,44 @@ const TOPIC_COPY = {
 
 export default function ContactPageClient({ topic: topicParam }) {
   const [form, setForm] = useState({ name: "", email: "", message: "" });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [isSubmitted, setIsSubmitted] = useState(false);
 
   const topicKey = topicParam && TOPIC_COPY[topicParam] ? topicParam : null;
   const topicMeta = topicKey ? TOPIC_COPY[topicKey] : null;
 
-  const mailtoHref = useMemo(() => {
-    const subject = form.name
-      ? `MapWeld enquiry from ${form.name}`
-      : topicMeta?.defaultSubject ?? "MapWeld enquiry";
-
-    const body = [
-      form.message || "Hello MapWeld,",
-      "",
-      form.name ? `Name: ${form.name}` : null,
-      form.email ? `Email: ${form.email}` : null,
-    ]
-      .filter(Boolean)
-      .join("\n");
-
-    return `mailto:hello@mapweld.app?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  }, [form, topicMeta]);
-
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
-    window.location.href = mailtoHref;
+    setSubmitError("");
+    setIsSubmitted(false);
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name,
+          email: form.email,
+          message: form.message,
+          topic: topicMeta?.defaultSubject ?? "General enquiry",
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setSubmitError(payload?.error || "Could not send your message. Please try again.");
+        return;
+      }
+
+      setIsSubmitted(true);
+      setForm({ name: "", email: "", message: "" });
+    } catch {
+      setSubmitError("Network error while sending. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -91,7 +105,7 @@ export default function ContactPageClient({ topic: topicParam }) {
             <div className="border-t border-base-300 pt-8 space-y-4">
               <h2 className="text-lg font-bold text-base-content">Send a message</h2>
               <p className="text-base-content/70 text-sm leading-relaxed">
-                Fill in the fields and send — your email app will open with the message ready to go.
+                Fill in the fields and send. We will receive your message at hello@mapweld.app.
               </p>
 
               <form onSubmit={handleSubmit} className="space-y-4 pt-2">
@@ -141,8 +155,19 @@ export default function ContactPageClient({ topic: topicParam }) {
                   />
                 </div>
 
-                <button type="submit" className="btn btn-primary w-full sm:w-auto">
-                  Send message
+                {submitError ? (
+                  <p className="text-sm text-error" role="alert">
+                    {submitError}
+                  </p>
+                ) : null}
+                {isSubmitted ? (
+                  <p className="text-sm text-success" role="status">
+                    Message sent. We also emailed you a confirmation.
+                  </p>
+                ) : null}
+
+                <button type="submit" className="btn btn-primary w-full sm:w-auto" disabled={isSubmitting}>
+                  {isSubmitting ? "Sending..." : "Send message"}
                 </button>
               </form>
             </div>

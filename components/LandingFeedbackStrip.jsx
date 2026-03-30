@@ -5,7 +5,6 @@ import { track } from "@vercel/analytics";
 
 const TOPICS = [
   { id: "feature", label: "Missing feature", subject: "MapWeld feedback — Missing feature" },
-  { id: "bug", label: "Bug report", subject: "MapWeld feedback — Bug report" },
   { id: "pilot", label: "Pilot interest", subject: "MapWeld feedback — Pilot interest" },
 ];
 
