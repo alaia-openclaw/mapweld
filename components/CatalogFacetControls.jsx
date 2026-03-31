@@ -71,6 +71,93 @@ const BUTTWELDED_VALVE_LEAF_IDS = new Set(BUTTWELDED_VALVE_TYPES.map((t) => t.se
 const THREADED_VALVE_LEAF_IDS = new Set(THREADED_VALVE_TYPES.map((t) => t.selectionId));
 const SOCKETWELDED_VALVE_LEAF_IDS = new Set(SOCKETWELDED_VALVE_TYPES.map((t) => t.selectionId));
 
+const LINE_BLANK_IDS = new Set([
+  "line-blanks",
+  "line-blanks-figure-8",
+  "line-blanks-paddle-spacer",
+  "line-blanks-rtj-figure-8",
+  "line-blanks-rtj-paddle",
+]);
+
+const WELDED_BRANCH_IDS = new Set([
+  "welded-branches",
+  "wb-weldolet",
+  "wb-elbowlet",
+  "wb-latrolet",
+  "wb-threadolet",
+  "wb-threaded-elbowlet",
+  "wb-threaded-latrolet",
+  "wb-sockolet",
+  "wb-socketweld-elbowlet",
+  "wb-socketweld-latrolet",
+  "wb-weldoflange",
+  "wb-elbowflange",
+  "wb-latroflange",
+  "wb-nipoflange",
+]);
+
+const STRAINER_IDS = new Set([
+  "strainers",
+  "strainers-y-type",
+  "strainers-y-flanged",
+  "strainers-y-buttwelded",
+  "strainers-y-threaded",
+  "strainers-y-socketwelded",
+  "strainers-basket",
+  "strainers-basket-single",
+  "strainers-basket-duplex",
+  "strainers-witch-hat",
+  "strainers-top-hat",
+  "strainers-bath-tub",
+]);
+
+const SPACING_IDS = new Set([
+  "spacing",
+  "spacing-pipe",
+  "spacing-pipe-insul",
+  "spacing-flanged",
+  "spacing-flanged-insul",
+]);
+
+const SAFE_SPAN_IDS = new Set([
+  "safe-spans",
+  "safe-spans-rack",
+  "safe-spans-process",
+]);
+
+const PIPE_FLEX_IDS = new Set([
+  "pipe-flexibility",
+  "pipe-flex-loop",
+  "pipe-flex-first-guide",
+]);
+
+const LINE_BLANK_TYPE_OPTIONS = [
+  { id: "figure-8", label: "Figure-8 Blank" },
+  { id: "paddle-spacer", label: "Paddle Blank and Spacer" },
+  { id: "rtj-figure-8", label: "RTJ Male Figure-8 Blank" },
+  { id: "rtj-paddle", label: "RTJ Male Paddle Blank and Spacer" },
+];
+
+const WELDED_BRANCH_TYPE_OPTIONS = [
+  { id: "weldolet", label: "Weldolet" },
+  { id: "elbowlet", label: "Elbowlet" },
+  { id: "latrolet", label: "Latrolet" },
+  { id: "threadolet", label: "Threadolet" },
+  { id: "threaded-elbowlet", label: "Threaded Elbowlet" },
+  { id: "threaded-latrolet", label: "Threaded Latrolet" },
+  { id: "sockolet", label: "Sockolet" },
+  { id: "socketweld-elbowlet", label: "Socketweld Elbowlet" },
+  { id: "socketweld-latrolet", label: "Socketweld Latrolet" },
+  { id: "weldoflange", label: "Weldoflange" },
+  { id: "elbowflange", label: "Elbowflange" },
+  { id: "latroflange", label: "Latroflange" },
+  { id: "nipoflange", label: "Nipoflange" },
+];
+
+const CLASS_OPTIONS = ["150#", "300#", "600#", "800#", "900#"].map((id) => ({ id, label: id }));
+const FACE_OPTIONS = ["RF", "FF", "RTJ"].map((id) => ({ id, label: id }));
+const INSUL_OPTIONS = ["0", "25", "40", "50", "75", "100"].map((id) => ({ id, label: id }));
+
 function sortFlangedValveRows(rows) {
   const pcOrder = { "150#": 0, "300#": 1, "600#": 2, "900#": 3 };
   return rows.slice().sort((a, b) => {
@@ -107,14 +194,7 @@ export default function CatalogFacetControls({
     if (selectedId !== "pipe") return null;
     const entries = Array.isArray(pipeEntries) ? pipeEntries : [];
     const scheduleOptions = uniqueSortedFacetValues(entries.map((e) => e.attributes?.schedule));
-    const formOptions = uniqueSortedFacetValues(
-      entries.map((e) => e.attributes?.pipeForm ?? "Seamless")
-    );
     const npsOptions = uniqueSortedFacetValues(entries.map((e) => e.nps));
-    const odOptions = uniqueSortedFacetValues(entries.map((e) => e.attributes?.od));
-    const wallThkOptions = uniqueSortedFacetValues(entries.map((e) => e.attributes?.wallThk));
-    const idOptions = uniqueSortedFacetValues(entries.map((e) => e.attributes?.id));
-    const isMetric = catalogUnitSystem === "Metric";
 
     return (
       <>
@@ -134,38 +214,6 @@ export default function CatalogFacetControls({
             onSelect={(id) => onFacetChange("p_schedule", id)}
           />
         ) : null}
-        {formOptions.length > 0 ? (
-          <CatalogFacetDropdown
-            label="Form"
-            options={[{ id: "", label: "All" }, ...formOptions.map((f) => ({ id: f, label: f }))]}
-            activeId={catalogFacets.p_form ?? ""}
-            onSelect={(id) => onFacetChange("p_form", id)}
-          />
-        ) : null}
-        {odOptions.length > 0 ? (
-          <CatalogFacetDropdown
-            label={isMetric ? "OD (mm)" : "OD (in)"}
-            options={[{ id: "", label: "All" }, ...odOptions.map((o) => ({ id: o, label: o }))]}
-            activeId={catalogFacets.p_od ?? ""}
-            onSelect={(id) => onFacetChange("p_od", id)}
-          />
-        ) : null}
-        {wallThkOptions.length > 0 ? (
-          <CatalogFacetDropdown
-            label={isMetric ? "Wall thk (mm)" : "Wall thk (in)"}
-            options={[{ id: "", label: "All" }, ...wallThkOptions.map((w) => ({ id: w, label: w }))]}
-            activeId={catalogFacets.p_wall ?? ""}
-            onSelect={(id) => onFacetChange("p_wall", id)}
-          />
-        ) : null}
-        {idOptions.length > 0 ? (
-          <CatalogFacetDropdown
-            label={isMetric ? "ID (mm)" : "ID (in)"}
-            options={[{ id: "", label: "All" }, ...idOptions.map((i) => ({ id: i, label: i }))]}
-            activeId={catalogFacets.p_id ?? ""}
-            onSelect={(id) => onFacetChange("p_id", id)}
-          />
-        ) : null}
       </>
     );
   }, [selectedId, pipeEntries, catalogUnitSystem, catalogFacets, onFacetChange]);
@@ -178,26 +226,21 @@ export default function CatalogFacetControls({
     if (!entries.length) return null;
 
     const scheduleOptions = uniqueSortedFacetValues(entries.map((e) => e.attributes?.schedule ?? e.thickness));
-    const radiusOptions = uniqueSortedFacetValues(entries.map((e) => e.attributes?.radius));
-    const angleOptions = uniqueSortedFacetValues(entries.map((e) => e.attributes?.angle));
     const npsOptions = uniqueSortedFacetValues(entries.map((e) => e.nps));
-    const partTypeOptions = uniqueSortedFacetValues(entries.map((e) => e.partTypeLabel));
-    const odOptions = uniqueSortedFacetValues(entries.map((e) => e.attributes?.od));
-    const isMetric = catalogUnitSystem === "Metric";
+    const lowerSubtype = String(subtypeId || "").toLowerCase();
+    const isBwReducing =
+      lowerSubtype.includes("reducer") ||
+      lowerSubtype.includes("reducing") ||
+      lowerSubtype.includes("tee");
+    const isThreadedOrSw =
+      connectionType === "fittings-threaded" ||
+      connectionType === "fittings-socketwelded";
 
     return (
       <>
-        {partTypeOptions.length > 1 ? (
-          <CatalogFacetDropdown
-            label="Part type"
-            options={[{ id: "", label: "All types" }, ...partTypeOptions.map((p) => ({ id: p, label: p }))]}
-            activeId={catalogFacets.f_part ?? ""}
-            onSelect={(id) => onFacetChange("f_part", id)}
-          />
-        ) : null}
         {npsOptions.length > 0 ? (
           <CatalogFacetDropdown
-            label="Size (NPS / NB)"
+            label={isBwReducing ? "Size" : "Size (NPS / NB)"}
             options={[{ id: "", label: "All sizes" }, ...npsOptions.map((n) => ({ id: n, label: n }))]}
             activeId={catalogFacets.f_nps ?? ""}
             onSelect={(id) => onFacetChange("f_nps", id)}
@@ -205,34 +248,10 @@ export default function CatalogFacetControls({
         ) : null}
         {scheduleOptions.length > 0 ? (
           <CatalogFacetDropdown
-            label="Schedule"
+            label={isThreadedOrSw ? "Rating" : "Schedule"}
             options={[{ id: "", label: "All schedules" }, ...scheduleOptions.map((s) => ({ id: s, label: s }))]}
             activeId={catalogFacets.f_schedule ?? ""}
             onSelect={(id) => onFacetChange("f_schedule", id)}
-          />
-        ) : null}
-        {radiusOptions.length > 0 ? (
-          <CatalogFacetDropdown
-            label="Radius"
-            options={[{ id: "", label: "All" }, ...radiusOptions.map((r) => ({ id: r, label: r }))]}
-            activeId={catalogFacets.f_radius ?? ""}
-            onSelect={(id) => onFacetChange("f_radius", id)}
-          />
-        ) : null}
-        {angleOptions.length > 0 ? (
-          <CatalogFacetDropdown
-            label="Angle"
-            options={[{ id: "", label: "All" }, ...angleOptions.map((a) => ({ id: a, label: a }))]}
-            activeId={catalogFacets.f_angle ?? ""}
-            onSelect={(id) => onFacetChange("f_angle", id)}
-          />
-        ) : null}
-        {odOptions.length > 0 ? (
-          <CatalogFacetDropdown
-            label={isMetric ? "OD (mm)" : "OD (in)"}
-            options={[{ id: "", label: "All" }, ...odOptions.map((o) => ({ id: o, label: o }))]}
-            activeId={catalogFacets.f_od ?? ""}
-            onSelect={(id) => onFacetChange("f_od", id)}
           />
         ) : null}
       </>
@@ -257,9 +276,6 @@ export default function CatalogFacetControls({
       baseRowsForSubtype.map((r) => getFlangePipeScheduleDisplay(r)).filter(Boolean)
     );
     const uniqueRatings = uniqueSortedFacetValues(allBaseRows.map((r) => r.pressureClass));
-    const uniqueOd = uniqueSortedFacetValues(baseRowsForSubtype.map((r) => r.od));
-    const uniquePcd = uniqueSortedFacetValues(baseRowsForSubtype.map((r) => r.pcd));
-
     const showPipeScheduleFacet =
       showWallScheduleOnBar(activeSubtypeId, activeStandard?.subtypes) && uniqueWall.length > 0;
 
@@ -268,8 +284,9 @@ export default function CatalogFacetControls({
     const faceOptions = uniqueFaceTypes.map((ft) => ({ id: ft, label: ft }));
     const npsOptions = uniqueNps.map((n) => ({ id: n, label: n }));
     const wallOptions = uniqueWall.map((w) => ({ id: w, label: w }));
-    const odLabel = catalogUnitSystem === "Metric" ? "OD (mm)" : "OD (in)";
-    const pcdLabel = catalogUnitSystem === "Metric" ? "PCD (mm)" : "PCD (in)";
+    const styleNoFaceType = new Set(["lapped", "asme-compact"]);
+    const hideFaceType = styleNoFaceType.has(activeSubtypeId) || activeStandard.id === "asme-compact";
+    const isApi = activeStandard.id === "api-6b" || activeStandard.id === "api-6bx";
 
     return (
       <>
@@ -283,13 +300,13 @@ export default function CatalogFacetControls({
         ) : null}
         {classOptions.length > 0 ? (
           <CatalogFacetDropdown
-            label="Rating (class)"
+            label={isApi ? "API Rating" : "Class"}
             options={[{ id: "", label: "All ratings" }, ...classOptions]}
             activeId={catalogFacets.fl_rating ?? ""}
             onSelect={(id) => onFacetChange("fl_rating", id)}
           />
         ) : null}
-        {faceOptions.length > 0 ? (
+        {!hideFaceType && faceOptions.length > 0 ? (
           <CatalogFacetDropdown
             label="Face type"
             options={[{ id: "", label: "All" }, ...faceOptions]}
@@ -311,22 +328,6 @@ export default function CatalogFacetControls({
             options={[{ id: "", label: "All" }, ...wallOptions]}
             activeId={catalogFacets.fl_wall ?? ""}
             onSelect={(id) => onFacetChange("fl_wall", id)}
-          />
-        ) : null}
-        {uniqueOd.length > 0 ? (
-          <CatalogFacetDropdown
-            label={odLabel}
-            options={[{ id: "", label: "All" }, ...uniqueOd.map((o) => ({ id: o, label: o }))]}
-            activeId={catalogFacets.fl_od ?? ""}
-            onSelect={(id) => onFacetChange("fl_od", id)}
-          />
-        ) : null}
-        {uniquePcd.length > 0 ? (
-          <CatalogFacetDropdown
-            label={pcdLabel}
-            options={[{ id: "", label: "All" }, ...uniquePcd.map((p) => ({ id: p, label: p }))]}
-            activeId={catalogFacets.fl_pcd ?? ""}
-            onSelect={(id) => onFacetChange("fl_pcd", id)}
           />
         ) : null}
       </>
@@ -517,6 +518,258 @@ export default function CatalogFacetControls({
     );
   }, [selectedId, search, catalogFacets, onFacetChange]);
 
+  const architectureBlock = useMemo(() => {
+    if (LINE_BLANK_IDS.has(selectedId)) {
+      return (
+        <>
+          <CatalogFacetDropdown
+            label="Type"
+            options={LINE_BLANK_TYPE_OPTIONS}
+            activeId={catalogFacets.lb_type ?? LINE_BLANK_TYPE_OPTIONS[0].id}
+            onSelect={(id) => onFacetChange("lb_type", id)}
+          />
+          <CatalogFacetDropdown
+            label="Size (DN)"
+            options={[{ id: "50", label: "50" }, { id: "80", label: "80" }, { id: "150", label: "150" }]}
+            activeId={catalogFacets.lb_size ?? "50"}
+            onSelect={(id) => onFacetChange("lb_size", id)}
+          />
+          <CatalogFacetDropdown
+            label="Class"
+            options={CLASS_OPTIONS}
+            activeId={catalogFacets.lb_class ?? "600#"}
+            onSelect={(id) => onFacetChange("lb_class", id)}
+          />
+          <CatalogFacetDropdown
+            label="Face Type"
+            options={FACE_OPTIONS}
+            activeId={catalogFacets.lb_face ?? "RF"}
+            onSelect={(id) => onFacetChange("lb_face", id)}
+          />
+        </>
+      );
+    }
+
+    if (WELDED_BRANCH_IDS.has(selectedId)) {
+      return (
+        <>
+          <CatalogFacetDropdown
+            label="Type"
+            options={WELDED_BRANCH_TYPE_OPTIONS}
+            activeId={catalogFacets.wb_type ?? WELDED_BRANCH_TYPE_OPTIONS[0].id}
+            onSelect={(id) => onFacetChange("wb_type", id)}
+          />
+          <CatalogFacetDropdown
+            label="Size"
+            options={[{ id: "450", label: "450" }, { id: "300", label: "300" }, { id: "150", label: "150" }]}
+            activeId={catalogFacets.wb_size ?? "450"}
+            onSelect={(id) => onFacetChange("wb_size", id)}
+          />
+          <CatalogFacetDropdown
+            label="Small Size"
+            options={[{ id: "20", label: "20" }, { id: "40", label: "40" }, { id: "80", label: "80" }]}
+            activeId={catalogFacets.wb_small ?? "20"}
+            onSelect={(id) => onFacetChange("wb_small", id)}
+          />
+          <CatalogFacetDropdown
+            label="Rating / Class"
+            options={[...CLASS_OPTIONS, { id: "3000#", label: "3000#" }, { id: "6000#", label: "6000#" }]}
+            activeId={catalogFacets.wb_rating ?? "6000#"}
+            onSelect={(id) => onFacetChange("wb_rating", id)}
+          />
+          <CatalogFacetDropdown
+            label="Schedule"
+            options={[{ id: "STD", label: "STD" }, { id: "XS", label: "XS" }]}
+            activeId={catalogFacets.wb_schedule ?? "STD"}
+            onSelect={(id) => onFacetChange("wb_schedule", id)}
+          />
+        </>
+      );
+    }
+
+    if (selectedId === "nuts" || selectedId === "nuts-unc" || selectedId === "nuts-iso") {
+      return (
+        <CatalogFacetDropdown
+          label="Size"
+          options={
+            selectedId === "nuts-iso"
+              ? [{ id: "M 14", label: "M 14" }, { id: "M 20", label: "M 20" }, { id: "M 24", label: "M 24" }]
+              : [{ id: '0+9/16"', label: '0+9/16"' }, { id: '0+3/4"', label: '0+3/4"' }, { id: '1"', label: '1"' }]
+          }
+          activeId={catalogFacets.n_size ?? (selectedId === "nuts-iso" ? "M 14" : '0+9/16"')}
+          onSelect={(id) => onFacetChange("n_size", id)}
+        />
+      );
+    }
+
+    if (STRAINER_IDS.has(selectedId)) {
+      return (
+        <>
+          <CatalogFacetDropdown
+            label="Size (DN)"
+            options={[{ id: "50", label: "50" }, { id: "150", label: "150" }, { id: "300", label: "300" }]}
+            activeId={catalogFacets.st_size ?? "50"}
+            onSelect={(id) => onFacetChange("st_size", id)}
+          />
+          <CatalogFacetDropdown
+            label="Class"
+            options={CLASS_OPTIONS}
+            activeId={catalogFacets.st_class ?? "150#"}
+            onSelect={(id) => onFacetChange("st_class", id)}
+          />
+        </>
+      );
+    }
+
+    if (SPACING_IDS.has(selectedId)) {
+      return (
+        <>
+          <CatalogFacetDropdown
+            label="Size 1"
+            options={[{ id: "65", label: "65" }, { id: "100", label: "100" }, { id: "150", label: "150" }]}
+            activeId={catalogFacets.sp_size1 ?? "65"}
+            onSelect={(id) => onFacetChange("sp_size1", id)}
+          />
+          <CatalogFacetDropdown
+            label="Size 2"
+            options={[{ id: "25", label: "25" }, { id: "50", label: "50" }, { id: "80", label: "80" }]}
+            activeId={catalogFacets.sp_size2 ?? "25"}
+            onSelect={(id) => onFacetChange("sp_size2", id)}
+          />
+          <CatalogFacetDropdown
+            label="Class 1"
+            options={CLASS_OPTIONS}
+            activeId={catalogFacets.sp_class1 ?? "150#"}
+            onSelect={(id) => onFacetChange("sp_class1", id)}
+          />
+          <CatalogFacetDropdown
+            label="Class 2"
+            options={CLASS_OPTIONS}
+            activeId={catalogFacets.sp_class2 ?? "150#"}
+            onSelect={(id) => onFacetChange("sp_class2", id)}
+          />
+          <CatalogFacetDropdown
+            label="Insul Thk 1"
+            options={INSUL_OPTIONS}
+            activeId={catalogFacets.sp_ins1 ?? "25"}
+            onSelect={(id) => onFacetChange("sp_ins1", id)}
+          />
+          <CatalogFacetDropdown
+            label="Insul Thk 2"
+            options={INSUL_OPTIONS}
+            activeId={catalogFacets.sp_ins2 ?? "25"}
+            onSelect={(id) => onFacetChange("sp_ins2", id)}
+          />
+        </>
+      );
+    }
+
+    if (SAFE_SPAN_IDS.has(selectedId)) {
+      return (
+        <>
+          <CatalogFacetDropdown
+            label="Size"
+            options={[{ id: "65", label: "65" }, { id: "100", label: "100" }, { id: "150", label: "150" }]}
+            activeId={catalogFacets.ss_size ?? "65"}
+            onSelect={(id) => onFacetChange("ss_size", id)}
+          />
+          <CatalogFacetDropdown
+            label="Schedule"
+            options={[{ id: "STD", label: "STD" }, { id: "XS", label: "XS" }, { id: "40", label: "40" }]}
+            activeId={catalogFacets.ss_schedule ?? "STD"}
+            onSelect={(id) => onFacetChange("ss_schedule", id)}
+          />
+          <CatalogFacetDropdown
+            label="Material"
+            options={[{ id: "Carbon Steel", label: "Carbon Steel" }, { id: "Stainless Steel", label: "Stainless Steel" }]}
+            activeId={catalogFacets.ss_material ?? "Carbon Steel"}
+            onSelect={(id) => onFacetChange("ss_material", id)}
+          />
+          <CatalogFacetDropdown
+            label="Full / Empty"
+            options={[{ id: "Full", label: "Full" }, { id: "Empty", label: "Empty" }]}
+            activeId={catalogFacets.ss_fill ?? "Full"}
+            onSelect={(id) => onFacetChange("ss_fill", id)}
+          />
+          <CatalogFacetDropdown
+            label="Insul Thk"
+            options={INSUL_OPTIONS}
+            activeId={catalogFacets.ss_insul ?? "25"}
+            onSelect={(id) => onFacetChange("ss_insul", id)}
+          />
+        </>
+      );
+    }
+
+    if (PIPE_FLEX_IDS.has(selectedId)) {
+      return (
+        <>
+          <CatalogFacetDropdown
+            label="Size"
+            options={[{ id: "65", label: "65" }, { id: "100", label: "100" }, { id: "150", label: "150" }]}
+            activeId={catalogFacets.pf_size ?? "65"}
+            onSelect={(id) => onFacetChange("pf_size", id)}
+          />
+          <CatalogFacetDropdown
+            label="Material"
+            options={[{ id: "Carbon Steel", label: "Carbon Steel" }, { id: "Stainless Steel", label: "Stainless Steel" }]}
+            activeId={catalogFacets.pf_material ?? "Carbon Steel"}
+            onSelect={(id) => onFacetChange("pf_material", id)}
+          />
+          <CatalogFacetDropdown
+            label="Ambient"
+            options={[{ id: "20", label: "20°C" }, { id: "86", label: "86°C" }]}
+            activeId={catalogFacets.pf_ambient ?? "86"}
+            onSelect={(id) => onFacetChange("pf_ambient", id)}
+          />
+          <CatalogFacetDropdown
+            label="Design"
+            options={[{ id: "120", label: "120°C" }, { id: "176", label: "176°C" }, { id: "250", label: "250°C" }]}
+            activeId={catalogFacets.pf_design ?? "176"}
+            onSelect={(id) => onFacetChange("pf_design", id)}
+          />
+          <CatalogFacetDropdown
+            label="Dim A"
+            options={[{ id: "2000", label: "2000" }, { id: "3000", label: "3000" }, { id: "5000", label: "5000" }]}
+            activeId={catalogFacets.pf_dimA ?? "2000"}
+            onSelect={(id) => onFacetChange("pf_dimA", id)}
+          />
+        </>
+      );
+    }
+
+    if (selectedId === "pressure-temperature-ratings") {
+      return (
+        <>
+          <CatalogFacetDropdown
+            label="Material"
+            options={[
+              { id: "group-1-1", label: "Carbon Steel and low-alloy steels" },
+              { id: "group-2-1", label: "Austenitic stainless steels" },
+              { id: "group-3-1", label: "Duplex stainless steels" },
+            ]}
+            activeId={catalogFacets.ptr_material ?? "group-1-1"}
+            onSelect={(id) => onFacetChange("ptr_material", id)}
+          />
+          <CatalogFacetDropdown
+            label="Class"
+            options={CLASS_OPTIONS}
+            activeId={catalogFacets.ptr_class ?? "600#"}
+            onSelect={(id) => onFacetChange("ptr_class", id)}
+          />
+          <CatalogFacetDropdown
+            label="Temperature"
+            options={[{ id: "100", label: "100°C" }, { id: "200", label: "200°C" }, { id: "300", label: "300°C" }]}
+            activeId={catalogFacets.ptr_temp ?? "200"}
+            onSelect={(id) => onFacetChange("ptr_temp", id)}
+          />
+        </>
+      );
+    }
+
+    return null;
+  }, [selectedId, catalogFacets, onFacetChange]);
+
   return (
     <>
       {pipeBlock}
@@ -526,6 +779,7 @@ export default function CatalogFacetControls({
       {ringJointBlock}
       {flangedValveBlock}
       {genericValveBlock}
+      {architectureBlock}
     </>
   );
 }

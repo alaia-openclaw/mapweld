@@ -16,6 +16,7 @@ export default function CatalogView({
   flangesStandards = [],
   pipeEntries = [],
   fittingsEntries = [],
+  submenuMapRows = [],
 }) {
   const tree = useMemo(
     () => injectFlangeChildren(CATEGORY_TREE, flangesStandards),
@@ -96,6 +97,7 @@ export default function CatalogView({
             catalogUnitSystem={catalogUnitSystem}
             catalogFacets={catalogFacets}
             mergeFacets={mergeFacets}
+            submenuMapRows={submenuMapRows}
           />
         </div>
       </div>

@@ -11,8 +11,9 @@ import PanelCatalogButtweldedValves from "@/components/PanelCatalogButtweldedVal
 import PanelCatalogThreadedValves from "@/components/PanelCatalogThreadedValves";
 import PanelCatalogSocketweldedValves from "@/components/PanelCatalogSocketweldedValves";
 import PanelCatalogBranchOverview from "@/components/PanelCatalogBranchOverview";
+import PanelCatalogAvailableParts from "@/components/PanelCatalogAvailableParts";
 import { THREADED_VALVE_TYPES } from "@/lib/threaded-valves-data";
-import { findNodeById } from "@/lib/catalog-tree-path";
+import { findNodeById, findPathToLeaf } from "@/lib/catalog-tree-path";
 import {
   parseFittingsSelectionId,
   filterFittingsBySubtype,
@@ -58,6 +59,7 @@ export default function CatalogContent({
   catalogUnitSystem = CATALOG_UNIT_SYSTEMS[0],
   catalogFacets = {},
   mergeFacets = () => {},
+  submenuMapRows = [],
 }) {
   if (!selectedId) {
     return (
@@ -239,24 +241,32 @@ export default function CatalogContent({
 
   if (tree?.length) {
     const node = findNodeById(tree, selectedId);
+    const selectedPath = findPathToLeaf(tree, selectedId) || [];
     if (node?.children?.length) {
       return (
-        <PanelCatalogBranchOverview
-          tree={tree}
-          selectedId={selectedId}
-          onSelectChild={onSelectCategory}
-        />
+        <div className="space-y-3">
+          <PanelCatalogBranchOverview
+            tree={tree}
+            selectedId={selectedId}
+            onSelectChild={onSelectCategory}
+          />
+          <PanelCatalogAvailableParts
+            rows={submenuMapRows}
+            selectedPath={selectedPath}
+            selectedNodeHasChildren
+            search={search}
+          />
+        </div>
       );
     }
     if (node && !node.children?.length) {
       return (
-        <div className="rounded-xl border border-base-300 bg-base-200/60 p-8 text-center">
-          <p className="font-semibold text-base-content">{node.label}</p>
-          <p className="mt-2 text-sm text-base-content/70">
-            No spreadsheet-style table is bundled for this catalog entry. Use pipe, flanges, fittings, gaskets, or
-            valves for data-backed tables when the reference database is installed.
-          </p>
-        </div>
+        <PanelCatalogAvailableParts
+          rows={submenuMapRows}
+          selectedPath={selectedPath}
+          selectedNodeHasChildren={false}
+          search={search}
+        />
       );
     }
   }
