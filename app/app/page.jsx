@@ -2027,7 +2027,7 @@ export default function WeldTrackerApp() {
       parts={parts}
       drawingSettings={drawingSettings}
     >
-    <div className="md:container md:mx-auto p-0 md:p-4">
+    <div className="w-full p-0 md:p-4">
       <>
         <OfflineBanner />
         {(storageAlerts.indexeddb || storageAlerts.sessionDraft) && (

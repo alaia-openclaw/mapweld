@@ -314,7 +314,10 @@ function Toolbar({
       {/* Desktop toolbar — static */}
       <div className="hidden md:flex items-center justify-between gap-2 bg-base-100 shadow-sm rounded-lg mb-3 px-2 py-1.5">
         <div className="flex items-center min-w-0 gap-2">
-          <span className="text-lg font-bold truncate">Weld Dashboard</span>
+          <span className="text-[1.85rem] font-black tracking-[-0.02em] truncate leading-none">
+            <span className="text-slate-900">MAP</span>
+            <span className="text-sky-400">WELD</span>
+          </span>
         </div>
         <div className="flex min-w-0 flex-1 items-center justify-end">{desktopActions}</div>
       </div>

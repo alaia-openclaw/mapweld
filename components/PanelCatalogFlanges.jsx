@@ -6,7 +6,6 @@ import {
   CATALOG_UNIT_SYSTEMS,
   getFlangePipeScheduleDisplay,
   uniqueSortedFacetValues,
-  catalogFacetMatchesScalar,
 } from "@/lib/catalog-structure";
 import { flangeDrawingFallbackImage } from "@/lib/flanges-config";
 import {
@@ -110,8 +109,6 @@ function TableFlangeDimensions({
   activeNps = "",
   activeWall = "",
   showWallBar = true,
-  activeOd = "",
-  activePcd = "",
 }) {
   const rowsToShow = useMemo(() => {
     return baseRows.filter((row) => {
@@ -127,8 +124,6 @@ function TableFlangeDimensions({
       if (showWallBar && activeWall) {
         if (getFlangePipeScheduleDisplay(row) !== activeWall) return false;
       }
-      if (!catalogFacetMatchesScalar(row.od, activeOd)) return false;
-      if (!catalogFacetMatchesScalar(row.pcd, activePcd)) return false;
       return true;
     });
   }, [
@@ -139,8 +134,6 @@ function TableFlangeDimensions({
     activeNps,
     activeWall,
     showWallBar,
-    activeOd,
-    activePcd,
   ]);
 
   if (!baseRows.length) {
@@ -224,8 +217,6 @@ function PanelCatalogFlanges({
   const activeFaceType = catalogFacets.fl_face ?? "";
   const activeNps = catalogFacets.fl_nps ?? "";
   const activeWall = catalogFacets.fl_wall ?? "";
-  const activeOd = catalogFacets.fl_od ?? "";
-  const activePcd = catalogFacets.fl_pcd ?? "";
 
   const allBaseRows = useMemo(
     () => flattenFlangeStandardRows(activeStandard, catalogUnitSystem),
@@ -271,8 +262,6 @@ function PanelCatalogFlanges({
             activeNps={activeNps}
             activeWall={activeWall}
             showWallBar={showPipeScheduleFacet}
-            activeOd={activeOd}
-            activePcd={activePcd}
           />
           <CardFlangeDrawing
             standard={activeStandard}

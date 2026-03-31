@@ -490,7 +490,7 @@ function PDFViewer({
         <div
           ref={pageWrapperRef}
           data-print-target="pdf-with-overlays"
-          className="relative inline-block min-w-0 origin-center bg-white"
+          className="relative block w-fit mx-auto min-w-0 origin-center bg-white"
           style={
             pinchScaleRatio != null
               ? {
