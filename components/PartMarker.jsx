@@ -2,9 +2,10 @@
 
 import { useCallback, useRef, useEffect } from "react";
 import { warnIfDev } from "@/lib/dev-log";
+import MarkerProgressPill from "./MarkerProgressPill";
 
-const PART_LINE_COLOUR = "text-accent";
-const PART_BADGE_COLOUR = "border-accent bg-accent";
+const PART_LINE = "text-teal-600";
+const PART_BADGE = "border-2 border-teal-600 bg-white text-teal-600";
 
 function clientToPercent(clientX, clientY, pageWrapperRef) {
   const el = pageWrapperRef?.current;
@@ -26,6 +27,7 @@ function PartMarker({
   onMovePartIndicator,
   pageWrapperRef,
   scale = 1,
+  progressPercent = 0,
   indicatorPositionOverride = null,
 }) {
   const draggingRef = useRef(null);
@@ -173,7 +175,7 @@ function PartMarker({
 
       {pathHasLength && (
         <svg
-          className={`absolute inset-0 w-full h-full pointer-events-none ${PART_LINE_COLOUR}`}
+          className={`absolute inset-0 w-full h-full pointer-events-none ${PART_LINE}`}
           viewBox="0 0 100 100"
           preserveAspectRatio="none"
           aria-hidden
@@ -199,8 +201,9 @@ function PartMarker({
           top: `${iy}%`,
         }}
       >
-        <span
-          className={`flex items-center justify-center border border-solid rounded-full px-1 font-medium leading-none select-none text-base-100 ${PART_BADGE_COLOUR}`}
+        <MarkerProgressPill
+          progressPercent={progressPercent}
+          className={`min-h-0 border-2 border-solid rounded-full font-medium leading-none select-none ${PART_BADGE}`}
           style={{
             minWidth: `${badgeMin}px`,
             minHeight: `${badgeMin}px`,
@@ -208,7 +211,7 @@ function PartMarker({
           }}
         >
           {label}
-        </span>
+        </MarkerProgressPill>
         {showHandles && (
           <div
             role="button"
@@ -223,12 +226,12 @@ function PartMarker({
 
       <div
         role="presentation"
-        className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none z-10"
+        className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none z-10 ${PART_LINE}`}
         style={{ left: `${wx}%`, top: `${wy}%` }}
       >
         <span
-          className="block rounded-full bg-accent"
-          style={{ width: `${dotSize}px`, height: `${dotSize}px` }}
+          className="block rounded-full border-2 border-teal-600 bg-white box-border shrink-0"
+          style={{ width: `${Math.max(dotSize + 4, 6)}px`, height: `${Math.max(dotSize + 4, 6)}px` }}
           aria-hidden
         />
         {showHandles && (

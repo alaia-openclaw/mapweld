@@ -359,7 +359,7 @@ Generated from project data, the package includes:
 ## 10. Technical Stack
 
 | Area | Technology |
-|------|------------|
+|------|------------| 
 | Framework | Next.js 14 (App Router) |
 | UI | React 18, Tailwind CSS, DaisyUI |
 | Storage | IndexedDB (idb), sessionStorage |

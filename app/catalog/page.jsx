@@ -3,6 +3,7 @@ import { loadFlangesCatalog } from "@/lib/flanges-data";
 import { loadPipeCatalog } from "@/lib/pipedata-pipe";
 import { loadFittingsCatalog } from "@/lib/pipedata-fittings";
 import { loadCatalogBrowseFromPartCatalogJson } from "@/lib/catalog-browse-fallback";
+import { loadPipedataSubmenuMapRows } from "@/lib/pipedata-submenu-map";
 
 export const dynamic = "force-static";
 
@@ -27,6 +28,7 @@ export default function CatalogPage() {
   const { entries: fsFittings } = loadFittingsCatalog();
 
   const fromJson = loadCatalogBrowseFromPartCatalogJson();
+  const submenuMapRows = loadPipedataSubmenuMapRows();
   const standards = fsStandards.length > 0 ? fsStandards : fromJson.standards;
   const pipeEntries = fsPipe.length > 0 ? fsPipe : fromJson.pipeEntries;
   const fittingsEntries = fsFittings.length > 0 ? fsFittings : fromJson.fittingsEntries;
@@ -61,6 +63,7 @@ export default function CatalogPage() {
           flangesStandards={standards}
           pipeEntries={pipeEntries}
           fittingsEntries={fittingsEntries}
+          submenuMapRows={submenuMapRows}
         />
       )}
     </div>

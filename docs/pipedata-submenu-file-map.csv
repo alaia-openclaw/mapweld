@@ -1,0 +1,146 @@
+category,subcategory,submenuElement,databaseFolder,setFile,backupDataFiles,confidence,notes
+Flange,ASME B16.5 Flanges,Weldneck Flange,Flan,Flan1.SET,Flan1.png; Flg*.csv,high,
+Flange,ASME B16.5 Flanges,Slip-on Flange,Flan,Flan2.SET,Flan2.png; Flg*.csv,high,
+Flange,ASME B16.5 Flanges,Blind Flange,Flan,Flan3.SET,Flan3.png; Flg*.csv,high,
+Flange,ASME B16.5 Flanges,Threaded Flange,Flan,Flan4.SET,Flan4.png; Flg*.csv,high,
+Flange,ASME B16.5 Flanges,SocketWelded Flange,Flan,Flan5.SET,Flan5.png; Flg*.csv,high,
+Flange,ASME B16.5 Flanges,Lapped Flange,Flan,Flan6.SET,Flan6.png; Flg*.csv,high,
+Flange,ASME B16.5 Flanges,Straight Hub Welding Flange,Flan,Flan7.SET,Flan7.png; Flg*.csv,high,
+Flange,ASME B16.47 Series A Flanges,Series A Weldneck Flange,Flaa,Flaa1.SET,Flaa*.csv,medium,OK
+Flange,ASME B16.47 Series A Flanges,Series A Blind Flange,Flaa,Flaa2.SET,Flaa*.csv,medium,OK
+Flange,ASME B16.47 Series B Flanges,Series B Weldneck Flange,Flap,Flap1.set,FlgAp*.csv,high,
+Flange,ASME B16.47 Series B Flanges,Series B Blind Flange,Flap,Flap2.set,FlgAp*.csv,high,
+Flange,ASME Orifice Flanges,Weldneck Orifice Flange,Orif,Orif1.set,Orif*.csv,high,
+Flange,ASME Orifice Flanges,Slip-on Orifice Flange,Orif,Orif2.set,Orif*.csv,high,
+Flange,ASME Orifice Flanges,Threaded Orifice Flange,Orif,Orif3.set,Orif*.csv,high,
+Flange,API Type 6B Flanges,API Type 6B Weldneck Flange,Fl6b,Fl6b1.set,FL6B*.csv,high,
+Flange,API Type 6B Flanges,API Type 6B Threaded Flange,Fl6b,Fl6b2.set,FL6B*.csv,high,
+Flange,API Type 6BX Flanges,API Type BX Weldneck Flange,Flbx,Flbx1.set,Flbx*.csv,high,
+Flange,API Type 6BX Flanges,API Type BX Blind and Test Flange,Flbx,Flbx2.set,Flbx*.csv,high,
+Flange,ASME Reducing Flanges,Threaded Reducing Flange,Flre,Flre1.set,Flre*.csv,high,
+Flange,ASME Reducing Flanges,Slip-On Reducing Flange,Flre,Flre2.set,Flre*.csv,high,
+Flange,ASME Compact Flanges,Compact Flange,Flco,Flco1.set,Flco*.csv,high,
+Flange,ASME Compact Flanges,Compact Swivel Flange,Flco,Flco2.set,Flco*.csv,high,
+Flange,ASME Compact Flanges,Compact Blind Flange,Flco,Flco3.set,Flco*.csv,high,
+Flange,Hub and Clamp,Hub and Clamp Pipe Connector,Flhb,Flhb1.set,Flhb*.csv,high,
+Flange,EN 1092-1 Flanges,Plate Flange,Flom,,Flg*.csv; flg_flom*.csv,low,No .set files present in folder; mapping appears CSV-driven
+Flange,EN 1092-1 Flanges,Blind Flange,Flom,,Flg*.csv; flg_flom*.csv,low,No .set files present in folder; mapping appears CSV-driven
+Flange,EN 1092-1 Flanges,Weldneck Flange,Flom,,Flg*.csv; flg_flom*.csv,low,No .set files present in folder; mapping appears CSV-driven
+Flange,EN 1092-1 Flanges,Slip-On Flange,Flom,,Flg*.csv; flg_flom*.csv,low,No .set files present in folder; mapping appears CSV-driven
+Flange,EN 1092-1 Flanges,Threaded Flange,Flom,,Flg*.csv; flg_flom*.csv,low,No .set files present in folder; mapping appears CSV-driven
+Flange,BS 10 Flanges,BS 10 Flange (by table),Flbs,Flbs1.set,Flbs*.csv,high,
+Fittings,Buttwelded Fittings,BW 45 Elbow,Ftbw,ftbw1.set,Ftbw*.csv,medium,OK
+Fittings,Buttwelded Fittings,BW 90 LR Elbow,Ftbw,ftbw2.set,Ftbw*.csv,medium,OK
+Fittings,Buttwelded Fittings,BW 180 LR Return,Ftbw,ftbw3.set,Ftbw*.csv,medium,OK
+Fittings,Buttwelded Fittings,BW 90 SR Elbow,Ftbw,ftbw4.set,Ftbw*.csv,medium,OK
+Fittings,Buttwelded Fittings,BW 180 SR Return,Ftbw,ftbw5.set,Ftbw*.csv,medium,OK
+Fittings,Buttwelded Fittings,BW Equal Tee,Ftbw,ftbw6.set,Ftbw*.csv,medium,OK
+Fittings,Buttwelded Fittings,BW Reducing Tee,Ftbw,ftbw7.set,Ftbw*.csv,medium,OK
+Fittings,Buttwelded Fittings,BW Cap,Ftbw,ftbw8.set,Ftbw*.csv,medium,OK
+Fittings,Buttwelded Fittings,BW Concentric Reducer,Ftbw,ftbw9.set,Ftbw*.csv,medium,OK
+Fittings,Buttwelded Fittings,BW Eccentric Reducer,Ftbw,ftbw10.set,Ftbw*.csv,medium,OK
+Fittings,Buttwelded Fittings,BW Lap Joint Stub End,Ftbw,ftbw11.set,Ftbw*.csv,medium,OK
+Fittings,Threaded Fittings,Threaded Tee,Ftsc,Ftsc2.set,Ftsc*.csv,low,CORRECTED
+Fittings,Threaded Fittings,Threaded Cross,Ftsc,Ftsc3.set,Ftsc*.csv,low,CORRECTED
+Fittings,Threaded Fittings,Threaded 45 Elbow,Ftsc,Ftsc4.set,Ftsc*.csv,low,CORRECTED
+Fittings,Threaded Fittings,Threaded 90 Street Elbow,Ftsc,Ftsc1.set,Ftsc*.csv,low,CORRECTED
+Fittings,Threaded Fittings,Threaded Coupling,Ftsc,Ftsc5.set,Ftsc*.csv,low,Folder has 26 submenu sets; exact index-to-label needs UI confirmation
+Fittings,Threaded Fittings,Threaded Half Coupling,Ftsc,Ftsc6.set,Ftsc*.csv,low,Folder has 26 submenu sets; exact index-to-label needs UI confirmation
+Fittings,Threaded Fittings,Threaded Cap,Ftsc,Ftsc7.set,Ftsc*.csv,low,Folder has 26 submenu sets; exact index-to-label needs UI confirmation
+Fittings,Threaded Fittings,Threaded Square Head Plug,Ftsc,Ftsc8.set,Ftsc*.csv,low,Folder has 26 submenu sets; exact index-to-label needs UI confirmation
+Fittings,Threaded Fittings,Threaded Hex Head Plug,Ftsc,Ftsc9.set,Ftsc*.csv,low,Folder has 26 submenu sets; exact index-to-label needs UI confirmation
+Fittings,Threaded Fittings,Threaded Round Head Plug,Ftsc,Ftsc10.set,Ftsc*.csv,low,Folder has 26 submenu sets; exact index-to-label needs UI confirmation
+Fittings,Threaded Fittings,Threaded Hex Head Bushing,Ftsc,Ftsc11.set,Ftsc*.csv,low,Folder has 26 submenu sets; exact index-to-label needs UI confirmation
+Fittings,Threaded Fittings,Threaded Flush Bushing,Ftsc,Ftsc12.set,Ftsc*.csv,low,Folder has 26 submenu sets; exact index-to-label needs UI confirmation
+Fittings,Threaded Fittings,Threaded Female-Male Reducer,Ftsc,Ftsc13.set,Ftsc*.csv,low,Folder has 26 submenu sets; exact index-to-label needs UI confirmation
+Fittings,Threaded Fittings,Threaded Reducing Hex Nipple,Ftsc,Ftsc14.set,Ftsc*.csv,low,Folder has 26 submenu sets; exact index-to-label needs UI confirmation
+Fittings,Threaded Fittings,Threaded Reducing Coupling,Ftsc,Ftsc15.set,Ftsc*.csv,low,Folder has 26 submenu sets; exact index-to-label needs UI confirmation
+Fittings,Threaded Fittings,Thread Details,Ftsc,Ftsc16.set,Ftsc*.csv,low,Folder has 26 submenu sets; exact index-to-label needs UI confirmation
+Fittings,Socketwelded Fittings,Socketwelded 90 Elbow,Ftsw,Ftsw1.set,Ftsw*.csv,medium,OK
+Fittings,Socketwelded Fittings,Socketwelded 45 Elbow,Ftsw,Ftsw2.set,Ftsw*.csv,medium,OK
+Fittings,Socketwelded Fittings,Socketwelded Tee,Ftsw,Ftsw3.set,Ftsw*.csv,medium,OK
+Fittings,Socketwelded Fittings,Socketwelded Cross,Ftsw,Ftsw4.set,Ftsw*.csv,medium,OK
+Fittings,Socketwelded Fittings,Socketwelded Coupling,Ftsw,Ftsw5.set,Ftsw*.csv,medium,OK
+Fittings,Socketwelded Fittings,Socketwelded Half Coupling,Ftsw,Ftsw6.set,Ftsw*.csv,medium,OK
+Fittings,Socketwelded Fittings,Socketwelded Cap,Ftsw,Ftsw7.set,Ftsw*.csv,medium,OK
+Fittings,Socketwelded Fittings,Socketwelded Reducing Coupling,Ftsw,Ftsw8.set,Ftsw*.csv,medium,OK
+Fittings,Socketwelded Fittings,Socketwelded Welding Boss,Ftsw,Ftsw9.set,Ftsw*.csv,medium,OK
+Fittings,Socketwelded Fittings,Socketwelded Reducing Insert Type 1,Ftsw,Ftsw10.set,Ftsw*.csv,medium,OK
+Fittings,Socketwelded Fittings,Socketwelded Reducing Insert Type 2,Ftsw,Ftsw11.set,Ftsw*.csv,medium,OK
+Fittings,Socketwelded Fittings,Socketwelded Reducing Insert Type 3,Ftsw,Ftsw12.set,Ftsw*.csv,medium,OK
+Fittings,Socketwelded Fittings,Socketwelded Union,Ftsw,Ftsw13.set,Ftsw*.csv,medium,OK
+Fittings,Socketwelded Fittings,Socket Details,Ftsw,Ftsw14.set,Ftsw*.csv,medium,OK
+Fittings,Swage and Pipe Nipples,Concentric Swage Nipple,Fswa,,Fswa1_Metric.csv; Fswa1_USCust.csv,low,No dedicated numbered .set files
+Fittings,Swage and Pipe Nipples,Eccentric Swage Nipple,Fswa,,Fswa2_Metric.csv; Fswa2_USCust.csv,low,No dedicated numbered .set files
+Fittings,Swage and Pipe Nipples,Pipe Nipple,Fswa,,FswaPipeTable.csv,low,No dedicated numbered .set files
+Gaskets,Nonmetallic Flat Gaskets,ASME B16.5 flat gasket,Gflt,Gflt1.set,Gflt*.csv,high,
+Gaskets,Nonmetallic Flat Gaskets,ASME B16.47 Series A flat gasket,Gflt,Gflt2.set,Gflt*.csv,high,
+Gaskets,Nonmetallic Flat Gaskets,ASME B16.47 Series B flat gasket,Gflt,Gflt3.set,Gflt*.csv,high,
+Gaskets,Spiral-Wound Gaskets,ASME B16.5 spiral gasket,Gspr,Gspr1.set,Gspr*.csv,high,
+Gaskets,Spiral-Wound Gaskets,ASME B16.47 Series A spiral gasket,Gspr,Gspr2.set,Gspr*.csv,high,
+Gaskets,Spiral-Wound Gaskets,ASME B16.47 Series B spiral gasket,Gspr,Gspr3.set,Gspr*.csv,high,
+Gaskets,Ring-Joint Gaskets,Type R ring gasket,Grtj,Grtj1.set,Grtj*.csv,high,
+Gaskets,Ring-Joint Gaskets,Type RX ring gasket,Grtj,Grtj2.set,Grtj*.csv,high,
+Gaskets,Ring-Joint Gaskets,Type BX ring gasket,Grtj,Grtj3.set,Grtj*.csv,high,
+Valves,Flanged Valves,Flanged Gate Valve,Vlfl,Vlfl1.set,Vlfl*.csv,high,
+Valves,Flanged Valves,Flanged Globe Valve,Vlfl,Vlfl2.set,Vlfl*.csv,high,
+Valves,Flanged Valves,Flanged Ball Valve,Vlfl,Vlfl3.set,Vlfl*.csv,high,
+Valves,Flanged Valves,Control Valve,Vlfl,Vlfl4.set,Vlfl*.csv,high,
+Valves,Flanged Valves,Flanged Swing Check Valve,Vlfl,Vlfl5.set,Vlfl*.csv,high,
+Valves,Flanged Valves,Flanged Wafer Check Valve,Vlfl,Vlfl6.set,Vlfl*.csv,high,
+Valves,Flanged Valves,Wafer Type Butterfly Valve,Vlfl,Vlfl7.set,Vlfl*.csv,high,
+Valves,Flanged Valves,Lug Type Butterfly Valve,Vlfl,Vlfl8.set,Vlfl*.csv,high,
+Valves,Buttwelded Valves,Buttwelded Gate Valve,Vlbw,Vlbw1.set,Vlbw*.csv,high,
+Valves,Buttwelded Valves,Buttwelded Globe Valve,Vlbw,Vlbw2.set,Vlbw*.csv,high,
+Valves,Buttwelded Valves,Buttwelded Ball Valve,Vlbw,Vlbw3.set,Vlbw*.csv,high,
+Valves,Buttwelded Valves,Buttwelded Swing Check Valve,Vlbw,Vlbw4.set,Vlbw*.csv,high,
+Valves,Threaded Valves,Threaded Gate Valve,Vlsc,Vlsc1.set,Vlsc*.csv,medium,OK
+Valves,Threaded Valves,Threaded Globe Valve,Vlsc,Vlsc2.set,Vlsc*.csv,medium,OK
+Valves,Threaded Valves,Horizontal Check Valve,Vlsc,Vlsc3.set,Vlsc*.csv,medium,OK
+Valves,Threaded Valves,Vertical Check Valve,Vlsc,Vlsc4.set,Vlsc*.csv,medium,OK
+Valves,Threaded Valves,Threaded Ball Valve,Vlsc,Vlsc5.set,Vlsc*.csv,medium,OK
+Valves,Socketwelded Valves,Socketwelded Gate Valve,Vlsw,Vlsw1.set,Vlsw*.csv,high,
+Valves,Socketwelded Valves,Socketwelded Globe Valve,Vlsw,Vlsw2.set,Vlsw*.csv,high,
+Valves,Socketwelded Valves,Horizontal Check Valve,Vlsw,Vlsw3.set,Vlsw*.csv,high,
+Valves,Socketwelded Valves,Vertical Check Valve,Vlsw,Vlsw4.set,Vlsw*.csv,high,
+Valves,Socketwelded Valves,Socketwelded Ball Valve,Vlsw,Vlsw5.set,Vlsw*.csv,high,
+Line Blanks,,Figure-8 Blank,Blnu,Blnu1.set,Blnu1*.csv,high,Confirmed by user
+Line Blanks,,Paddle Blank and Spacer,Blnu,Blnu2.set,Blnu2*.csv,high,
+Line Blanks,,RTJ Male Figure-8 Blank,Blnu,Blnu3.set,Blnu3*.csv,high,
+Line Blanks,,RTJ Male Paddle Blank and Spacer,Blnu,Blnu4.set,Blnu4*.csv,high,
+Pipe,,Pipe by Schedule,Pipe,,Pipe_*.csv,medium,OK
+Pipe,,Pipe by Wall Thickness,Pwal,Pwal1.set,Carbon Steel.csv; Stainless Steel.csv,medium,OK
+Welded Branches,,Weldolet,Wbol,Wbol1.set,WOL*.csv,medium,OK
+Welded Branches,,Elbowlet,Wbol,Wbol2.set,EOL*.csv,medium,OK
+Welded Branches,,Latrolet,Wbol,Wbol3.set,LOL*.csv,medium,OK
+Welded Branches,,Threadolet,Wbol,Wbol4.set,TOL*.csv,medium,OK
+Welded Branches,,Threaded Elbowlet,Wbol,Wbol5.set,ThreadedElbowPipet_*.csv,low,OK
+Welded Branches,,Threaded Latrolet,Wbol,Wbol6.set,ThreadedLateralPipet_*.csv,low,OK
+Welded Branches,,Sockolet,Wbol,Wbol7.set,SOL*.csv,medium,OK
+Welded Branches,,Socketweld Elbowlet,Wbol,Wbol8.set,SocketweldedElbowPipet_*.csv,low,OK
+Welded Branches,,Socketweld Latrolet,Wbol,Wbol9.set,SocketweldedLateralPipet_*.csv,low,OK
+Welded Branches,,Weldoflange,Wbol,Wbol10.set,Weldoflange*.csv,medium,OK
+Welded Branches,,Elbowflange,Wbol,Wbol11.set,Elboflange*.csv,medium,OK
+Welded Branches,,Latroflange,Wbol,Wbol12.set,Latroflange*.csv,medium,OK
+Welded Branches,,Nipoflange,Wbol,Wbol13.set,Nipoflange*.csv,medium,OK
+Nuts,,UNC Nuts,Nuts,Nuts1.set,,high,
+Nuts,,ISO Nuts,Nuts,Nuts2.set,,high,
+Strainers,Y Type Strainer,Flanged Strainer,Srra,SrrA1.set,Srra1_*.csv,medium,OK
+Strainers,Y Type Strainer,Buttwelded Strainer,Srra,SrrA2.set,Srra2_*.csv,medium,OK
+Strainers,Y Type Strainer,Threaded Strainer,Srra,SrrA3.set,Srra3_*.csv,medium,OK
+Strainers,Y Type Strainer,Socketwelded Strainer,Srra,SrrA4.set,Srra4_*.csv,medium,OK
+Strainers,Basket Type Strainer,Single Basket Type Strainer,Srrb,Srrb1.set,Srrb1_*.csv,low,Srrb has extra set nodes; needs UI verification
+Strainers,Basket Type Strainer,Duplex Basket Type Strainer,Srrb,Srrb2.set,Srrb2_*.csv,low,Srrb has extra set nodes; needs UI verification
+Strainers,,Witch Hat Type Strainer,Srrc,Srrc1.set,Srrc1_*.csv,medium,OK
+Strainers,,Top Hat Type Strainer,Srrd,Srrd1.set,Srrd1_*.csv,medium,OK
+Strainers,,Bath Tub Type Strainer,Srre,Srre1.set,Srre1_*.csv,medium,OK
+ASME Composite,,ASME Composite,Comp,Comp1.set,,high,
+Spacing,,Pipe Spacing,Psiz,Psiz1.set,,medium,OK
+Spacing,,Pipe Spacing With Insulation,Piwt,Piwt1.set,Piwt1_*.csv,medium,OK
+Spacing,,Flanged Pipe Spacing,Fldi,Fldi1.set,Fldi_*.csv,low,Fldi has 5 set nodes; mode split needs UI confirmation
+Spacing,,Flanged Pipe Spacing With Insulation,Gensets,,Gensets/*.set,low,Folder-to-submenu link uncertain
+Safe Spans,,Rack Spans,Span,Span1.set,,medium,OK
+Safe Spans,,Process Area Spans,Span,Span2.set,,medium,OK
+Pipe Flexibility,,Pipe Loop,Fxly,Fxly1.set,,medium,OK
+Pipe Flexibility,,Distance to First Guide,Fxly,Fxly2.set,,medium,OK
+Pressure-Temperature Ratings,,Pressure-Temperature Ratings,Ptem,,Group1.1_*.csv; Group2.1_*.csv; Group3.1_*.csv,high,No dedicated .set file found in folder

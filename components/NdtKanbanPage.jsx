@@ -252,9 +252,6 @@ function NdtKanbanPage({
   }
 
   function buildRequestPdf(request) {
-    // #region agent log
-    fetch("http://127.0.0.1:7422/ingest/05cf4936-8dd3-4ab1-89bc-af4409f2819b",{method:"POST",headers:{"Content-Type":"application/json","X-Debug-Session-Id":"85b471"},body:JSON.stringify({sessionId:"85b471",runId:"run-ndt-request-pdf",hypothesisId:"H1",location:"components/NdtKanbanPage.jsx:buildRequestPdf:start",message:"Building NDT request PDF",data:{requestId:request?.id||null,method:request?.method||null,weldIdsCount:(request?.weldIds||[]).length,hasSystems:Array.isArray(systems),hasParts:Array.isArray(parts),hasPersonnel:!!personnel},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     const blob = buildNdtRequestPdfBlob(request, {
       weldPoints,
       parts,
@@ -265,53 +262,36 @@ function NdtKanbanPage({
       personnel,
       drawingSettings,
     });
-    // #region agent log
-    fetch("http://127.0.0.1:7422/ingest/05cf4936-8dd3-4ab1-89bc-af4409f2819b",{method:"POST",headers:{"Content-Type":"application/json","X-Debug-Session-Id":"85b471"},body:JSON.stringify({sessionId:"85b471",runId:"run-ndt-request-pdf",hypothesisId:"H2",location:"components/NdtKanbanPage.jsx:buildRequestPdf:success",message:"NDT request PDF blob created",data:{requestId:request?.id||null,blobType:blob?.type||null,blobSize:blob?.size??null},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     return { blob, filename: getRequestPdfFileName(request) };
   }
 
   function handleDownloadRequest(request) {
-    try {
-      const { blob, filename } = buildRequestPdf(request);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      // #region agent log
-      fetch("http://127.0.0.1:7422/ingest/05cf4936-8dd3-4ab1-89bc-af4409f2819b",{method:"POST",headers:{"Content-Type":"application/json","X-Debug-Session-Id":"85b471"},body:JSON.stringify({sessionId:"85b471",runId:"run-ndt-request-pdf",hypothesisId:"H3",location:"components/NdtKanbanPage.jsx:handleDownloadRequest:catch",message:"Runtime error while downloading NDT request PDF",data:{requestId:request?.id||null,errorName:error?.name||"Error",errorMessage:error?.message||String(error)},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
-      throw error;
-    }
+    const { blob, filename } = buildRequestPdf(request);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   async function handleShareRequest(request) {
-    try {
-      const { blob, filename } = buildRequestPdf(request);
-      const text = getRequestTextSummary(request);
-      const file = new File([blob], filename, { type: "application/pdf" });
-      if (typeof navigator !== "undefined" && navigator.share && navigator.canShare?.({ files: [file] })) {
-        try {
-          await navigator.share({
-            title: request.title || `NDT Request ${request.method}`,
-            text: text.slice(0, 200) + (text.length > 200 ? "…" : ""),
-            files: [file],
-          });
-        } catch (err) {
-          if (err.name !== "AbortError") fallbackShareRequest(request, text);
-        }
-        return;
+    const { blob, filename } = buildRequestPdf(request);
+    const text = getRequestTextSummary(request);
+    const file = new File([blob], filename, { type: "application/pdf" });
+    if (typeof navigator !== "undefined" && navigator.share && navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({
+          title: request.title || `NDT Request ${request.method}`,
+          text: text.slice(0, 200) + (text.length > 200 ? "…" : ""),
+          files: [file],
+        });
+      } catch (err) {
+        if (err.name !== "AbortError") fallbackShareRequest(request, text);
       }
-      fallbackShareRequest(request, text);
-    } catch (error) {
-      // #region agent log
-      fetch("http://127.0.0.1:7422/ingest/05cf4936-8dd3-4ab1-89bc-af4409f2819b",{method:"POST",headers:{"Content-Type":"application/json","X-Debug-Session-Id":"85b471"},body:JSON.stringify({sessionId:"85b471",runId:"run-ndt-request-pdf",hypothesisId:"H4",location:"components/NdtKanbanPage.jsx:handleShareRequest:catch",message:"Runtime error while sharing NDT request PDF",data:{requestId:request?.id||null,errorName:error?.name||"Error",errorMessage:error?.message||String(error)},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
-      throw error;
+      return;
     }
+    fallbackShareRequest(request, text);
   }
 
   function fallbackShareRequest(request, text) {

@@ -121,10 +121,10 @@ export default function TermsPage() {
           <p>
             Questions about these terms? Reach out at{" "}
             <a
-              href="mailto:contact@mapweld.app"
+              href="mailto:hello@mapweld.app"
               className="link link-primary"
             >
-              contact@mapweld.app
+              hello@mapweld.app
             </a>{" "}
             or visit our{" "}
             <Link href="/contact" className="link link-primary">

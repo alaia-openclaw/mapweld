@@ -3,6 +3,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import DevServiceWorkerCleanup from "@/components/DevServiceWorkerCleanup";
 import SiteStructuredData from "@/components/SiteStructuredData";
+import AppSessionProvider from "@/components/AppSessionProvider";
 
 export const metadata = {
   metadataBase: new URL("https://www.mapweld.app"),
@@ -41,8 +42,8 @@ export const metadata = {
     follow: true,
   },
   icons: {
-    icon: "/icon.svg",
-    apple: "/icon.svg",
+    icon: "/img/Logo_only.png",
+    apple: "/img/Logo_only.png",
   },
   alternates: {
     canonical: "https://www.mapweld.app",
@@ -64,7 +65,7 @@ export default function RootLayout({ children }) {
       </head>
       <body className="min-h-screen bg-base-200 overscroll-none">
         {process.env.NODE_ENV === "development" && <DevServiceWorkerCleanup />}
-        {children}
+        <AppSessionProvider>{children}</AppSessionProvider>
         <Analytics />
         <SpeedInsights />
       </body>

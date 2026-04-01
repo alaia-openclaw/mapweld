@@ -11,6 +11,12 @@ export default function LandingStepVideo({
   aspect = "16/10",
   className = "",
   objectPosition = "center center",
+  /** `cover` fills the frame. Screen recordings often encode black side/top/bottom padding; see crop props. */
+  objectFit = "cover",
+  /** Crop encoded black bars: % trimmed from left/right of the video (after object-fit). */
+  cropSidesPct = 0,
+  /** % trimmed from bottom (e.g. OS dock / taskbar in capture). */
+  cropBottomPct = 0,
 }) {
   const videoRef = useRef(null);
   const [wrapRef, isVisible] = useInView({ threshold: 0.35 });
@@ -27,39 +33,46 @@ export default function LandingStepVideo({
     }
   }, [isVisible]);
 
+  const clipPath =
+    cropSidesPct > 0 || cropBottomPct > 0
+      ? `inset(0 ${cropSidesPct}% ${cropBottomPct}% ${cropSidesPct}%)`
+      : undefined;
+
   return (
     <div
       ref={wrapRef}
-      className={`group relative overflow-hidden rounded-[28px] border border-slate-200 bg-slate-950 shadow-[0_20px_60px_-24px_rgba(15,23,42,0.35)] ${className}`}
+      className={`group relative overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_20px_60px_-24px_rgba(15,23,42,0.2)] ${className}`}
       style={{ aspectRatio: aspect }}
     >
-      <div className="absolute inset-x-0 top-0 z-10 flex h-10 items-center justify-between border-b border-white/10 bg-slate-900/80 px-4 backdrop-blur-sm">
+      <div className="absolute inset-x-0 top-0 z-10 flex h-8 items-center justify-between border-b border-slate-200 bg-slate-100/95 px-3 backdrop-blur-sm">
         <div className="flex items-center gap-2">
           <span className="h-2.5 w-2.5 rounded-full bg-rose-400" />
           <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
           <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
         </div>
-        <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/65">
+        <div className="rounded-full border border-slate-200/80 bg-white px-2.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-slate-500">
           {badge}
         </div>
       </div>
 
-      <video
-        ref={videoRef}
-        className="absolute inset-0 h-full w-full object-cover"
-        style={{ objectPosition, paddingTop: "2.5rem" }}
-        src={src}
-        poster={poster}
-        muted
-        loop
-        playsInline
-        preload="metadata"
-        aria-label={title}
-      />
-
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.05),_transparent_35%),linear-gradient(to_top,_rgba(15,23,42,0.24),_transparent_28%)]" />
-      <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-slate-950 via-slate-950/80 to-transparent px-5 py-4">
-        <p className="text-sm font-medium text-white/85">{title}</p>
+      <div className="landing-step-video-slot absolute inset-0 top-8 z-0 overflow-hidden bg-white">
+        <video
+          ref={videoRef}
+          className="absolute inset-0 block h-full w-full min-h-0 min-w-0"
+          style={{
+            objectFit,
+            objectPosition,
+            backgroundColor: "#ffffff",
+            ...(clipPath ? { clipPath, WebkitClipPath: clipPath } : {}),
+          }}
+          src={src}
+          poster={poster}
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          aria-label={title}
+        />
       </div>
     </div>
   );

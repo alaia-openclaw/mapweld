@@ -2,6 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+/* PDF.js / react-pdf: keep page gutters and canvas backing white (not default dark) */
+.react-pdf__Page {
+  background-color: #fff;
+}
+.react-pdf__Page__canvas {
+  background-color: #fff !important;
+}
+
+/* Landing marketing clips: letterbox/pillarbox fill behind decoded frames */
+.landing-step-video-slot video {
+  background-color: #fff !important;
+}
+
 /* Denser form controls app-wide (panels, modals, status) */
 @layer components {
   .form-control {

@@ -2,9 +2,10 @@
 
 import { useCallback, useRef, useEffect } from "react";
 import { warnIfDev } from "@/lib/dev-log";
+import MarkerProgressPill from "./MarkerProgressPill";
 
-const SPOOL_LINE_COLOUR = "text-secondary";
-const SPOOL_BADGE_COLOUR = "border-secondary bg-secondary";
+const SPOOL_LINE = "text-pink-600";
+const SPOOL_BADGE = "border-2 border-pink-600 bg-white text-pink-600";
 
 function clientToPercent(clientX, clientY, pageWrapperRef) {
   const el = pageWrapperRef?.current;
@@ -26,6 +27,7 @@ function SpoolMarker({
   onMoveSpoolIndicator,
   pageWrapperRef,
   scale = 1,
+  progressPercent = 0,
   indicatorPositionOverride = null,
 }) {
   const draggingRef = useRef(null);
@@ -173,7 +175,7 @@ function SpoolMarker({
 
       {pathHasLength && (
         <svg
-          className="absolute inset-0 w-full h-full pointer-events-none text-secondary"
+          className={`absolute inset-0 w-full h-full pointer-events-none ${SPOOL_LINE}`}
           viewBox="0 0 100 100"
           preserveAspectRatio="none"
           aria-hidden
@@ -199,8 +201,9 @@ function SpoolMarker({
           top: `${iy}%`,
         }}
       >
-        <span
-          className={`flex items-center justify-center border border-solid rounded-full px-1 font-medium leading-none select-none text-base-100 ${SPOOL_BADGE_COLOUR}`}
+        <MarkerProgressPill
+          progressPercent={progressPercent}
+          className={`min-h-0 border-2 border-solid rounded-full font-medium leading-none select-none ${SPOOL_BADGE}`}
           style={{
             minWidth: `${badgeMin}px`,
             minHeight: `${badgeMin}px`,
@@ -208,7 +211,7 @@ function SpoolMarker({
           }}
         >
           {displayName}
-        </span>
+        </MarkerProgressPill>
         {showHandles && (
           <div
             role="button"
@@ -223,12 +226,12 @@ function SpoolMarker({
 
       <div
         role="presentation"
-        className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none z-10"
+        className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none z-10 ${SPOOL_LINE}`}
         style={{ left: `${wx}%`, top: `${wy}%` }}
       >
         <span
-          className="block rounded-full bg-secondary"
-          style={{ width: `${dotSize}px`, height: `${dotSize}px` }}
+          className="block rounded-full border-2 border-pink-600 bg-white box-border shrink-0"
+          style={{ width: `${Math.max(dotSize + 4, 6)}px`, height: `${Math.max(dotSize + 4, 6)}px` }}
           aria-hidden
         />
         {showHandles && (

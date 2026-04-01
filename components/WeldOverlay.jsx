@@ -13,9 +13,8 @@ function WeldOverlay({
   onResizeLabel,
   onMoveLineBend,
   pageWrapperRef,
-  weldStatusByWeldId,
-  spools = [],
   scale = 1,
+  weldProgressByWeldId = null,
   pendingWeldId = null,
   placingIndicatorOverride = null,
 }) {
@@ -26,7 +25,6 @@ function WeldOverlay({
           key={weld.id}
           weld={weld}
           weldPoints={weldPoints}
-          spools={spools}
           onClick={onWeldClick}
           onDoubleClick={onWeldDoubleClick}
           isSelected={weld.id === selectedWeldId}
@@ -36,8 +34,8 @@ function WeldOverlay({
           onResizeLabel={onResizeLabel}
           onMoveLineBend={onMoveLineBend}
           pageWrapperRef={pageWrapperRef}
-          weldStatus={weldStatusByWeldId?.get(weld.id)}
           scale={scale}
+          progressPercent={weldProgressByWeldId?.get(weld.id) ?? 0}
           indicatorPositionOverride={
             pendingWeldId === weld.id ? placingIndicatorOverride : null
           }

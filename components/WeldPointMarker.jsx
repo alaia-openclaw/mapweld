@@ -4,20 +4,22 @@ import { useCallback, useRef, useEffect } from "react";
 import { WELD_TYPES, WELD_LOCATION } from "@/lib/constants";
 import { getWeldName } from "@/lib/weld-utils";
 import { warnIfDev } from "@/lib/dev-log";
+import MarkerProgressPill from "./MarkerProgressPill";
 
-const BULLET_COLOURS = {
-  [WELD_LOCATION.SHOP]: "border-success bg-success",
-  [WELD_LOCATION.FIELD]: "border-error bg-error",
+/** White label + colored outline/text/line (shop blue, field red). */
+const LABEL_STYLES = {
+  [WELD_LOCATION.SHOP]: "border-blue-600 bg-white text-blue-600",
+  [WELD_LOCATION.FIELD]: "border-red-600 bg-white text-red-600",
 };
 
 const LINE_COLOURS = {
-  [WELD_LOCATION.SHOP]: "text-success",
-  [WELD_LOCATION.FIELD]: "text-error",
+  [WELD_LOCATION.SHOP]: "text-blue-600",
+  [WELD_LOCATION.FIELD]: "text-red-600",
 };
 
 const LABEL_FONT_SIZE_MIN = 8;
 const LABEL_FONT_SIZE_MAX = 24;
-const WELD_MARKER_DISPLAY_SCALE = 0.5;
+/** Match PartMarker / SpoolMarker: `Math.max(8, round(10 * scale))`; weld `labelFontSize` scales relative to 12. */
 
 function clientToPercent(clientX, clientY, pageWrapperRef) {
   const el = pageWrapperRef?.current;
@@ -31,7 +33,6 @@ function clientToPercent(clientX, clientY, pageWrapperRef) {
 function WeldPointMarker({
   weld,
   weldPoints = [],
-  spools = [],
   onClick,
   onDoubleClick,
   isSelected,
@@ -41,8 +42,8 @@ function WeldPointMarker({
   onResizeLabel,
   onMoveLineBend,
   pageWrapperRef,
-  weldStatus,
   scale = 1,
+  progressPercent = 0,
   indicatorPositionOverride = null,
 }) {
   const draggingRef = useRef(null);
@@ -87,17 +88,16 @@ function WeldPointMarker({
   const width = Math.max(maxX - minX, 6);
   const height = Math.max(maxY - minY, 6);
 
-  const bulletColourClass = BULLET_COLOURS[weldLocation] || BULLET_COLOURS[WELD_LOCATION.SHOP];
+  const labelOutlineClass = LABEL_STYLES[weldLocation] || LABEL_STYLES[WELD_LOCATION.SHOP];
   const lineColourClass = LINE_COLOURS[weldLocation] || LINE_COLOURS[WELD_LOCATION.SHOP];
   const weldName = getWeldName(weld, weldPoints);
-  const spoolName = weld.spoolId
-    ? spools.find((s) => s.id === weld.spoolId)?.name
-    : null;
   const rawFontSize = weld.labelFontSize ?? 12;
-  const displayFontSize = Math.max(4, rawFontSize * WELD_MARKER_DISPLAY_SCALE);
-  const scaledFontSize = displayFontSize * scale;
-  const scaledMin = Math.max(16, displayFontSize * 2) * scale;
-  const bulletSize = Math.max(2, Math.round(6 * scale));
+  const partLikeBasePx = Math.max(8, Math.round(10 * scale));
+  const scaledFontSize = Math.max(8, Math.round((rawFontSize / 12) * partLikeBasePx));
+  /** Same min badge size as PartMarker / SpoolMarker — no fixed square, text + px-1 defines width. */
+  const badgeMin = Math.round(18 * scale);
+  /** FW symbol: horizontal top/bottom, 45° sides, outward arrows (matches print-utils). */
+  const fieldSymbolPx = Math.max(11, Math.round(12 * scale));
   const dotSize = Math.max(1, Math.round(2 * scale));
 
   const handlePointerMove = useCallback(
@@ -337,41 +337,44 @@ function WeldPointMarker({
         tabIndex={indicatorPositionOverride ? -1 : 0}
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
-        onPointerDown={showHandles ? handleIndicatorHandlePointerDown : undefined}
-        className={`absolute -translate-x-1/2 -translate-y-1/2 flex items-center justify-center border-2 border-solid z-10 ${bulletColourClass}
+        className={`absolute -translate-x-1/2 -translate-y-1/2 flex items-center justify-center gap-1 z-10
           ${indicatorPositionOverride ? "pointer-events-none" : "pointer-events-auto"}
-          ${isField ? "rotate-45" : "rounded-full"}
-          ${lineColourClass}
-          ${showHandles ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}
-          ${isSelected ? (showHandles ? "ring-2 ring-error ring-offset-1" : "ring-2 ring-primary ring-offset-1") : weldStatus === "complete" ? "ring-2 ring-success ring-offset-1" : weldStatus === "incomplete" ? "ring-2 ring-warning ring-offset-1" : weldStatus === "not_started" ? "ring-2 ring-error ring-offset-1" : ""}`}
+          ${isField ? "rotate-45" : ""}
+          ${indicatorPositionOverride ? "" : "cursor-pointer"}
+          ${isSelected ? (showHandles ? "ring-2 ring-error ring-offset-1 rounded-full" : "ring-2 ring-primary ring-offset-1 rounded-full") : ""}`}
         style={{
           left: `${ix}%`,
           top: `${iy}%`,
-          minWidth: `${scaledMin}px`,
-          minHeight: `${scaledMin}px`,
         }}
         aria-label={showHandles ? "Drag to move label" : undefined}
       >
-        <span
-          className={`font-medium leading-none select-none text-base-100 flex flex-col items-center
+        <MarkerProgressPill
+          progressPercent={progressPercent}
+          className={`min-h-0 border-2 border-solid rounded-full font-medium leading-none select-none text-center whitespace-nowrap ${labelOutlineClass}
             ${isField ? "-rotate-45" : ""}`}
-          style={{ fontSize: `${scaledFontSize}px` }}
+          style={{
+            minWidth: `${badgeMin}px`,
+            minHeight: `${badgeMin}px`,
+            fontSize: `${scaledFontSize}px`,
+          }}
         >
-          <span>{weldName}</span>
-          {spoolName && (
-            <span
-              className="opacity-70 text-[0.65em] leading-tight"
-              style={{ fontSize: `${Math.max(4, scaledFontSize * 0.65)}px` }}
-            >
-              {spoolName}
-            </span>
-          )}
-        </span>
+          {weldName}
+        </MarkerProgressPill>
+        {showHandles && (
+          <div
+            role="button"
+            tabIndex={indicatorPositionOverride ? -1 : 0}
+            className="absolute -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-2 border-error bg-white cursor-grab active:cursor-grabbing hover:scale-110 transition-transform"
+            style={{ left: "50%", top: "50%", zIndex: 20 }}
+            onPointerDown={handleIndicatorHandlePointerDown}
+            aria-label="Drag to move label"
+          />
+        )}
       </div>
 
       <div
         role="presentation"
-        className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none z-10"
+        className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none z-10 ${lineColourClass}`}
         style={{
           left: `${wx}%`,
           top: `${wy}%`,
@@ -379,32 +382,32 @@ function WeldPointMarker({
       >
         {isField ? (
           <svg
-            width={bulletSize}
-            height={bulletSize}
-            className="text-current"
+            width={fieldSymbolPx}
+            height={fieldSymbolPx}
+            viewBox="0 0 24 24"
+            className="text-inherit shrink-0"
             aria-hidden
           >
-            <line
-              x1="0.5"
-              y1="0.5"
-              x2={bulletSize - 0.5}
-              y2={bulletSize - 0.5}
+            <path
+              d="M 8.85 6.15 L 15.15 6.15 L 21 12 L 15.15 17.85 L 8.85 17.85 L 3 12 Z"
+              fill="white"
               stroke="currentColor"
-              strokeWidth={Math.max(0.5, 1 * scale)}
+              strokeWidth={Math.max(0.9, 1.05 * scale)}
+              strokeLinejoin="miter"
             />
-            <line
-              x1={bulletSize - 0.5}
-              y1="0.5"
-              x2="0.5"
-              y2={bulletSize - 0.5}
-              stroke="currentColor"
-              strokeWidth={Math.max(0.5, 1 * scale)}
+            <path
+              fill="currentColor"
+              d="M 1.15 12 L 3.55 10.35 L 3.55 13.65 Z"
+            />
+            <path
+              fill="currentColor"
+              d="M 22.85 12 L 20.45 10.35 L 20.45 13.65 Z"
             />
           </svg>
         ) : (
           <span
-            className="block rounded-full bg-current"
-            style={{ width: `${dotSize}px`, height: `${dotSize}px` }}
+            className="block rounded-full border-2 border-blue-600 bg-white box-border shrink-0"
+            style={{ width: `${Math.max(dotSize + 4, 6)}px`, height: `${Math.max(dotSize + 4, 6)}px` }}
             aria-hidden
           />
         )}
