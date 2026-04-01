@@ -11,16 +11,22 @@ function ModalExport({
   hasWelds,
   hasSpools,
   hasParts,
+  isAuthenticated = true,
 }) {
   const [includeIndications, setIncludeIndications] = useState(true);
   const [markerWelds, setMarkerWelds] = useState(true);
   const [markerSpools, setMarkerSpools] = useState(true);
   const [markerParts, setMarkerParts] = useState(true);
   const [markerLines, setMarkerLines] = useState(true);
+  const [showAuthBanner, setShowAuthBanner] = useState(false);
 
   const runDrawingExport = useCallback(
     async (exportAction) => {
       if (!hasPdf) return;
+      if (!isAuthenticated) {
+        setShowAuthBanner(true);
+        return;
+      }
       try {
         await onDrawingExport({
           pdfDrawing: true,
@@ -39,6 +45,7 @@ function ModalExport({
     },
     [
       hasPdf,
+      isAuthenticated,
       includeIndications,
       markerWelds,
       markerSpools,
@@ -51,8 +58,12 @@ function ModalExport({
 
   const handleExcel = useCallback(() => {
     if (!hasWelds) return;
+    if (!isAuthenticated) {
+      setShowAuthBanner(true);
+      return;
+    }
     onExportExcel?.();
-  }, [hasWelds, onExportExcel]);
+  }, [hasWelds, isAuthenticated, onExportExcel]);
 
   if (!isOpen) return null;
 
@@ -63,6 +74,31 @@ function ModalExport({
         <p className="text-sm text-base-content/70 mt-1">
           Download weld data as Excel, or export the active drawing as PDF (all pages).
         </p>
+
+        {showAuthBanner && (
+          <div className="mt-4 rounded-lg border border-warning bg-warning/10 p-4 relative">
+            <button
+              type="button"
+              className="absolute top-2 right-2 btn btn-ghost btn-xs btn-circle"
+              onClick={() => setShowAuthBanner(false)}
+              aria-label="Dismiss"
+            >
+              ✕
+            </button>
+            <p className="text-base font-semibold mb-1">🔒 Sign in to export</p>
+            <p className="text-sm text-base-content/70 mb-3">
+              MapWeld is free to use. Export (Excel &amp; PDF) requires a free account — takes 30 seconds.
+            </p>
+            <div className="flex gap-2 flex-wrap">
+              <a href="/login" className="btn btn-primary btn-sm">
+                Sign in
+              </a>
+              <a href="/register" className="btn btn-outline btn-sm">
+                Create free account
+              </a>
+            </div>
+          </div>
+        )}
 
         <div className="mt-4 space-y-5">
           <div className="space-y-2">
